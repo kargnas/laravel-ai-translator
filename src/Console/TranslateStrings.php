@@ -99,6 +99,10 @@ class TranslateStrings extends Command
     public function getExistingLocales(): array {
         $root = $this->sourceDirectory;
         $directories = array_diff(scandir($root), ['.', '..']);
+        // only directories
+        $directories = array_filter($directories, function ($directory) use ($root) {
+            return is_dir($root . '/' . $directory);
+        });
         return $directories;
     }
 

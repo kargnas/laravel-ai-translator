@@ -90,7 +90,7 @@ Currently, this package only supports PHP language files used by Laravel. JSON l
 
 ## AI Service
 
-Currently, this package uses Claude from Anthropic for translations. Support for GPT-3.5, GPT-4, and GPT-4 Turbo is planned for future releases.
+Currently, this package uses Claude from Anthropic for translations. Support for GPT-3.5, GPT-4, and GPT-4o is planned for future releases.
 
 ## Contributing
 

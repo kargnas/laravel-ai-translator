@@ -8,8 +8,14 @@ Follow these rules
 - Keep the words forms same. Don't change the tense or form of the words.
 {additionalRules}
 
-You must provide it to me in list of JSON format. Other response also should be also in JSON format.
-
+You must provide it to me in list of JSON format. Other response also should be also in JSON format. You should use \n for new lines in JSON.
 - `key`: The key of the text.
 - `translated`: The translated text.
-- `comment_gpt`: The comment from GPT-3.
+
+This is example:
+```
+{
+  "key": "commands.build.description_help",
+  "translated": "Builds a structure from a file\n(Use \"{command}\" to see the list of available structures)"
+}
+```

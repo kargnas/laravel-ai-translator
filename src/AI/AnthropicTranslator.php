@@ -19,7 +19,7 @@ class AnthropicTranslator
     ) {
     }
 
-    protected function translateInternally(): array {
+    protected function translateInternally(): ?array {
         $systemPrompt = file_get_contents(__DIR__ . '/anthropic-prompt-system.txt');
         $userPrompt = file_get_contents(__DIR__ . '/anthropic-prompt-user.txt');
 
@@ -96,7 +96,7 @@ class AnthropicTranslator
                 \Log::debug($result);
                 \Log::error($e->getMessage());
             }
-        } while ($tried++ <= $this->retries);
+        } while (++$tried <= $this->retries);
 
         throw new VerifyFailedException('Failed to translate the string.');
     }

@@ -64,7 +64,7 @@ class TranslateStrings extends Command
                 continue;
             }
 
-            $this->info("Starting $locale");
+            $this->info("Starting {$locale}");
             $files = $this->getStringFilePaths($this->sourceLocale);
             foreach ($files as $file) {
                 $outputFile = $this->getOutputDirectoryLocale($locale) . '/' . basename($file);
@@ -74,12 +74,12 @@ class TranslateStrings extends Command
                 $targetStringTransformer = new PHPLangTransformer($outputFile);
                 foreach ($sourceStringList as $key => $value) {
                     if ($targetStringTransformer->isTranslated($key)) {
-                        $this->line("Skipping $key");
+                        $this->line("=> Skipping $key");
                         continue;
                     }
 
                     $translator = new AnthropicTranslator(
-                        key: $key,
+                        key: pathinfo($file, PATHINFO_FILENAME) . "." . $key,
                         string: $value,
                         sourceLanguage: static::getLanguageName($this->sourceLocale) ?? $this->sourceLocale,
                         targetLanguage: static::getLanguageName($locale) ?? $locale,
@@ -87,8 +87,6 @@ class TranslateStrings extends Command
                     );
 
                     $result = $translator->translate();
-                    $this->line("[{$key}] {$value}");
-                    $this->line("=> {$result['translated']}");
 
                     $targetStringTransformer->updateString($key, $result['translated']);
                 }

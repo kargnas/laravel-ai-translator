@@ -25,7 +25,7 @@ php artisan ai-translator:translate
 This command will:
 1. Recognize all language folders in your `lang` directory
 2. Use AI to translate the contents of these files
-3. Use English (`en`) as the source language for translations
+3. Use English (`en`) as the source language for translations (You can change the source language in the config file)
 
 ## Configuration
 

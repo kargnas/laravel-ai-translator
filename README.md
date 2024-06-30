@@ -8,8 +8,7 @@ Also, the detailed consideration is that this package will translate your string
 
 ## Prerequisites
 
-- PHP 7.4 or higher
-- Laravel 8.0 or higher
+- PHP 8.0 or higher
 
 ## Installation
 

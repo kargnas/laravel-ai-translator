@@ -1,0 +1,37 @@
+{
+    "name": "kargnas/laravel-ai-translator",
+    "description": "",
+    "keywords": [
+        "kargnas",
+        "laravel-ai-translator",
+        "ai-translator"
+    ],
+    "license": "MIT",
+    "homepage": "https://github.com/kargnas/laravel-ai-translate",
+    "type": "library",
+    "authors": [
+        {
+            "name": "Sangrak Choi",
+            "email": "kars@kargn.as",
+            "role": "Developer"
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "Kargnas\\LaravelAiTranslator\\": "src"
+        }
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "php-http/discovery": true
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Kargnas\\LaravelAiTranslator\\ServiceProvider"
+            ]
+        }
+    }
+}

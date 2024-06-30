@@ -1,6 +1,10 @@
 # Laravel AI Translator
 
-Automatically translate your Laravel language files using AI.
+Automatically translate your Laravel language files using AI. 
+
+I was struggling with translating my strings recently for my personal projects. I can use AI, but it is annoying and not convenient. So I just made this package to make it automation flow. When you add a new string in the default language (en), just run our translate command. It will translate into all languages.
+
+Also, the detailed consideration is that this package will translate your strings more smartly. This will respect your variables, the tense of the expressions, and the length of the words.
 
 ## Installation
 

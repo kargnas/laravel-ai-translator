@@ -12,11 +12,29 @@ Also, the detailed consideration is that this package will translate your string
 
 ## Installation
 
-You can install the package via composer:
+1. Install the package via composer:
 
 ```bash
 composer require kargnas/laravel-ai-translator
 ```
+
+2. Add the Anthropic API key to your `.env` file:
+
+```
+ANTHROPIC_API_KEY=your-api-key-here
+```
+
+You can obtain an API key from the [Anthropic website](https://www.anthropic.com) or your Anthropic account dashboard.
+
+3. (Optional) Publish the configuration file:
+
+```bash
+php artisan vendor:publish --provider="Kargnas\LaravelAiTranslator\LaravelAiTranslatorServiceProvider"
+```
+
+This step is optional but recommended if you want to customize the package's behavior. It will create a `config/ai-translator.php` file where you can modify various settings.
+
+4. You're now ready to use the Laravel AI Translator!
 
 ## Usage
 

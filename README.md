@@ -76,13 +76,62 @@ return array (
 
 ## Configuration
 
-If you want to customize the source language or other settings, you can publish the configuration file:
+If you want to customize the settings, you can publish the configuration file:
 
 ```bash
 php artisan vendor:publish --provider="Kargnas\LaravelAiTranslator\LaravelAiTranslatorServiceProvider"
 ```
 
-This will create a `config/ai-translator.php` file where you can modify the settings.
+This will create a `config/ai-translator.php` file where you can modify the following settings:
+
+1. `source_locale`: Change this to your default language in the Laravel project. The package will translate from this language.
+
+2. `source_directory`: If you use a different directory for language files instead of the default `lang` directory, you can specify it here.
+
+3. `ai`: Currently only supports Anthropic's Claude. You can configure the API key and model version here.
+
+4. `locale_names`: This mapping of locale codes to language names enhances translation quality by providing context to the AI.
+
+5. `additional_rules`: Add custom rules to the translation prompt. This is useful for customizing the style of the messages.
+
+Example configuration:
+
+```php
+<?php
+
+return [
+    'source_locale' => 'en',
+    'source_directory' => 'lang',
+
+    'ai' => [
+        'provider' => 'anthropic',
+        'model' => 'claude-3-5-sonnet-20240620',
+        'api_key' => env('ANTHROPIC_API_KEY'),
+    ],
+
+    'locale_names' => [
+        'en' => 'English',
+        'ko' => 'Korean',
+        'zh_cn' => 'Chinese (Simplified)',
+        // ... other locales
+    ],
+
+    'additional_rules' => [
+        'default' => [
+            "Use a friendly and intuitive tone of voice, like the service tone of voice of 'Discord'.",
+        ],
+        'ko' => [
+            "한국의 인터넷 서비스 '토스'의 서비스 말투 처럼, 유저에게 친근하고 직관적인 말투로 설명하고 존댓말로 설명하세요.",
+        ],
+    ],
+];
+```
+
+Make sure to set your Anthropic API key in your `.env` file:
+
+```
+ANTHROPIC_API_KEY=your-api-key-here
+```
 
 ## Supported File Types
 

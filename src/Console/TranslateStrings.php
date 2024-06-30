@@ -93,8 +93,6 @@ class TranslateStrings extends Command
             }
 
             $this->info("Finished translating $locale");
-
-            sleep(1);
         }
     }
 

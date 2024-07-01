@@ -6,6 +6,16 @@ I was struggling with translating my strings recently for my personal projects. 
 
 Also, the detailed consideration is that this package will translate your strings more smartly. This will respect your variables, the tense of the expressions, and the length of the words.
 
+## Key Features
+
+This tool is designed to translate your language files intelligently:
+
+- Contextual Understanding: Analyzes keys to determine if they represent buttons, descriptions, or other UI elements.
+- Linguistic Precision: Preserves word forms, tenses, and punctuation in translations.
+- Variable Handling: Respects and maintains your language file variables during translation.
+- Smart Length Adaptation: Adjusts translation length to fit UI constraints where possible.
+- Tone Consistency: Maintains a consistent tone across translations, customizable via configuration.
+
 ## Prerequisites
 
 - PHP 8.0 or higher

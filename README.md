@@ -24,6 +24,8 @@ This tool is designed to translate your language files intelligently:
 - Smart Length Adaptation: Adjusts translation length to fit UI constraints where possible.
 - Tone Consistency: Maintains a consistent tone across translations, customizable via configuration.
 
+Do you want to know how this works? See the prompt in `src/AI`.
+
 ## Prerequisites
 
 - PHP 8.0 or higher

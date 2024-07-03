@@ -186,6 +186,7 @@ We're constantly working to improve Laravel AI Translator. Here are some feature
 - [ ] Write test code to ensure reliability and catch potential issues
 - [ ] Add support for JSON language files
 - [ ] Implement functionality to maintain the array structure of strings during translation
+- [ ] Expand support for other LLMs (such as OpenAI GPT)
 
 If you'd like to contribute to any of these tasks, please feel free to submit a pull request!
 

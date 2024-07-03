@@ -1,6 +1,6 @@
 # Laravel AI Translator
 
-Automatically translate your Laravel language files into multiple languages using AI with a single command!
+Automatically translate your Laravel language files into multiple languages from English using AI with a single command!
 
 ## Overview
 
@@ -178,6 +178,16 @@ Currently, this package only supports PHP language files used by Laravel. JSON l
 ## AI Service
 
 Currently, this package uses Claude from Anthropic for translations. Support for GPT-3.5, GPT-4, and GPT-4o is planned for future releases.
+
+## TODO List
+
+We're constantly working to improve Laravel AI Translator. Here are some features and improvements we're planning:
+
+- [ ] Write test code to ensure reliability and catch potential issues
+- [ ] Add support for JSON language files
+- [ ] Implement functionality to maintain the array structure of strings during translation
+
+If you'd like to contribute to any of these tasks, please feel free to submit a pull request!
 
 ## Contributing
 

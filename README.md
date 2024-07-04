@@ -16,7 +16,13 @@ Whether you're working on a personal project or a large-scale application, Larav
 
 ## Key Features
 
-This tool is designed to translate your language files intelligently:
+- Automatically detects all language folders in your `lang` directory
+- Translates PHP language files from a source language (default: English) to all other languages
+- Uses Anthropic's Claude AI for intelligent translations
+- Respects variables, tenses, and word lengths in translations
+- Supports multiple locales out of the box
+
+Also, this tool is designed to translate your language files intelligently:
 
 - Contextual Understanding: Analyzes keys to determine if they represent buttons, descriptions, or other UI elements.
 - Linguistic Precision: Preserves word forms, tenses, and punctuation in translations.

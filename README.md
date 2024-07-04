@@ -203,3 +203,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## License
 
 The MIT License (MIT). Please see [License File](LICENSE.md) for more information.
+
+## Credits
+
+- Created by [Sangrak Choi](https://kargn.as)

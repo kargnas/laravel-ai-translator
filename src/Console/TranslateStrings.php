@@ -11,16 +11,14 @@ class TranslateStrings extends Command
 {
     protected $signature = 'ai-translator:translate';
 
-    protected $description = 'Translates all language files in these directories: ';
-
     protected $sourceLocale;
     protected $sourceDirectory;
 
     public function __construct() {
         parent::__construct();
         $this->setDescription(
-            "Translates all PHP language files in this directory: " . config('ai-translate.source_directory') .
-            "\n\nSource Locale: " . config('ai-translate.source-locale'),
+            "Translates all PHP language files in this directory: " . config('ai-translator.source_directory') .
+            "\n  Source Locale: " . config('ai-translator.source_locale'),
         );
     }
 

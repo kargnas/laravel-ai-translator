@@ -16,7 +16,7 @@ Whether you're working on a personal project or a large-scale application, Larav
 
 ## Key Features
 
-- Automatically detects all language folders in your `lang` directory (It's okay if the directory is empty)
+- Automatically detects all language folders in your `lang` directory (It's okay even if the directory is empty)
 - Translates PHP language files from a source language (default: English) to all other languages
 - Uses Anthropic's Claude AI for intelligent translations
 - Respects variables, tenses, and word lengths in translations

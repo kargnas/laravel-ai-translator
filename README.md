@@ -205,6 +205,10 @@ Currently, this package uses Claude from Anthropic for translations. Support for
 
 We're constantly working to improve Laravel AI Translator. Here are some features and improvements we're planning:
 
+- [ ] Implement strict validation for translations:
+  - Verify that variables are correctly preserved in translated strings
+  - Ensure placeholders and Laravel-specific syntax are maintained
+  - Check for consistency in pluralization rules across translations
 - [ ] Write test code to ensure reliability and catch potential issues
 - [ ] Implement functionality to maintain the array structure of strings during translation
 - [ ] Expand support for other LLMs (such as OpenAI GPT)

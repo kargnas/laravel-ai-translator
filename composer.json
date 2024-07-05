@@ -4,7 +4,11 @@
     "keywords": [
         "kargnas",
         "laravel-ai-translator",
-        "ai-translator"
+        "ai",
+        "translator",
+        "translate",
+        "gpt",
+        "claude"
     ],
     "license": "MIT",
     "homepage": "https://github.com/kargnas/laravel-ai-translate",

@@ -1,4 +1,4 @@
-# Laravel AI Translator
+# kargnas/laravel-ai-translator
 
 AI-powered translation tool for Laravel language files
 

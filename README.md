@@ -259,3 +259,4 @@ The MIT License (MIT). Please see [License File](LICENSE.md) for more informatio
 ## Credits
 
 - Created by [Sangrak Choi](https://kargn.as)
+- Inspired by [Mandarin Study](https://mandarin.study)

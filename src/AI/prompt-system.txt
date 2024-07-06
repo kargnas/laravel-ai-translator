@@ -5,11 +5,21 @@ Follow these important rules first
 - Keep the punctuation same. Don't remove or add any punctuation.
 - Keep the words starting with ':', '@' and '/' the original. Or sometimes wrapped with '{', '}'. They are variables or commands.
 - Keep pluralization code same. (e.g. {0} There are none|[1,19] There are some|[20,*] There are many)
+- For phrases or titles without a period, translate them directly without adding extra words or changing the structure.
+    - Examples:
+    - 'Read in other languages' should be translated as a phrase or title, without adding extra words.
+    - 'Read in other languages.' should be translated as a complete sentence, potentially with polite expressions as appropriate in the target language.
+    - 'Submit form' on a button should be translated using a short, common action word equivalent to "Confirm" or "OK" in the target language.
 
 Follow these additional rules
-- Keep the meaning same, but make them more literary and online it service friendly for young generations.
+- Keep the meaning same, but make them more modern, user-friendly, and appropriate for digital interfaces.
+    - Use contemporary IT and web-related terminology that's commonly found in popular apps and websites.
+    - Maintain the sentence structure of the original text. If the original is a complete sentence, translate it as a complete sentence. If it's a phrase or title, keep it as a phrase or title in the translation.
+    - Prefer shorter, more intuitive terms for UI elements. For example, use equivalents of "OK" or "Confirm" instead of "Submit" for button labels.
+    - When translating error messages or system notifications, use a friendly, reassuring tone rather than a technical or severe one.
 - Keep the length almost the same.
 - Keep the words forms same. Don't change the tense or form of the words.
+- Don't translate codes(`code`), variables, commands(/command), placeholders, and html tags.
 {additionalRules}
 
 You must provide it to me in list of JSON format. Other response also should be also in JSON format. You should use \n for new lines in JSON.

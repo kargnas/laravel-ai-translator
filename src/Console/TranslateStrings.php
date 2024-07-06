@@ -4,7 +4,8 @@ namespace Kargnas\LaravelAiTranslator\Console;
 
 
 use Illuminate\Console\Command;
-use Kargnas\LaravelAiTranslator\AI\AnthropicTranslator;
+use Kargnas\LaravelAiTranslator\AI\AIProvider;
+use Kargnas\LaravelAiTranslator\AI\AnthropicAIProvider;
 use Kargnas\LaravelAiTranslator\Transformers\PHPLangTransformer;
 
 class TranslateStrings extends Command
@@ -76,7 +77,7 @@ class TranslateStrings extends Command
                         continue;
                     }
 
-                    $translator = new AnthropicTranslator(
+                    $translator = new AIProvider(
                         key: pathinfo($file, PATHINFO_FILENAME) . "." . $key,
                         string: $value,
                         sourceLanguage: static::getLanguageName($this->sourceLocale) ?? $this->sourceLocale,

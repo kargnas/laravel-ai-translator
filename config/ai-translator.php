@@ -5,9 +5,12 @@ return [
     'source_directory' => 'lang',
 
     'ai' => [
-        'provider' => 'anthropic',
-        'model' => 'claude-3-5-sonnet-20240620',
-        'api_key' => env('ANTHROPIC_API_KEY'),
+//        'provider' => 'anthropic',
+//        'model' => 'claude-3-5-sonnet-20240620',
+//        'api_key' => env('ANTHROPIC_API_KEY'),
+        'provider' => 'openai',
+        'model' => 'gpt-4o',
+        'api_key' => env('OPENAI_API_KEY'),
     ],
 
     'locale_names' => [

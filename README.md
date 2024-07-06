@@ -1,28 +1,32 @@
 # Laravel AI Translator
 
-Automatically translate your Laravel language files into multiple languages from English using AI with a single command!
+AI-powered translation tool for Laravel language files
 
 ## Overview
 
-Laravel AI Translator is a powerful tool designed to streamline the localization process in Laravel projects. Born out of the frustration of manual translation work, this package automates the tedious task of translating strings across multiple languages.
+Laravel AI Translator is a powerful tool designed to streamline the localization process in Laravel projects. It automates the tedious task of translating strings across multiple languages, leveraging advanced AI models to provide high-quality, context-aware translations.
 
 Key benefits:
 - Time-saving: Translate all your language files with one simple command
-- AI-powered: Utilizes advanced AI (Claude or GPT) to provide high-quality translations
-- Smart context understanding: Respects variables, tenses, and linguistic nuances
-- Seamless integration: Works within your existing Laravel project structure
+- AI-powered: Utilizes state-of-the-art language models (GPT or Claude) for superior translation quality
+- Smart context understanding: Accurately captures nuances, technical terms, and Laravel-specific expressions
+- Seamless integration: Works within your existing Laravel project structure, preserving complex language file structures
 
 ## Key Features
 
-- Automatically detects all language folders in your `lang` directory (It's okay even if the directory is empty)
+- Automatically detects all language folders in your `lang` directory
 - Translates PHP language files from a source language (default: English) to all other languages
-- Supports both Anthropic's Claude AI and OpenAI's GPT for intelligent translations
-- Respects variables, tenses, and word lengths in translations
-- Supports multiple locales out of the box
+- Supports multiple AI providers for intelligent, context-aware translations
+- Preserves variables, HTML tags, pluralization codes, and nested structures
+- Maintains consistent tone and style across translations
+- Supports custom translation rules for enhanced quality and project-specific requirements
+- Efficiently processes large language files, saving time and effort
+- Respects Laravel's localization system, ensuring compatibility with your existing setup
 
 ## Prerequisites
 
 - PHP 8.0 or higher
+- Laravel 8.0 or higher
 
 ## Installation
 

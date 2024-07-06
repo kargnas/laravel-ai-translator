@@ -44,45 +44,45 @@ Do you want to know how this works? See the prompt in `src/AI`.
 
 1. Install the package via composer:
 
-```bash
-composer require kargnas/laravel-ai-translator
-```
+    ```bash
+    composer require kargnas/laravel-ai-translator
+    ```
 
 2. Add the OpenAI API key to your `.env` file:
 
-```
-OPENAI_API_KEY=your-openai-api-key-here
-```
+    ```
+    OPENAI_API_KEY=your-openai-api-key-here
+    ```
 
-You can obtain an API key from the [OpenAI website](https://platform.openai.com/account/api-keys).
-
-(If you want to use Anthropic's Claude instead, see step 4 below for configuration instructions.)
+    You can obtain an API key from the [OpenAI website](https://platform.openai.com/account/api-keys).
+    
+    (If you want to use Anthropic's Claude instead, see step 4 below for configuration instructions.)
 
 3. (Optional) Publish the configuration file:
 
-```bash
-php artisan vendor:publish --provider="Kargnas\LaravelAiTranslator\LaravelAiTranslatorServiceProvider"
-```
-
-This step is optional but recommended if you want to customize the package's behavior. It will create a `config/ai-translator.php` file where you can modify various settings.
+    ```bash
+    php artisan vendor:publish --provider="Kargnas\LaravelAiTranslator\LaravelAiTranslatorServiceProvider"
+    ```
+    
+    This step is optional but recommended if you want to customize the package's behavior. It will create a `config/ai-translator.php` file where you can modify various settings.
 
 4. (Optional) If you want to use Anthropic's Claude instead of OpenAI's GPT, update the `config/ai-translator.php` file:
 
-```php
-'ai' => [
-    'provider' => 'anthropic',
-    'model' => 'claude-3-5-sonnet-20240620',
-    'api_key' => env('ANTHROPIC_API_KEY'),
-],
-```
-
-Then, add the Anthropic API key to your `.env` file:
-
-```
-ANTHROPIC_API_KEY=your-anthropic-api-key-here
-```
-
-You can obtain an Anthropic API key from the [Anthropic website](https://www.anthropic.com).
+    ```php
+    'ai' => [
+        'provider' => 'anthropic',
+        'model' => 'claude-3-5-sonnet-20240620',
+        'api_key' => env('ANTHROPIC_API_KEY'),
+    ],
+    ```
+    
+    Then, add the Anthropic API key to your `.env` file:
+    
+    ```
+    ANTHROPIC_API_KEY=your-anthropic-api-key-here
+    ```
+    
+    You can obtain an Anthropic API key from the [Anthropic website](https://www.anthropic.com).
 
 5. You're now ready to use the Laravel AI Translator!
 

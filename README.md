@@ -230,19 +230,8 @@ If you're currently using JSON files for your translations, we recommend migrati
 
 This package supports both OpenAI's GPT models and Anthropic's Claude for translations, each with its own strengths:
 
-- OpenAI:
-    - GPT-4o: Optimized for speed and efficiency. Ideal for short-form translations and high-volume tasks. It offers a great balance of speed and quality.
-    - GPT-4: Provides high-quality translations with good understanding of context.
-    - GPT-3.5: Faster and more cost-effective, suitable for simpler translation tasks.
-
-- Anthropic:
-    - Claude: Excels at translating longer texts and producing more natural-sounding translations. It's slower compared to GPT models but can handle complex, nuanced content better.
-
-Choose your model based on your specific needs:
-
-- For quick translations of short texts or UI elements, GPT-4o or GPT-3.5 might be your best bet.
-- For longer content where nuance and natural flow are crucial, Claude could be the better choice.
-- If you need a balance of speed and quality for mixed content, GPT-4 is a solid all-rounder.
+- OpenAI
+- Anthropic
 
 ## TODO List
 

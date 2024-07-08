@@ -85,8 +85,9 @@ Do you want to know how this works? See the prompt in `src/AI`.
     ```
 
    You can obtain an Anthropic API key from the [Anthropic website](https://www.anthropic.com).
+   For best results, we recommend using the Claude-3-5-Sonnet model for your translations rather than OpenAI GPT. This model provides more accurate and natural translations.
 
-5. You're now ready to use the Laravel AI Translator!
+6. You're now ready to use the Laravel AI Translator!
 
 ## Usage
 

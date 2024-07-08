@@ -6,18 +6,29 @@ return [
 
     'ai' => [
 //        'provider' => 'anthropic',
-//        'model' => 'claude-3-5-sonnet-20240620',
+//        'model' => 'claude-3-5-sonnet-20240620', // Best result. Recommend for production.
 //        'api_key' => env('ANTHROPIC_API_KEY'),
+//        'retries' => 3,
+//        'provider' => 'openai',
+//        'model' => 'gpt-4o', // Balanced. Normal price, normal accuracy. Recommend for production.
+//        'api_key' => env('OPENAI_API_KEY'),
+//        'retries' => 3,
+//        'provider' => 'anthropic',
+//        'model' => 'claude-3-haiku-20240307', // Recommend to use for testing purpose. It's better than gpt-3.5
+//        'api_key' => env('ANTHROPIC_API_KEY'),
+//        'retries' => 5,
         'provider' => 'openai',
-        'model' => 'gpt-4o',
+        'model' => 'gpt-3.5-turbo', // Recommend to use for testing purpose. It sometimes doesn't translate.
         'api_key' => env('OPENAI_API_KEY'),
+        'retries' => 5,
     ],
 
     'locale_names' => [
         'en' => 'English',
         'ko' => 'Korean',
         'zh_cn' => 'Chinese (Simplified)',
-        'zh_tw' => 'Chinese (Traditional)',
+        'zh_tw' => 'Chinese (Traditional, Taiwan)',
+        'zh_hk' => 'Chinese (Traditional, Hong Kong)',
         'ja' => 'Japanese',
         'es' => 'Spanish',
         'fr' => 'French',

@@ -7,6 +7,7 @@ AI-powered translation tool for Laravel language files
 Laravel AI Translator is a powerful tool designed to streamline the localization process in Laravel projects. It automates the tedious task of translating strings across multiple languages, leveraging advanced AI models to provide high-quality, context-aware translations.
 
 Key benefits:
+
 - Time-saving: Translate all your language files with one simple command
 - AI-powered: Utilizes state-of-the-art language models (GPT-4, GPT-4o, GPT-3.5, Claude) for superior translation quality
 - Smart context understanding: Accurately captures nuances, technical terms, and Laravel-specific expressions
@@ -54,17 +55,17 @@ Do you want to know how this works? See the prompt in `src/AI`.
     OPENAI_API_KEY=your-openai-api-key-here
     ```
 
-    You can obtain an API key from the [OpenAI website](https://platform.openai.com/account/api-keys).
-    
-    (If you want to use Anthropic's Claude instead, see step 4 below for configuration instructions.)
+   You can obtain an API key from the [OpenAI website](https://platform.openai.com/account/api-keys).
+
+   (If you want to use Anthropic's Claude instead, see step 4 below for configuration instructions.)
 
 3. (Optional) Publish the configuration file:
 
     ```bash
     php artisan vendor:publish --provider="Kargnas\LaravelAiTranslator\LaravelAiTranslatorServiceProvider"
     ```
-    
-    This step is optional but recommended if you want to customize the package's behavior. It will create a `config/ai-translator.php` file where you can modify various settings.
+
+   This step is optional but recommended if you want to customize the package's behavior. It will create a `config/ai-translator.php` file where you can modify various settings.
 
 4. (Optional) If you want to use Anthropic's Claude instead of OpenAI's GPT, update the `config/ai-translator.php` file:
 
@@ -75,14 +76,14 @@ Do you want to know how this works? See the prompt in `src/AI`.
         'api_key' => env('ANTHROPIC_API_KEY'),
     ],
     ```
-    
-    Then, add the Anthropic API key to your `.env` file:
-    
+
+   Then, add the Anthropic API key to your `.env` file:
+
     ```
     ANTHROPIC_API_KEY=your-anthropic-api-key-here
     ```
-    
-    You can obtain an Anthropic API key from the [Anthropic website](https://www.anthropic.com).
+
+   You can obtain an Anthropic API key from the [Anthropic website](https://www.anthropic.com).
 
 5. You're now ready to use the Laravel AI Translator!
 
@@ -95,6 +96,7 @@ php artisan ai-translator:translate
 ```
 
 This command will:
+
 1. Recognize all language folders in your `lang` directory
 2. Use AI to translate the contents of the string files in the source language, English. (You can change the source language in the config file)
 
@@ -116,6 +118,7 @@ return [
 The package will generate translations like these:
 
 Korean (ko-kr):
+
 ```php
 <?php
 return array (
@@ -125,6 +128,7 @@ return array (
 ```
 
 Chinese (zh-cn):
+
 ```php
 <?php
 return array (
@@ -134,6 +138,7 @@ return array (
 ```
 
 Thai (th-th):
+
 ```php
 <?php
 return array (
@@ -157,6 +162,16 @@ This will create a `config/ai-translator.php` file where you can modify the foll
 2. `source_directory`: If you use a different directory for language files instead of the default `lang` directory, you can specify it here.
 
 3. `ai`: Configure the AI provider, model, and API key here.
+
+   | Provider  | Model                          | Cost (Input/Output per 1M token) | Descrpition                                      |
+                                                                              |-----------|--------------------------------|----------------------------------|--------------------------------------------------|
+   | anthropic | **claude-3-5-sonnet-20240620** | $3.00 / $15.00                   | The best quality, little bit slow. We recommend. |
+   | anthropic | claude-3-opus-20240229         | $15.00 / $75.00                  | Good quality, but very slow.                     |
+   | anthropic | claude-3-sonnet-20240229       | $3.00 / $15.00                   | Don't know                                       |
+   | anthropic | **claude-3-haiku-20240307**    | $0.25 / $1.25                    | Low quality, but better than gpt-3.5             |
+   | openai    | **gpt-4o**                     | $5.00 / $15.00                   | Balanced quality and high speed                  |
+   | openai    | gpt-4-turbo                    | Expensive more than gpt-4o       | Low quality like 3.5. Don't use this.            |
+   | openai    | gpt-3.5-turbo                  | $0.50 / $1.50                    | Low quality. Use for testing purpose.            |
 
 4. `locale_names`: This mapping of locale codes to language names enhances translation quality by providing context to the AI.
 
@@ -205,15 +220,18 @@ Currently, this package only supports PHP language files used by Laravel. JSON l
 
 We recommend using PHP files for managing translations, especially when dealing with multiple languages. Here's why:
 
-1. **Structure**: PHP files allow for a more organized structure with nested arrays, making it easier to group related translations.
+1. **Structure
+   **: PHP files allow for a more organized structure with nested arrays, making it easier to group related translations.
 
 2. **Comments**: You can add comments in PHP files to provide context or instructions for translators.
 
 3. **Performance**: PHP files are slightly faster to load compared to JSON files, as they don't require parsing.
 
-4. **Flexibility**: PHP files allow for more complex operations, such as using variables or conditions in your translations.
+4. **Flexibility
+   **: PHP files allow for more complex operations, such as using variables or conditions in your translations.
 
-5. **Scalability**: When managing a large number of translations across multiple languages, the directory structure of PHP files makes it easier to navigate and maintain.
+5. **Scalability
+   **: When managing a large number of translations across multiple languages, the directory structure of PHP files makes it easier to navigate and maintain.
 
 If you're currently using JSON files for your translations, we recommend migrating to PHP files for better compatibility with this package and improved manageability of your translations.
 
@@ -230,6 +248,7 @@ This package supports both OpenAI's GPT models and Anthropic's Claude for transl
     - Claude: Excels at translating longer texts and producing more natural-sounding translations. It's slower compared to GPT models but can handle complex, nuanced content better.
 
 Choose your model based on your specific needs:
+
 - For quick translations of short texts or UI elements, GPT-4o or GPT-3.5 might be your best bet.
 - For longer content where nuance and natural flow are crucial, Claude could be the better choice.
 - If you need a balance of speed and quality for mixed content, GPT-4 is a solid all-rounder.
@@ -239,9 +258,9 @@ Choose your model based on your specific needs:
 We're constantly working to improve Laravel AI Translator. Here are some features and improvements we're planning:
 
 - [ ] Implement strict validation for translations:
-  - Verify that variables are correctly preserved in translated strings
-  - Ensure placeholders and Laravel-specific syntax are maintained
-  - Check for consistency in pluralization rules across translations
+    - Verify that variables are correctly preserved in translated strings
+    - Ensure placeholders and Laravel-specific syntax are maintained
+    - Check for consistency in pluralization rules across translations
 - [ ] Write test code to ensure reliability and catch potential issues
 - [ ] Implement functionality to maintain the array structure of strings during translation
 - [ ] Expand support for other LLMs (such as Gemini)

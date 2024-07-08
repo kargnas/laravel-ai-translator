@@ -62,7 +62,14 @@ class TranslateStrings extends Command
                 continue;
             }
 
-            $this->info("Starting {$locale}");
+            $targetLanguageName = static::getLanguageName($locale);
+
+            if ($targetLanguageName) {
+                $this->info("Starting {$targetLanguageName} ({$locale})");
+            } else {
+                throw new \Exception("Language name not found for locale: {$locale}. Please add it to the config file.");
+            }
+
             $files = $this->getStringFilePaths($this->sourceLocale);
             foreach ($files as $file) {
                 $outputFile = $this->getOutputDirectoryLocale($locale) . '/' . basename($file);
@@ -86,19 +93,25 @@ class TranslateStrings extends Command
                     }
                 }
 
-                foreach ($sourceStringList as $key => $value) {
-                    $translator = new AIProvider(
-                        key: pathinfo($file, PATHINFO_FILENAME) . "." . $key,
-                        string: $value,
-                        sourceLanguage: static::getLanguageName($this->sourceLocale) ?? $this->sourceLocale,
-                        targetLanguage: static::getLanguageName($locale) ?? $locale,
-                        additionalRules: static::getAdditionalRules($locale),
-                    );
+                // Chunk the strings because of the pricing
+                // But also this will increase the speed of the translation, and quality of continuous translation
+                collect($sourceStringList)
+                    ->chunk(10)
+                    ->each(function ($chunk) use ($locale, $file, $targetStringTransformer) {
+                        $translator = new AIProvider(
+                            filename: $file,
+                            strings: $chunk->toArray(),
+                            sourceLanguage: static::getLanguageName($this->sourceLocale) ?? $this->sourceLocale,
+                            targetLanguage: static::getLanguageName($locale) ?? $locale,
+                            additionalRules: static::getAdditionalRules($locale),
+                        );
 
-                    $result = $translator->translate();
+                        $items = $translator->translate();
 
-                    $targetStringTransformer->updateString($key, $result['translated']);
-                }
+                        foreach ($items as $item) {
+                            $targetStringTransformer->updateString($item->key, $item->translated);
+                        }
+                    });
             }
 
             $this->info("Finished translating $locale");

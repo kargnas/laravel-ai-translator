@@ -22,8 +22,9 @@
     ],
     "require": {
         "php": "^8.0",
+        "guzzlehttp/guzzle": "^7.0.1",
         "illuminate/support": "^8.0|^9.0|^10.0",
-        "guzzlehttp/guzzle": "^7.0.1"
+        "kargnas/instructrice": "^1.0"
     },
     "suggest": {
         "laravel/framework": "Required for using this package with Laravel"

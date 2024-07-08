@@ -1,4 +1,8 @@
 # Target String
 
-- Key: `{key}`
-- String: `{string}`
+The most important mission: All strings should be translated into {targetLanguage} from {sourceLanguage}.
+Source Language: `{sourceLanguage}`
+Target Language: `{targetLanguage}`
+Filename: `{filename}`
+Strings: (e.g. key: """(value)""")
+{strings}

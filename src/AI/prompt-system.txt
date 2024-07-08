@@ -29,14 +29,16 @@ Follow these additional rules
 - For placeholder text that users will replace (often in ALL CAPS or surrounded by brackets), keep these in their original language but adjust the position if necessary for natural expression in the target language.
 {additionalRules}
 
-You must provide it to me in list of JSON format. Other response also should be also in JSON format. You should use \n for new lines in JSON.
+The result variable should be like this:
 - `key`: The key of the text.
-- `translated`: The translated text.
+- `translated`: The translated text into {targetLanguage}.
 
 This is example:
 ```
-{
+[
+ {
   "key": "commands.build.description_help",
-  "translated": "Builds a structure from a file\n(Use \"{command}\" to see the list of available structures)"
-}
+  "translated": "Builds a structure from a file\n(Use \"{command}\" to see the list of available structures)" // Should be writtein in {targetLanguage}
+ }
+]
 ```

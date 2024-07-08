@@ -62,7 +62,7 @@ Do you want to know how this works? See the prompt in `src/AI`.
 3. (Optional) Publish the configuration file:
 
     ```bash
-    php artisan vendor:publish --provider="Kargnas\LaravelAiTranslator\LaravelAiTranslatorServiceProvider"
+    php artisan vendor:publish --provider="Kargnas\LaravelAiTranslator\ServiceProvider"
     ```
 
    This step is optional but recommended if you want to customize the package's behavior. It will create a `config/ai-translator.php` file where you can modify various settings.
@@ -116,36 +116,30 @@ return [
 ```
 
 The package will generate translations like these:
-
-Korean (ko-kr):
-
-```php
-<?php
-return array (
-  'notifications.new_feature_search_sentence' => '새로운 기능: 이제 단어뿐만 아니라 문장도 입력할 수 있어요. 심지어 여러분의 언어로도 가능해요.',
-  'notifications.refresh_after_1_min' => '1분 후에 새로고침하세요. 새로운 내용이 준비될 거예요! (이전 모델: :model, 업데이트: :updated_at)',
-);
-```
-
-Chinese (zh-cn):
-
-```php
-<?php
-return array (
-  'notifications.new_feature_search_sentence' => '新功能：现在你不仅可以输入单词，还可以输入句子。甚至可以用你的语言。',
-  'notifications.refresh_after_1_min' => '1分钟后刷新。新内容即将到来！（之前的模型：:model，更新时间：:updated_at）',
-);
-```
-
-Thai (th-th):
-
-```php
-<?php
-return array (
-  'notifications.new_feature_search_sentence' => 'ฟีเจอร์ใหม่: ตอนนี้คุณพิมพ์ประโยคได้แล้ว ไม่ใช่แค่คำเดียว แม้แต่ภาษาของคุณเอง',
-  'notifications.refresh_after_1_min' => 'รีเฟรชหลังจาก 1 นาที จะมีเนื้อหาใหม่ให้ดู! (โมเดลก่อนหน้า: :model, อัปเดตเมื่อ: :updated_at)',
-);
-```
+- Korean (ko-kr):
+    ```php
+    <?php
+    return array (
+      'notifications.new_feature_search_sentence' => '새로운 기능: 이제 단어뿐만 아니라 문장도 입력할 수 있어요. 심지어 여러분의 언어로도 가능해요.',
+      'notifications.refresh_after_1_min' => '1분 후에 새로고침하세요. 새로운 내용이 준비될 거예요! (이전 모델: :model, 업데이트: :updated_at)',
+    );
+    ```
+- Chinese (zh-cn):
+    ```php
+    <?php
+    return array (
+      'notifications.new_feature_search_sentence' => '新功能：现在你不仅可以输入单词，还可以输入句子。甚至可以用你的语言。',
+      'notifications.refresh_after_1_min' => '1分钟后刷新。新内容即将到来！（之前的模型：:model，更新时间：:updated_at）',
+    );
+    ```
+- Thai (th-th):
+    ```php
+    <?php
+    return array (
+      'notifications.new_feature_search_sentence' => 'ฟีเจอร์ใหม่: ตอนนี้คุณพิมพ์ประโยคได้แล้ว ไม่ใช่แค่คำเดียว แม้แต่ภาษาของคุณเอง',
+      'notifications.refresh_after_1_min' => 'รีเฟรชหลังจาก 1 นาที จะมีเนื้อหาใหม่ให้ดู! (โมเดลก่อนหน้า: :model, อัปเดตเมื่อ: :updated_at)',
+    );
+    ```
 
 ## Configuration
 
@@ -163,15 +157,15 @@ This will create a `config/ai-translator.php` file where you can modify the foll
 
 3. `ai`: Configure the AI provider, model, and API key here.
 
-   | Provider  | Model                          | Cost (Input/Output per 1M token) | Descrpition                                      |
-   |-----------|--------------------------------|----------------------------------|--------------------------------------------------|
-   | anthropic | **claude-3-5-sonnet-20240620** | $3.00 / $15.00                   | The best quality, little bit slow. We recommend. |
-   | anthropic | claude-3-opus-20240229         | $15.00 / $75.00                  | Good quality, but very slow.                     |
-   | anthropic | claude-3-sonnet-20240229       | $3.00 / $15.00                   | Don't know                                       |
-   | anthropic | **claude-3-haiku-20240307**    | $0.25 / $1.25                    | Low quality, but better than gpt-3.5             |
-   | openai    | **gpt-4o**                     | $5.00 / $15.00                   | Balanced quality and high speed                  |
-   | openai    | gpt-4-turbo                    | Expensive more than gpt-4o       | Low quality like 3.5. Don't use this.            |
-   | openai    | gpt-3.5-turbo                  | $0.50 / $1.50                    | Low quality. Use for testing purpose.            |
+   | Provider  | Model                          | Cost (I/O per 1M tokens)   | Descrpition                                      |
+   |-----------|--------------------------------|----------------------------|--------------------------------------------------|
+   | anthropic | **claude-3-5-sonnet-20240620** | $3.00 / $15.00             | The best quality, little bit slow. We recommend. |
+   | anthropic | claude-3-opus-20240229         | $15.00 / $75.00            | Good quality, but very slow.                     |
+   | anthropic | claude-3-sonnet-20240229       | $3.00 / $15.00             | Don't know                                       |
+   | anthropic | **claude-3-haiku-20240307**    | $0.25 / $1.25              | Low quality, but better than gpt-3.5             |
+   | openai    | **gpt-4o**                     | $5.00 / $15.00             | Balanced quality and high speed                  |
+   | openai    | gpt-4-turbo                    | Expensive more than gpt-4o | Low quality like 3.5. Don't use this.            |
+   | openai    | gpt-3.5-turbo                  | $0.50 / $1.50              | Low quality. Use for testing purpose.            |
 
 4. `locale_names`: This mapping of locale codes to language names enhances translation quality by providing context to the AI.
 
@@ -220,18 +214,15 @@ Currently, this package only supports PHP language files used by Laravel. JSON l
 
 We recommend using PHP files for managing translations, especially when dealing with multiple languages. Here's why:
 
-1. **Structure
-   **: PHP files allow for a more organized structure with nested arrays, making it easier to group related translations.
+1. **Structure**: PHP files allow for a more organized structure with nested arrays, making it easier to group related translations.
 
 2. **Comments**: You can add comments in PHP files to provide context or instructions for translators.
 
 3. **Performance**: PHP files are slightly faster to load compared to JSON files, as they don't require parsing.
 
-4. **Flexibility
-   **: PHP files allow for more complex operations, such as using variables or conditions in your translations.
+4. **Flexibility**: PHP files allow for more complex operations, such as using variables or conditions in your translations.
 
-5. **Scalability
-   **: When managing a large number of translations across multiple languages, the directory structure of PHP files makes it easier to navigate and maintain.
+5. **Scalability**: When managing a large number of translations across multiple languages, the directory structure of PHP files makes it easier to navigate and maintain.
 
 If you're currently using JSON files for your translations, we recommend migrating to PHP files for better compatibility with this package and improved manageability of your translations.
 
@@ -239,19 +230,8 @@ If you're currently using JSON files for your translations, we recommend migrati
 
 This package supports both OpenAI's GPT models and Anthropic's Claude for translations, each with its own strengths:
 
-- OpenAI:
-    - GPT-4o: Optimized for speed and efficiency. Ideal for short-form translations and high-volume tasks. It offers a great balance of speed and quality.
-    - GPT-4: Provides high-quality translations with good understanding of context.
-    - GPT-3.5: Faster and more cost-effective, suitable for simpler translation tasks.
-
-- Anthropic:
-    - Claude: Excels at translating longer texts and producing more natural-sounding translations. It's slower compared to GPT models but can handle complex, nuanced content better.
-
-Choose your model based on your specific needs:
-
-- For quick translations of short texts or UI elements, GPT-4o or GPT-3.5 might be your best bet.
-- For longer content where nuance and natural flow are crucial, Claude could be the better choice.
-- If you need a balance of speed and quality for mixed content, GPT-4 is a solid all-rounder.
+- OpenAI
+- Anthropic
 
 ## TODO List
 

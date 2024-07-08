@@ -164,7 +164,7 @@ This will create a `config/ai-translator.php` file where you can modify the foll
 3. `ai`: Configure the AI provider, model, and API key here.
 
    | Provider  | Model                          | Cost (Input/Output per 1M token) | Descrpition                                      |
-                                                                              |-----------|--------------------------------|----------------------------------|--------------------------------------------------|
+   |-----------|--------------------------------|----------------------------------|--------------------------------------------------|
    | anthropic | **claude-3-5-sonnet-20240620** | $3.00 / $15.00                   | The best quality, little bit slow. We recommend. |
    | anthropic | claude-3-opus-20240229         | $15.00 / $75.00                  | Good quality, but very slow.                     |
    | anthropic | claude-3-sonnet-20240229       | $3.00 / $15.00                   | Don't know                                       |

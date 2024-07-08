@@ -25,7 +25,7 @@ Whether you're working on a personal project or a large-scale application, Larav
 - Supports custom translation rules for enhanced quality and project-specific requirements
 - Efficiently processes large language files, saving time and effort
 - Respects Laravel's localization system, ensuring compatibility with your existing setup
-- **NEW**: Chunking functionality to handle large language files by breaking them into smaller, manageable pieces, ensuring smoother and faster translations
+- **NEW**: Chunking functionality to handle large language files by processing them in batches, rather than making individual requests to the AI for each string, ensuring smoother, faster, and much cheaper translations
 
 Also, this tool is designed to translate your language files intelligently:
 

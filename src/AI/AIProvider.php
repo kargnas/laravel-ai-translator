@@ -46,7 +46,7 @@ class AIProvider
         $replaces = array_merge($replaces, [
             'sourceLanguage' => $this->sourceLanguage,
             'targetLanguage' => $this->targetLanguage,
-            'additionalRules' => sizeof($this->additionalRules) > 0 ? "- " . implode("\n- ", $this->additionalRules) : '',
+            'additionalRules' => sizeof($this->additionalRules) > 0 ? "\nSpecial rules for {$this->targetLanguage}\n- " . implode("\n- ", $this->additionalRules) : '',
         ]);
 
         foreach ($replaces as $key => $value) {

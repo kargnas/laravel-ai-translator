@@ -62,7 +62,7 @@ Do you want to know how this works? See the prompt in `src/AI`.
 3. (Optional) Publish the configuration file:
 
     ```bash
-    php artisan vendor:publish --provider="Kargnas\LaravelAiTranslator\LaravelAiTranslatorServiceProvider"
+    php artisan vendor:publish --provider="Kargnas\LaravelAiTranslator\ServiceProvider"
     ```
 
    This step is optional but recommended if you want to customize the package's behavior. It will create a `config/ai-translator.php` file where you can modify various settings.

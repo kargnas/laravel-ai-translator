@@ -152,7 +152,7 @@ return array (
 If you want to customize the settings, you can publish the configuration file:
 
 ```bash
-php artisan vendor:publish --provider="Kargnas\LaravelAiTranslator\LaravelAiTranslatorServiceProvider"
+php artisan vendor:publish --provider="Kargnas\LaravelAiTranslator\ServiceProvider"
 ```
 
 This will create a `config/ai-translator.php` file where you can modify the following settings:

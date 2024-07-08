@@ -3,6 +3,8 @@
 return [
     'source_locale' => 'en',
     'source_directory' => 'lang',
+    // Translate strings in a batch. The higher, the cheaper.
+    'chunk_size' => 10,
 
     'ai' => [
 //        'provider' => 'anthropic',
@@ -22,8 +24,6 @@ return [
         'api_key' => env('OPENAI_API_KEY'),
         'retries' => 5,
 
-        // Translate strings in a batch. The higher, the cheaper.
-        'chunk_size' => 10,
     ],
 
     'locale_names' => [

@@ -214,18 +214,15 @@ Currently, this package only supports PHP language files used by Laravel. JSON l
 
 We recommend using PHP files for managing translations, especially when dealing with multiple languages. Here's why:
 
-1. **Structure
-   **: PHP files allow for a more organized structure with nested arrays, making it easier to group related translations.
+1. **Structure**: PHP files allow for a more organized structure with nested arrays, making it easier to group related translations.
 
 2. **Comments**: You can add comments in PHP files to provide context or instructions for translators.
 
 3. **Performance**: PHP files are slightly faster to load compared to JSON files, as they don't require parsing.
 
-4. **Flexibility
-   **: PHP files allow for more complex operations, such as using variables or conditions in your translations.
+4. **Flexibility**: PHP files allow for more complex operations, such as using variables or conditions in your translations.
 
-5. **Scalability
-   **: When managing a large number of translations across multiple languages, the directory structure of PHP files makes it easier to navigate and maintain.
+5. **Scalability**: When managing a large number of translations across multiple languages, the directory structure of PHP files makes it easier to navigate and maintain.
 
 If you're currently using JSON files for your translations, we recommend migrating to PHP files for better compatibility with this package and improved manageability of your translations.
 

@@ -5,7 +5,6 @@ namespace Kargnas\LaravelAiTranslator\Console;
 
 use Illuminate\Console\Command;
 use Kargnas\LaravelAiTranslator\AI\AIProvider;
-use Kargnas\LaravelAiTranslator\AI\AnthropicAIProvider;
 use Kargnas\LaravelAiTranslator\Transformers\PHPLangTransformer;
 
 class TranslateStrings extends Command
@@ -67,16 +66,27 @@ class TranslateStrings extends Command
             $files = $this->getStringFilePaths($this->sourceLocale);
             foreach ($files as $file) {
                 $outputFile = $this->getOutputDirectoryLocale($locale) . '/' . basename($file);
-                $this->info("Translating {$file} to {$locale} => {$outputFile}");
+                $this->info("> Translating {$file} to {$locale} => {$outputFile}");
                 $transformer = new PHPLangTransformer($file);
                 $sourceStringList = $transformer->flatten();
                 $targetStringTransformer = new PHPLangTransformer($outputFile);
-                foreach ($sourceStringList as $key => $value) {
-                    if ($targetStringTransformer->isTranslated($key)) {
-                        $this->line("=> Skipping $key");
-                        continue;
-                    }
 
+                // Filter for untranslated strings
+                $sourceStringList = collect($sourceStringList)
+                    ->filter(function ($value, $key) use ($targetStringTransformer) {
+                        // Skip if already translated
+                        return !$targetStringTransformer->isTranslated($key);
+                    })
+                    ->toArray();
+
+                if (sizeof($sourceStringList) > 50) {
+                    if (!$this->confirm("{$outputFile}, Strings: " . sizeof($sourceStringList) . " -> Too many strings to translate. Could be expensive. Continue?")) {
+                        $this->warn("Stopped translating!");
+                        exit;
+                    }
+                }
+
+                foreach ($sourceStringList as $key => $value) {
                     $translator = new AIProvider(
                         key: pathinfo($file, PATHINFO_FILENAME) . "." . $key,
                         string: $value,

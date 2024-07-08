@@ -21,6 +21,9 @@ return [
         'model' => 'gpt-3.5-turbo', // Recommend to use for testing purpose. It sometimes doesn't translate.
         'api_key' => env('OPENAI_API_KEY'),
         'retries' => 5,
+
+        // Translate strings in a batch. The higher, the cheaper.
+        'chunk_size' => 10,
     ],
 
     'locale_names' => [

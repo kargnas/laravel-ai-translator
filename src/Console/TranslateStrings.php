@@ -13,6 +13,7 @@ class TranslateStrings extends Command
 
     protected $sourceLocale;
     protected $sourceDirectory;
+    protected $chunkSize;
 
     public function __construct() {
         parent::__construct();
@@ -25,6 +26,7 @@ class TranslateStrings extends Command
     public function handle() {
         $this->sourceLocale = config('ai-translator.source_locale');
         $this->sourceDirectory = config('ai-translator.source_directory');
+        $this->chunkSize = config('ai-translator.chunk_size', 10);
 
         $this->translate();
     }
@@ -86,8 +88,8 @@ class TranslateStrings extends Command
                     })
                     ->toArray();
 
-                if (sizeof($sourceStringList) > 50) {
-                    if (!$this->confirm("{$outputFile}, Strings: " . sizeof($sourceStringList) . " -> Too many strings to translate. Could be expensive. Continue?")) {
+                if (sizeof($sourceStringList) > 100) {
+                    if (!$this->confirm("{$outputFile}, Strings: " . sizeof($sourceStringList) . " -> Many strings to translate. Could be expensive. Continue?")) {
                         $this->warn("Stopped translating!");
                         exit;
                     }
@@ -96,7 +98,7 @@ class TranslateStrings extends Command
                 // Chunk the strings because of the pricing
                 // But also this will increase the speed of the translation, and quality of continuous translation
                 collect($sourceStringList)
-                    ->chunk(10)
+                    ->chunk($this->chunkSize)
                     ->each(function ($chunk) use ($locale, $file, $targetStringTransformer) {
                         $translator = new AIProvider(
                             filename: $file,

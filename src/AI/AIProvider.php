@@ -29,6 +29,13 @@ class AIProvider
     }
 
     protected function verify(array $list): void {
+        $sourceKeys = collect($this->strings)->keys()->unique()->sort()->values()->toArray();
+        $resultKeys = collect($list)->pluck('key')->unique()->sort()->values()->toArray();
+
+        if ($sourceKeys !== $resultKeys) {
+            throw new VerifyFailedException("Failed to translate the string. The keys are not matched. (Source: " . implode(', ', $sourceKeys) . ") (Result: " . implode(', ', $resultKeys) . ")");
+        }
+
         foreach ($list as $item) {
             /** @var LocalizedString $item */
             if (empty($item->key)) {
@@ -63,7 +70,8 @@ class AIProvider
             'sourceLanguage' => $this->sourceLanguage,
             'targetLanguage' => $this->targetLanguage,
             'filename' => $this->filename,
-            'strings' => collect($this->strings)->map(fn($string, $key) => "- {$key}: \"\"\"{$string}\"\"\"")->implode("\n"),
+            'parentKey' => basename($this->filename, '.php'),
+            'strings' => collect($this->strings)->map(fn($string, $key) => "  - `{$key}`: \"\"\"{$string}\"\"\"")->implode("\n"),
         ]);
 
         foreach ($replaces as $key => $value) {

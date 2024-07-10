@@ -111,6 +111,7 @@ class TranslateStrings extends Command
                         $items = $translator->translate();
 
                         foreach ($items as $item) {
+                            \Log::debug('Saving: ' . $item->key . ' => ' . $item->translated);
                             $targetStringTransformer->updateString($item->key, $item->translated);
                         }
                     });

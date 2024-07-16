@@ -25,7 +25,9 @@ Whether you're working on a personal project or a large-scale application, Larav
 - Supports custom translation rules for enhanced quality and project-specific requirements
 - Efficiently processes large language files, saving time and effort
 - Respects Laravel's localization system, ensuring compatibility with your existing setup
-- **NEW**: Chunking functionality to handle large language files by processing them in batches, rather than making individual requests to the AI for each string, ensuring smoother, faster, and much cheaper translations
+- **NEW**: Chunking functionality for cost-effective translations: Processes multiple strings in a single AI request, significantly reducing API costs and improving efficiency
+- **NEW**: String validation to ensure translation accuracy: Automatically checks and validates AI translations to catch and correct any errors or mistranslations
+- **NEW**: Support for Laravel 11: Now compatible with the latest Laravel version for cutting-edge projects
 
 Also, this tool is designed to translate your language files intelligently:
 
@@ -153,11 +155,13 @@ php artisan vendor:publish --provider="Kargnas\LaravelAiTranslator\ServiceProvid
 
 This will create a `config/ai-translator.php` file where you can modify the following settings:
 
-1. `source_locale`: Change this to your default language in the Laravel project. The package will translate from this language.
+- `source_locale`: Change this to your default language in the Laravel project. The package will translate from this language.
 
-2. `source_directory`: If you use a different directory for language files instead of the default `lang` directory, you can specify it here.
+- `source_directory`: If you use a different directory for language files instead of the default `lang` directory, you can specify it here.
 
-3. `ai`: Configure the AI provider, model, and API key here.
+- `chunk_size`: Set the number of strings to be translated in a single AI request. Higher values can significantly reduce API costs but may impact translation quality for very large chunks. Default is 10.
+
+- `ai`: Configure the AI provider, model, and API key here.
 
    | Provider  | Model                          | Cost (I/O per 1M tokens)   | Descrpition                                      |
    |-----------|--------------------------------|----------------------------|--------------------------------------------------|
@@ -169,9 +173,9 @@ This will create a `config/ai-translator.php` file where you can modify the foll
    | openai    | gpt-4-turbo                    | Expensive more than gpt-4o | Low quality like 3.5. Don't use this.            |
    | openai    | gpt-3.5-turbo                  | $0.50 / $1.50              | Low quality. Use for testing purpose.            |
 
-4. `locale_names`: This mapping of locale codes to language names enhances translation quality by providing context to the AI.
+- `locale_names`: This mapping of locale codes to language names enhances translation quality by providing context to the AI.
 
-5. `additional_rules`: Add custom rules to the translation prompt. This is useful for customizing the style of the messages.
+- `additional_rules`: Add custom rules to the translation prompt. This is useful for customizing the style of the messages.
 
 Example configuration:
 

@@ -118,6 +118,14 @@ class AIProvider
             prompt: $this->getSystemPrompt(),
         );
 
+        // Fix Parent key issue
+        $parentKey = basename($this->filename, '.php');
+        foreach($result as $item) {
+            if (str_starts_with($item->key, $parentKey)) {
+                $item->key = str_replace($parentKey . '.', '', $item->key);
+            }
+        }
+
         return $result;
     }
 

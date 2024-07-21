@@ -120,6 +120,7 @@ return [
 ```
 
 The package will generate translations like these:
+
 - Korean (ko-kr):
     ```php
     <?php
@@ -161,17 +162,23 @@ This will create a `config/ai-translator.php` file where you can modify the foll
 
 - `chunk_size`: Set the number of strings to be translated in a single AI request. Higher values can significantly reduce API costs but may impact translation quality for very large chunks. Default is 10.
 
-- `ai`: Configure the AI provider, model, and API key here.
+- `ai`: Configure the AI provider, model, and API key here. Here are our recommendation for the best models:
 
-   | Provider  | Model                          | Cost (I/O per 1M tokens)   | Descrpition                                      |
-   |-----------|--------------------------------|----------------------------|--------------------------------------------------|
-   | anthropic | **claude-3-5-sonnet-20240620** | $3.00 / $15.00             | The best quality, little bit slow. We recommend. |
-   | anthropic | claude-3-opus-20240229         | $15.00 / $75.00            | Good quality, but very slow.                     |
-   | anthropic | claude-3-sonnet-20240229       | $3.00 / $15.00             | Don't know                                       |
-   | anthropic | **claude-3-haiku-20240307**    | $0.25 / $1.25              | Low quality, but better than gpt-3.5             |
-   | openai    | **gpt-4o**                     | $5.00 / $15.00             | Balanced quality and high speed                  |
-   | openai    | gpt-4-turbo                    | Expensive more than gpt-4o | Low quality like 3.5. Don't use this.            |
-   | openai    | gpt-3.5-turbo                  | $0.50 / $1.50              | Low quality. Use for testing purpose.            |
+  | Provider  | Model                          | Cost (I/O per 1M tokens) | Descrpition                                      |
+  |-----------|--------------------------------|--------------------------|--------------------------------------------------|
+  | anthropic | **claude-3-5-sonnet-20240620** | $3.00 / $15.00           | The best quality, little bit slow. We recommend. |
+  | anthropic | **claude-3-haiku-20240307**    | $0.25 / $1.25            | Low quality, but better than gpt-3.5             |
+  | openai    | **gpt-4o**                     | $5.00 / $15.00           | Balanced quality and high speed                  |
+  | openai    | **gpt-4o-mini**                | $0.15 / $0.60            | Balanced quality and cheap                       |
+
+  Here are not recommended models which are expensive or low quality:
+
+  | Provider   | Model                    | Cost (I/O per 1M tokens) |
+  |------------|--------------------------|--------------------------|
+  | anthropic  | claude-3-opus-20240229   | $15.00 / $75.00          |
+  | anthropic  | claude-3-sonnet-20240229 | $3.00 / $15.00           |
+  | openai     | gpt-4-turbo              | $10.0 / $30.0            |
+  | openai     | gpt-3.5-turbo            | $0.50 / $1.50            |
 
 - `locale_names`: This mapping of locale codes to language names enhances translation quality by providing context to the AI.
 

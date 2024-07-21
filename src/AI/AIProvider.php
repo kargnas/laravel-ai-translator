@@ -95,6 +95,7 @@ class AIProvider
             },
             'openai' => match ($this->configModel) {
                 'gpt-4o' => OpenAi::GPT_4O,
+                'gpt-4o-mini' => OpenAi::GPT_4O_MINI,
                 'gpt-4-turbo' => OpenAi::GPT_4T,
                 'gpt-3.5-turbo' => OpenAi::GPT_35T,
             },
@@ -137,7 +138,7 @@ class AIProvider
         $tried = 1;
         do {
             try {
-                \Log::debug("Translating " . sizeof($this->strings) . " strings to {$this->targetLanguage}, using {$this->configProvider} with {$this->configModel} model. Retry: {$tried}/{$this->configRetries}");
+                \Log::debug("Translating " . sizeof($this->strings) . " strings to {$this->targetLanguage}, using {$this->configProvider} with {$this->configModel} model. Tried: {$tried}/{$this->configRetries}");
 
                 $items = $this->getTranslatedObjects();
                 $this->verify($items);

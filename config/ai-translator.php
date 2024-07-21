@@ -20,7 +20,7 @@ return [
 //        'api_key' => env('ANTHROPIC_API_KEY'),
 //        'retries' => 5,
         'provider' => 'openai',
-        'model' => 'gpt-3.5-turbo', // Recommend to use for testing purpose. It sometimes doesn't translate.
+        'model' => 'gpt-4o-mini', // Recommend to use for testing purpose. It sometimes doesn't translate.
         'api_key' => env('OPENAI_API_KEY'),
         'retries' => 5,
 

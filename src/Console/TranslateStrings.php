@@ -30,6 +30,10 @@ class TranslateStrings extends Command
             "- CRITICAL: For ALL Irish (Gaeilge) translations, ALWAYS use exactly FOUR parts: {1} singular|{2} dual|[3,6] plural for few|[7,*] plural for many. This is MANDATORY, even if the original has fewer forms.",
             "- Example structure (DO NOT COPY WORDS, only structure): {1} leabhar amháin|{2} dhá leabhar|[3,6] :count leabhair|[7,*] :count leabhar. Consider initial mutations (séimhiú, urú) and irregular plurals. For nouns that don't have all forms, repeat the closest appropriate form. If unsure, flag for human review.",
         ],
+        'ko' => [
+            // 1개, 2개 할 때 '1 개', '2 개' 이런식으로 써지는 것 방지
+            "- Don't add a space between the number and the measure word with variables. Example: {1} 한 개|{2} 두 개|[3,*] :count개",
+        ]
     ];
 
     protected $signature = 'ai-translator:translate';

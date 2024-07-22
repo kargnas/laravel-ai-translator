@@ -24,7 +24,7 @@ Pluralization rules:
 - For languages with simpler pluralization (e.g., English), still force the 3-form format:
     - Use: {1} singular|[2,4] plural|[5,*] plural
 - Always apply this expansion, even when it means repeating the same form multiple times.
-- Research and apply the correct plural forms for each specific noun in the target language.
+- Research and apply the correct plural forms for each specific noun in the target language and preserve case of letters for each.
 - Consider language-specific features like gender, case, and measure words when applicable.
 - If unsure about a specific plural form, use a placeholder and flag it for human review.
 

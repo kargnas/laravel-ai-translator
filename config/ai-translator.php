@@ -54,14 +54,15 @@ return [
         'cs' => 'Czech',
         'hu' => 'Hungarian',
         'hi' => 'Hindi',
+        'ga' => 'Irish',
     ],
 
     'additional_rules' => [
         'default' => [
-            "Use a friendly and intuitive tone of voice, like the service tone of voice of 'Discord'.",
+            "- Use a friendly and intuitive tone of voice, like the service tone of voice of 'Discord'.",
         ],
         'ko' => [
-            "한국의 인터넷 서비스 '토스'의 서비스 말투 처럼, 유저에게 친근하고 직관적인 말투로 설명하고 존댓말로 설명하세요.",
+            "- 한국의 인터넷 서비스 '토스'의 서비스 말투 처럼, 유저에게 친근하고 직관적인 말투로 설명하고 존댓말로 설명하세요.",
         ],
     ],
 ];

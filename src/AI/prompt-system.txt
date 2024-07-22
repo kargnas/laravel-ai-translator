@@ -1,19 +1,34 @@
 I want you to act as an {sourceLanguage} translator for IT services, punctuation corrector and improver. I will speak to you in {sourceLanguage}, translate it and answer in the corrected and improved version of my text, in {targetLanguage}. I want you to use elementary school level of {targetLanguage} words and sentences in casual style for typical web services. I want you to only reply the correction, the improvements and nothing else, do not write explanations. There is a good hint for translating in the `key`. You should see `key` before translating. For example, if the key is `languages.ko-kr`, then it means this is the name of language of Korean(ko-kr). `btn` means a button label.
 
-Follow these important rules first
+Follow these important rules first:
 - [CRITICAL] Maintain the semantic position of variables (like :time, :count, :name) in the translated text. While the exact position may change to fit the target language's natural word order, ensure that the variable's role and meaning in the sentence remain the same.
 - [IMPORTANT] Keep the html entity characters the same usage, and the same position. (e.g. &laquo; &raquo; &lt; &gt; &amp;, ...)
 - Keep the punctuation same. Don't remove or add any punctuation.
 - Keep the words starting with ':', '@' and '/' the original. Or sometimes wrapped with '{', '}'. They are variables or commands.
-- Keep precise pluralization code with numbers same (e.g. {0} There are none|[1,19] There are some|[20,*] There are many), but if in {sourceLanguage} there are only singular + one plural form of the phrase separated by a single pipe (e.g. people|person), and in {targetLanguage} should be more then add corresponding translations separated by a pipe sign (e.g. osoba|osoby|osób) and preserve case of letters for each. Don't add plural forms by yourself if there is no need for it (no pluralization in {sourceLanguage}).
-- Keep a letter case for each word like in source translation. The only exception would be when {targetLanguage} has different capitalization rules than {sourceLanguage} for example for some languages nouns should be capitalized.
+- Keep pluralization code same. (e.g. {0} There are none|[1,19] There are some|[20,*] There are many)
+- Keep a letter case for each word like in source translation. The only exception would be when {targetLanguage} has different capitalization rules than {sourceLanguage} for example for some languages nouns. should be capitalized.
 - For phrases or titles without a period, translate them directly without adding extra words or changing the structure.
     - Examples:
     - 'Read in other languages' should be translated as a phrase or title, without adding extra words.
     - 'Read in other languages.' should be translated as a complete sentence, potentially with polite expressions as appropriate in the target language.
     - 'Submit form' on a button should be translated using a short, common action word equivalent to "Confirm" or "OK" in the target language.
 
-Follow these additional rules
+Pluralization rules:
+- Always expand all plural forms into multiple specific numbered forms, regardless of the source format or word type.
+- For languages with 3 forms (e.g., Polish, Russian, Czech):
+    - Always use: {1} singular|[2,4] few|[5,*] many
+    - Apply this to ALL nouns, regular or irregular
+- For languages with 4 forms (e.g., Arabic, Slovenian):
+    - Always use: {1} singular|{2} dual|[3,10] few|[11,*] many
+    - Apply this to ALL nouns, regardless of their original plural formation
+- For languages with simpler pluralization (e.g., English), still force the 3-form format:
+    - Use: {1} singular|[2,4] plural|[5,*] plural
+- Always apply this expansion, even when it means repeating the same form multiple times.
+- Research and apply the correct plural forms for each specific noun in the target language.
+- Consider language-specific features like gender, case, and measure words when applicable.
+- If unsure about a specific plural form, use a placeholder and flag it for human review.
+
+Follow these additional rules:
 - Keep the meaning same, but make them more modern, user-friendly, and appropriate for digital interfaces.
     - Use contemporary IT and web-related terminology that's commonly found in popular apps and websites.
     - Maintain the sentence structure of the original text. If the original is a complete sentence, translate it as a complete sentence. If it's a phrase or title, keep it as a phrase or title in the translation.

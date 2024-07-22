@@ -9,6 +9,29 @@ use Kargnas\LaravelAiTranslator\Transformers\PHPLangTransformer;
 
 class TranslateStrings extends Command
 {
+    protected static $additionalRules = [
+        'pl' => [
+            "- Polish pluralization: Always use 3 forms: {1} singular, [2,4] plural for few, [5,*] plural for many. Example: \"One book|:count books\" becomes \"{1} jedna książka|[2,4] :count książki|[5,*] :count książek\".",
+            "- Polish pluralization example: For 'apple': {1} jedno jabłko|[2,4] :count jabłka|[5,*] :count jabłek. Consider gender (męski, żeński, nijaki) and case (mianownik, dopełniacz, etc.) when forming plurals.",
+        ],
+        'zh' => [
+            "- CRITICAL: For ALL Chinese translations, ALWAYS use exactly THREE parts: {1}一 + measure word + noun|{2}两 + measure word + noun|[3,*]:count + measure word + noun. This is MANDATORY, even if the original only has two parts. NO SPACES between elements in Chinese text.",
+            "- Example structure (DO NOT COPY WORDS, only structure): {1}一X词Y|{2}两X词Y|[3,*]:countX词Y. Replace X with correct measure word, Y with noun. Ensure NO SPACES between :count and the measure word. If any spaces are found (except right after |), remove them and flag for review.",
+        ],
+        'ar' => [
+            "- CRITICAL: For ALL Arabic translations, ALWAYS use exactly FOUR parts: {1}singular|{2}dual|[3,10]plural for few|[11,*]plural for many. This is MANDATORY, even if the original has fewer forms.",
+            "- Example structure (DO NOT COPY WORDS, only structure): {1}كتاب واحد|{2}كتابان|[3,10]:count كتب|[11,*]:count كتابًا. Adjust endings based on grammatical case. Consider gender and definiteness. If unsure about a form, use a placeholder and flag for human review.",
+        ],
+        'ru' => [
+            "- CRITICAL: For ALL Russian translations, ALWAYS use exactly THREE parts: {1}singular|[2,4]plural for few|[5,*]plural for many. This is MANDATORY, even if the original has fewer forms.",
+            "- Example structure (DO NOT COPY WORDS, only structure): {1}книга|[2,4]:count книги|[5,*]:count книг. Consider gender (masculine, feminine, neuter) and case (nominative, genitive, etc.) when forming plurals. If unsure about a form, use a placeholder and flag for human review.",
+        ],
+        'ga' => [
+            "- CRITICAL: For ALL Irish (Gaeilge) translations, ALWAYS use exactly FOUR parts: {1}singular|{2}dual|[3,6]plural for few|[7,*]plural for many. This is MANDATORY, even if the original has fewer forms.",
+            "- Example structure (DO NOT COPY WORDS, only structure): {1}leabhar amháin|{2}dhá leabhar|[3,6]:count leabhair|[7,*]:count leabhar. Consider initial mutations (séimhiú, urú) and irregular plurals. For nouns that don't have all forms, repeat the closest appropriate form. If unsure, flag for human review.",
+        ],
+    ];
+
     protected $signature = 'ai-translator:translate';
 
     protected $sourceLocale;
@@ -44,8 +67,22 @@ class TranslateStrings extends Command
         }
     }
 
-    protected static function getAdditionalRules($locale): array {
+    private static function getAdditionalRulesFromConfig($locale): array {
         $list = config('ai-translator.additional_rules');
+        $locale = strtolower(str_replace('-', '_', $locale));
+
+
+        if (key_exists($locale, $list)) {
+            return $list[$locale];
+        } else if (key_exists(substr($locale, 0, 2), $list)) {
+            return $list[substr($locale, 0, 2)];
+        } else {
+            return $list['default'] ?? [];
+        }
+    }
+
+    private static function getAdditionalRulesDefault($locale): array {
+        $list = static::$additionalRules;
         $locale = strtolower(str_replace('-', '_', $locale));
 
         if (key_exists($locale, $list)) {
@@ -55,6 +92,10 @@ class TranslateStrings extends Command
         } else {
             return $list['default'] ?? [];
         }
+    }
+
+    protected static function getAdditionalRules($locale): array {
+        return array_merge(static::getAdditionalRulesFromConfig($locale), static::getAdditionalRulesDefault($locale));
     }
 
     public function translate() {

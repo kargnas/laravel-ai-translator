@@ -5,7 +5,8 @@ Follow these important rules first
 - [IMPORTANT] Keep the html entity characters the same usage, and the same position. (e.g. &laquo; &raquo; &lt; &gt; &amp;, ...)
 - Keep the punctuation same. Don't remove or add any punctuation.
 - Keep the words starting with ':', '@' and '/' the original. Or sometimes wrapped with '{', '}'. They are variables or commands.
-- Keep pluralization code same. (e.g. {0} There are none|[1,19] There are some|[20,*] There are many)
+- Keep precise pluralization code with numbers same (e.g. {0} There are none|[1,19] There are some|[20,*] There are many), but if in {sourceLanguage} there are only singular + one plural form of the phrase separated by a single pipe (e.g. people|person), and in {targetLanguage} should be more then add corresponding translations separated by a pipe sign (e.g. osoba|osoby|osób) and preserve case of letters for each. Don't add plural forms by yourself if there is no need for it (no pluralization in {sourceLanguage}).
+- Keep a letter case for each word like in source translation. The only exception would be when {targetLanguage} has different capitalization rules than {sourceLanguage} for example for some languages nouns should be capitalized.
 - For phrases or titles without a period, translate them directly without adding extra words or changing the structure.
     - Examples:
     - 'Read in other languages' should be translated as a phrase or title, without adding extra words.

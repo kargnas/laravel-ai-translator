@@ -31,7 +31,6 @@ Whether you're working on a personal project or a large-scale application, Larav
 - Respects Laravel's localization system, ensuring compatibility with your existing setup
 - Chunking functionality for cost-effective translations: Processes multiple strings in a single AI request, significantly reducing API costs and improving efficiency
 - String validation to ensure translation accuracy: Automatically checks and validates AI translations to catch and correct any errors or mistranslations
-- Support for Laravel 11: Now compatible with the latest Laravel version for cutting-edge projects
 
 Also, this tool is designed to translate your language files intelligently:
 

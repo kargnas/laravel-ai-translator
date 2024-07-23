@@ -4,43 +4,7 @@ AI-powered translation tool for Laravel language files
 
 ## 💡 New Feature: Custom Language Styles
 
-We've expanded our capabilities with support for custom language styles, allowing for unique and creative translations.
-
-### Built-in Styles
-Our package already includes several built-in language styles, such as:
-
-- `ko_kp`: North Korean style Korean
-- Various regional dialects and language variants
-
-These are automatically available and don't require additional configuration.
-
-### Custom Style: Reddit English
-As an example of custom styling, we've implemented a "Reddit style" English:
-
-This style mimics the casual, often humorous language found on Reddit, featuring:
-- Liberal use of sarcasm
-- Internet slang and meme references
-- Playful skepticism
-
-Example config:
-```php
-'locale_names' => [
-    'en_reddit' => 'English (Reddit)',
-],
-'additional_rules' => [
-    'en_reddit' => [
-        "- Incorporate sarcasm and exaggeration",
-        "- Use popular internet slang and meme references",
-        "- Add humorous calls for sources on obvious statements",
-        // More Reddit-specific rules can be added
-    ],
-],
-```
-
-### Creating Your Own Custom Styles
-You can create your own custom language styles by adding new entries to the `locale_names` and `additional_rules` in the configuration. This allows you to tailor translations to specific audiences or platforms.
-
-These custom styles offer creative ways to customize your translations, adding a unique flair to your localized content. Use responsibly to enhance user engagement while maintaining clarity and appropriateness for your audience.
+We've expanded our capabilities with support for custom language styles, allowing for unique and creative translations. [Learn more about Custom Language Styles](#custom-language-styles)
 
 ## Overview
 
@@ -78,6 +42,7 @@ Also, this tool is designed to translate your language files intelligently:
 - Tone Consistency: Maintains a consistent tone across translations, customizable via configuration.
 
 Do you want to know how this works? See the prompt in `src/AI`.
+
 ## Custom Language Styles
 
 In addition to standard language translations, this package now supports custom language styles, allowing for unique and creative localizations.

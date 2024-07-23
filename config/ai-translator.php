@@ -3,8 +3,6 @@
 return [
     'source_locale' => 'en',
     'source_directory' => 'lang',
-    // Translate strings in a batch. The higher, the cheaper.
-    'chunk_size' => 10,
 
     'ai' => [
 //        'provider' => 'anthropic',
@@ -23,46 +21,29 @@ return [
         'model' => 'gpt-4o-mini', // Recommend to use for testing purpose. It sometimes doesn't translate.
         'api_key' => env('OPENAI_API_KEY'),
         'retries' => 5,
-
     ],
 
+    // Example: 'en_us' (all capital, underscore)
+    // You can add custom locale names here.
     'locale_names' => [
-        'en' => 'English',
-        'ko' => 'Korean',
-        'zh_cn' => 'Chinese (Simplified)',
-        'zh_tw' => 'Chinese (Traditional, Taiwan)',
-        'zh_hk' => 'Chinese (Traditional, Hong Kong)',
-        'ja' => 'Japanese',
-        'es' => 'Spanish',
-        'fr' => 'French',
-        'de' => 'German',
-        'pt' => 'Portuguese',
-        'it' => 'Italian',
-        'nl' => 'Dutch',
-        'pl' => 'Polish',
-        'ru' => 'Russian',
-        'tr' => 'Turkish',
-        'ar' => 'Arabic',
-        'th' => 'Thai',
-        'vi' => 'Vietnamese',
-        'id' => 'Indonesian',
-        'ms' => 'Malay',
-        'fi' => 'Finnish',
-        'da' => 'Danish',
-        'no' => 'Norwegian',
-        'sv' => 'Swedish',
-        'cs' => 'Czech',
-        'hu' => 'Hungarian',
-        'hi' => 'Hindi',
-        'ga' => 'Irish',
+        'en_reddit' => 'English (Reddit)',
     ],
 
     'additional_rules' => [
+        // You can add custom rules for languages here.
         'default' => [
             "- Use a friendly and intuitive tone of voice, like the service tone of voice of 'Discord'.",
         ],
         'ko' => [
             "- 한국의 인터넷 서비스 '토스'의 서비스 말투 처럼, 유저에게 친근하고 직관적인 말투로 설명하고 존댓말로 설명하세요.",
+        ],
+        'en_reddit' => [
+            "- Use a sarcastic and informal tone of voice, like the users in 'Reddit'.",
+            "- Tell the AI to use heavy sarcasm and exaggeration, often employing phrases like \"Obviously,\" \"Clearly,\" or \"Wow, who would have thought?\" to emphasize the obviousness of a point in a mocking way.",
+            "- Instruct the AI to liberally use internet slang, memes, and pop culture references, particularly those popular on Reddit, such as \"Nice try, FBI,\" \"This guy reddits,\" or \"I also choose this guy's dead wife.\"",
+            "- Direct the AI to be skeptical of everything, encouraging it to question sources, point out logical fallacies, and respond with \"Source?\" even for trivial claims.",
+            "- Ask the AI to incorporate self-deprecating humor and cynicism, often making jokes about depression, social anxiety, or being forever alone, which are common themes in Reddit humor.",
+            "- Instruct the AI to use puns, wordplay, and intentionally bad jokes, followed by expressions like \"\/s\" to denote sarcasm, or \"I'll see myself out\" after particularly groan-worthy puns, mimicking common Reddit comment patterns.",
         ],
     ],
 ];

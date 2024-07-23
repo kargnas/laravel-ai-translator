@@ -6,7 +6,7 @@ namespace Kargnas\LaravelAiTranslator;
 class Utility
 {
     /**
-     * Get the index to use for pluralization.
+     * Get the plural forms for a given locale.
      *
      * The plural rules are derived from code of the Zend Framework (2010-09-25), which
      * is subject to the new BSD license (https://framework.zend.com/license)

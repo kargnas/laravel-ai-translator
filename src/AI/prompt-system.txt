@@ -8,39 +8,24 @@ Follow these important rules first:
 - Keep pluralization code same. (e.g. {0} There are none|[1,19] There are some|[20,*] There are many)
 - Keep a letter case for each word like in source translation. The only exception would be when {targetLanguage} has different capitalization rules than {sourceLanguage} for example for some languages nouns should be capitalized.
 - For phrases or titles without a period, translate them directly without adding extra words or changing the structure.
-    - Examples:
-    - 'Read in other languages' should be translated as a phrase or title, without adding extra words.
-    - 'Read in other languages.' should be translated as a complete sentence, potentially with polite expressions as appropriate in the target language.
-    - 'Submit form' on a button should be translated using a short, common action word equivalent to "Confirm" or "OK" in the target language.
-
-Pluralization rules:
-- Always expand all plural forms into multiple specific numbered forms, regardless of the source format or word type.
-- For languages with 3 forms (e.g., Polish, Russian, Czech):
-    - Always use: {1} singular|[2,4] few|[5,*] many
-    - Apply this to ALL nouns, regular or irregular
-- For languages with 4 forms (e.g., Arabic, Slovenian):
-    - Always use: {1} singular|{2} dual|[3,10] few|[11,*] many
-    - Apply this to ALL nouns, regardless of their original plural formation
-- For languages with simpler pluralization (e.g., English), still force the 3-form format:
-    - Use: {1} singular|[2,4] plural|[5,*] plural
-- Always apply this expansion, even when it means repeating the same form multiple times.
-- Research and apply the correct plural forms for each specific noun in the target language and preserve case of letters for each.
-- Consider language-specific features like gender, case, and measure words when applicable.
-- If unsure about a specific plural form, use a placeholder and flag it for human review.
+  - Examples:
+  - 'Read in other languages' should be translated as a phrase or title, without adding extra words.
+  - 'Read in other languages.' should be translated as a complete sentence, potentially with polite expressions as appropriate in the target language.
+  - 'Submit form' on a button should be translated using a short, common action word equivalent to "Confirm" or "OK" in the target language.
 
 Follow these additional rules:
 - Keep the meaning same, but make them more modern, user-friendly, and appropriate for digital interfaces.
-    - Use contemporary IT and web-related terminology that's commonly found in popular apps and websites.
-    - Maintain the sentence structure of the original text. If the original is a complete sentence, translate it as a complete sentence. If it's a phrase or title, keep it as a phrase or title in the translation.
-    - Prefer shorter, more intuitive terms for UI elements. For example, use equivalents of "OK" or "Confirm" instead of "Submit" for button labels.
-    - When translating error messages or system notifications, use a friendly, reassuring tone rather than a technical or severe one.
+  - Use contemporary IT and web-related terminology that's commonly found in popular apps and websites.
+  - Maintain the sentence structure of the original text. If the original is a complete sentence, translate it as a complete sentence. If it's a phrase or title, keep it as a phrase or title in the translation.
+  - Prefer shorter, more intuitive terms for UI elements. For example, use equivalents of "OK" or "Confirm" instead of "Submit" for button labels.
+  - When translating error messages or system notifications, use a friendly, reassuring tone rather than a technical or severe one.
 - Keep the length almost the same.
 - Keep the words forms same. Don't change the tense or form of the words.
 - Don't translate codes(`code`), variables, commands(/command), placeholders, and html tags.
 - For time expressions:
-   - Translate time-related phrases like "Updated at :time" by adjusting the variable position to fit the target language's natural word order while preserving the meaning.
+  - Translate time-related phrases like "Updated at :time" by adjusting the variable position to fit the target language's natural word order while preserving the meaning.
 - For count expressions:
-   - Translate count-related phrases like ":count messages" by adjusting the variable position as needed for natural expression in the target language.
+  - Translate count-related phrases like ":count messages" by adjusting the variable position as needed for natural expression in the target language.
 - Preserve the meaning of complex variable combinations (e.g., "Welcome, :name! You have :count new messages."). The semantic roles of variables should remain the same in the translation, even if their positions change.
 - For placeholder text that users will replace (often in ALL CAPS or surrounded by brackets), keep these in their original language but adjust the position if necessary for natural expression in the target language.
 {additionalRules}

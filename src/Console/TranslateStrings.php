@@ -6,30 +6,15 @@ namespace Kargnas\LaravelAiTranslator\Console;
 use Illuminate\Console\Command;
 use Kargnas\LaravelAiTranslator\AI\AIProvider;
 use Kargnas\LaravelAiTranslator\Transformers\PHPLangTransformer;
+use Kargnas\LaravelAiTranslator\Utility;
 
 class TranslateStrings extends Command
 {
     // en_us (all capital, underscore)
     protected static $additionalRules = [
-        'pl' => [
-            "- Polish pluralization: Always use 3 forms: {1} singular, [2,4] plural for few, [5,*] plural for many. Example: \"One book|:count books\" becomes \"{1} jedna książka|[2,4] :count książki|[5,*] :count książek\".",
-            "- Polish pluralization example: For 'apple': {1} jedno jabłko|[2,4] :count jabłka|[5,*] :count jabłek. Consider gender (męski, żeński, nijaki) and case (mianownik, dopełniacz, etc.) when forming plurals.",
-        ],
         'zh' => [
-            "- CRITICAL: For ALL Chinese translations, ALWAYS use exactly THREE parts: {1} 一 + measure word + noun|{2} 两 + measure word + noun|[3,*] :count + measure word + noun. This is MANDATORY, even if the original only has two parts. NO SPACES in Chinese text except right after numbers in curly braces and square brackets.",
+            "- CRITICAL: For ALL Chinese translations, ALWAYS use exactly THREE parts: 一 + measure word + noun|两 + measure word + noun|:count + measure word + noun. This is MANDATORY, even if the original only has two parts. NO SPACES in Chinese text except right after numbers in curly braces and square brackets.",
             "- Example structure (DO NOT COPY WORDS, only structure): {1} 一X词Y|{2} 两X词Y|[3,*] :countX词Y. Replace X with correct measure word, Y with noun. Ensure NO SPACE between :count and the measure word. If any incorrect spaces are found, remove them and flag for review.",
-        ],
-        'ar' => [
-            "- CRITICAL: For ALL Arabic translations, ALWAYS use exactly FOUR parts: {1} singular|{2} dual|[3,10] plural for few|[11,*] plural for many. This is MANDATORY, even if the original has fewer forms.",
-            "- Example structure (DO NOT COPY WORDS, only structure): {1} كتاب واحد|{2} كتابان|[3,10] :count كتب|[11,*] :count كتابًا. Adjust endings based on grammatical case. Consider gender and definiteness. If unsure about a form, use a placeholder and flag for human review.",
-        ],
-        'ru' => [
-            "- CRITICAL: For ALL Russian translations, ALWAYS use exactly THREE parts: {1} singular|[2,4] plural for few|[5,*] plural for many. This is MANDATORY, even if the original has fewer forms.",
-            "- Example structure (DO NOT COPY WORDS, only structure): {1} книга|[2,4] :count книги|[5,*] :count книг. Consider gender (masculine, feminine, neuter) and case (nominative, genitive, etc.) when forming plurals. If unsure about a form, use a placeholder and flag for human review.",
-        ],
-        'ga' => [
-            "- CRITICAL: For ALL Irish (Gaeilge) translations, ALWAYS use exactly FOUR parts: {1} singular|{2} dual|[3,6] plural for few|[7,*] plural for many. This is MANDATORY, even if the original has fewer forms.",
-            "- Example structure (DO NOT COPY WORDS, only structure): {1} leabhar amháin|{2} dhá leabhar|[3,6] :count leabhair|[7,*] :count leabhar. Consider initial mutations (séimhiú, urú) and irregular plurals. For nouns that don't have all forms, repeat the closest appropriate form. If unsure, flag for human review.",
         ],
         'ko' => [
             // 1개, 2개 할 때 '1 개', '2 개' 이런식으로 써지는 것 방지
@@ -362,8 +347,48 @@ class TranslateStrings extends Command
         }
     }
 
+    private static function getAdditionalRulesPlural($locale) {
+        $plural = Utility::getPluralForms($locale);
+        if (!$plural) return [];
+
+        return match ($plural) {
+            1 => [
+                "- Pluralization Rules",
+                "  - For plurals, always use the format: {1} singular|[2,*] plural. This is MANDATORY, even if the original only has one part.",
+                "  - Example structure (DO NOT COPY WORDS, only structure): {1} singular|[2,*] plural",
+                "  - Consider language-specific features like gender, case, and measure words when applicable.",
+            ],
+            2 => [
+                "- Pluralization Rules",
+                "  - Research and apply the correct plural forms for each specific noun in target language and preserve case of letters for each.",
+            ],
+            3 => [
+                "- Pluralization Rules",
+                "  - Always expand all plural forms into multiple forms, regardless of the source format or word type. Don't specify a range.",
+                "    - Always use: singular|few|many",
+                "    - Apply this to ALL nouns, regular or irregular",
+                "  - Research and apply the correct plural forms for each specific noun in target language and preserve case of letters for each.",
+            ],
+            4 => [
+                "- Pluralization Rules",
+                "  - Always expand all plural forms into multiple forms, regardless of the source format or word type. Don't specify a range.",
+                "    - Always use: singular|dual|few|many",
+                "    - Apply this to ALL nouns, regardless of their original plural formation",
+                "  - Research and apply the correct plural forms for each specific noun in target language and preserve case of letters for each.",
+            ],
+            6 => [
+                "- Pluralization Rules",
+                "  - Always expand all plural forms into multiple forms, regardless of the source format or word type. Don't specify a range.",
+                "    - Always use: zero|one|two|few|many|other",
+                "    - Apply this to ALL nouns, regardless of their original plural formation",
+                "  - Research and apply the correct plural forms for each specific noun in target language and preserve case of letters for each.",
+            ],
+            default => [],
+        };
+    }
+
     protected static function getAdditionalRules($locale): array {
-        return array_merge(static::getAdditionalRulesFromConfig($locale), static::getAdditionalRulesDefault($locale));
+        return array_merge(static::getAdditionalRulesFromConfig($locale), static::getAdditionalRulesDefault($locale), static::getAdditionalRulesPlural($locale));
     }
 
     public function translate() {

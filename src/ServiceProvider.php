@@ -3,6 +3,7 @@
 namespace Kargnas\LaravelAiTranslator;
 
 
+use Kargnas\LaravelAiTranslator\Console\TranslateCrowdin;
 use Kargnas\LaravelAiTranslator\Console\TranslateStrings;
 
 class ServiceProvider extends \Illuminate\Support\ServiceProvider
@@ -20,6 +21,7 @@ class ServiceProvider extends \Illuminate\Support\ServiceProvider
 
         $this->commands([
             TranslateStrings::class,
+            TranslateCrowdin::class,
         ]);
     }
 }

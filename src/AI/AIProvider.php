@@ -69,9 +69,18 @@ class AIProvider
         $replaces = array_merge($replaces, [
             'sourceLanguage' => $this->sourceLanguage,
             'targetLanguage' => $this->targetLanguage,
-            'filename' => $this->filename,
             'parentKey' => basename($this->filename, '.php'),
-            'strings' => collect($this->strings)->map(fn($string, $key) => "  - `{$key}`: \"\"\"{$string}\"\"\"")->implode("\n"),
+            'strings' => collect($this->strings)->map(function ($string, $key) {
+                if (is_string($string)) {
+                    return "  - `{$key}`: \"\"\"{$string}\"\"\"";
+                } else {
+                    $text = "  - `{$key}`: \"\"\"{$string['text']}\"\"\"";
+                    if ($string['context']) {
+                        $text .= "\n    - Context: \"\"\"{$string['context']}\"\"\"";
+                    }
+                    return $text;
+                }
+            })->implode("\n"),
         ]);
 
         foreach ($replaces as $key => $value) {

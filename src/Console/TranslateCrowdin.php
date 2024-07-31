@@ -27,6 +27,11 @@ class TranslateCrowdin extends Command
     public function __construct() {
         parent::__construct();
 
+        if (!env('CROWDIN_API_KEY')) {
+            $this->error('CROWDIN_API_KEY is not set');
+            exit(1);
+        }
+
         $this->crowdin = new Crowdin([
             'access_token' => env('CROWDIN_API_KEY'),
         ]);

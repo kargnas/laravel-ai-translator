@@ -22,6 +22,7 @@
     ],
     "require": {
         "php": "^8.0",
+        "crowdin/crowdin-api-client": "^1.13",
         "guzzlehttp/guzzle": "^7.0.1",
         "illuminate/support": "^8.0|^9.0|^10.0|^11.0",
         "kargnas/instructrice": "^1.0"

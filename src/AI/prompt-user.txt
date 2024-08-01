@@ -1,5 +1,4 @@
 # Target String
-
 The most important mission: All strings should be translated into {targetLanguage} from {sourceLanguage}.
 - Source Language: `{sourceLanguage}`
 - Target Language: `{targetLanguage}`
@@ -7,5 +6,5 @@ The most important mission: All strings should be translated into {targetLanguag
 
 ## Context
 - Parent key (Only for your reference, don't put to the key): `{parentKey}`
-- The source strings: (e.g. key: """(value)"""), these are the strings that you should translate into the target language.
+- The source strings: (e.g. `key`: """(value)"""), these are the strings that you should translate into the target language.
 {strings}

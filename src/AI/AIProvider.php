@@ -69,14 +69,21 @@ class AIProvider
         $replaces = array_merge($replaces, [
             'sourceLanguage' => $this->sourceLanguage,
             'targetLanguage' => $this->targetLanguage,
+            'filename' => $this->filename,
             'parentKey' => basename($this->filename, '.php'),
             'strings' => collect($this->strings)->map(function ($string, $key) {
                 if (is_string($string)) {
                     return "  - `{$key}`: \"\"\"{$string}\"\"\"";
                 } else {
                     $text = "  - `{$key}`: \"\"\"{$string['text']}\"\"\"";
-                    if ($string['context']) {
+                    if (isset($string['context'])) {
                         $text .= "\n    - Context: \"\"\"{$string['context']}\"\"\"";
+                    }
+                    if (isset($string['references']) && sizeof($string['references']) > 0) {
+                        $text .= "\n    - References:";
+                        foreach ($string['references'] as $locale => $items) {
+                            $text .= "\n      - {$locale}: \"\"\"" . $items . "\"\"\"";
+                        }
                     }
                     return $text;
                 }
@@ -130,7 +137,7 @@ class AIProvider
 
         // Fix Parent key issue
         $parentKey = basename($this->filename, '.php');
-        foreach($result as $item) {
+        foreach ($result as $item) {
             if (str_starts_with($item->key, $parentKey)) {
                 $item->key = str_replace($parentKey . '.', '', $item->key);
             }

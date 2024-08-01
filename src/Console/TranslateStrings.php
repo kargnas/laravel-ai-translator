@@ -276,6 +276,7 @@ class TranslateStrings extends Command
     protected $sourceLocale;
     protected $sourceDirectory;
     protected $chunkSize;
+    protected array $referenceLocales = [];
 
     public function __construct() {
         parent::__construct();
@@ -286,10 +287,15 @@ class TranslateStrings extends Command
     }
 
     public function handle() {
-        $this->sourceLocale = config('ai-translator.source_locale');
         $this->sourceDirectory = config('ai-translator.source_directory');
-        $this->chunkSize = config('ai-translator.chunk_size', 10);
 
+        $this->sourceLocale = $this->choiceLanguages("Choose a source language to translate from", false, 'en');
+
+        if ($this->ask('Do you want to add reference languages? (y/n)', 'n') === 'y') {
+            $this->referenceLocales = $this->choiceLanguages("Choose a language to reference when translating, preferably one that has already been vetted and translated to a high quality. You can select multiple languages via ',' (e.g. '1, 2')", true);
+        }
+
+        $this->chunkSize = $this->ask("Enter the chunk size for translation. Translate strings in a batch. The higher, the cheaper. (default: 10)", 10);
         $this->translate();
     }
 
@@ -391,6 +397,25 @@ class TranslateStrings extends Command
         return array_merge(static::getAdditionalRulesFromConfig($locale), static::getAdditionalRulesDefault($locale), static::getAdditionalRulesPlural($locale));
     }
 
+    public function choiceLanguages($question, $multiple, $default = null) {
+        $locales = $this->getExistingLocales();
+
+        $selectedLocales = $this->choice(
+            $question,
+            $locales,
+            $default,
+            3,
+            $multiple);
+
+        if (is_array($selectedLocales)) {
+            $this->info("Selected locales: " . implode(', ', $selectedLocales));
+        } else {
+            $this->info("Selected locale: " . $selectedLocales);
+        }
+
+        return $selectedLocales;
+    }
+
     public function translate() {
         $locales = $this->getExistingLocales();
         foreach ($locales as $locale) {
@@ -422,6 +447,17 @@ class TranslateStrings extends Command
                     })
                     ->toArray();
 
+                $referenceStringList = collect($this->referenceLocales)
+                    ->filter(fn($referenceLocale) => !in_array($referenceLocale, [$locale, $this->sourceLocale]))
+                    ->mapWithKeys(function ($referenceLocale) use ($file, $targetStringTransformer) {
+                        $referenceFile = $this->getOutputDirectoryLocale($referenceLocale) . '/' . basename($file);
+                        $referenceTransformer = new PHPLangTransformer($referenceFile);
+                        return [
+                            $referenceLocale => $referenceTransformer->flatten(),
+                        ];
+                    })
+                    ->toArray();
+
                 if (sizeof($sourceStringList) > 100) {
                     if (!$this->confirm("{$outputFile}, Strings: " . sizeof($sourceStringList) . " -> Many strings to translate. Could be expensive. Continue?")) {
                         $this->warn("Stopped translating!");
@@ -433,10 +469,21 @@ class TranslateStrings extends Command
                 // But also this will increase the speed of the translation, and quality of continuous translation
                 collect($sourceStringList)
                     ->chunk($this->chunkSize)
-                    ->each(function ($chunk) use ($locale, $file, $targetStringTransformer) {
+                    ->each(function ($chunk) use ($locale, $file, $targetStringTransformer, $referenceStringList) {
                         $translator = new AIProvider(
                             filename: $file,
-                            strings: $chunk->toArray(),
+                            strings: $chunk->mapWithKeys(function ($item, $key) use ($referenceStringList) {
+                                return [
+                                    $key => [
+                                        'text' => $item,
+                                        'references' => collect($referenceStringList)->map(function ($items) use ($key) {
+                                            return $items[$key] ?? "";
+                                        })->filter(function ($value) {
+                                            return strlen($value) > 0;
+                                        }),
+                                    ],
+                                ];
+                            })->toArray(),
                             sourceLanguage: static::getLanguageName($this->sourceLocale) ?? $this->sourceLocale,
                             targetLanguage: static::getLanguageName($locale) ?? $locale,
                             additionalRules: static::getAdditionalRules($locale),
@@ -455,6 +502,9 @@ class TranslateStrings extends Command
         }
     }
 
+    /**
+     * @return array|string[]
+     */
     public function getExistingLocales(): array {
         $root = $this->sourceDirectory;
         $directories = array_diff(scandir($root), ['.', '..']);
@@ -462,7 +512,7 @@ class TranslateStrings extends Command
         $directories = array_filter($directories, function ($directory) use ($root) {
             return is_dir($root . '/' . $directory);
         });
-        return $directories;
+        return collect($directories)->values()->toArray();
     }
 
     public function getOutputDirectoryLocale($locale) {

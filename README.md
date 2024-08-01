@@ -213,11 +213,7 @@ php artisan vendor:publish --provider="Kargnas\LaravelAiTranslator\ServiceProvid
 
 This will create a `config/ai-translator.php` file where you can modify the following settings:
 
-- `source_locale`: Change this to your default language in the Laravel project. The package will translate from this language.
-
 - `source_directory`: If you use a different directory for language files instead of the default `lang` directory, you can specify it here.
-
-- `chunk_size`: Set the number of strings to be translated in a single AI request. Higher values can significantly reduce API costs but may impact translation quality for very large chunks. Default is 10.
 
 - `ai`: Configure the AI provider, model, and API key here. Here are our recommendation for the best models:
 
@@ -247,9 +243,7 @@ Example configuration:
 <?php
 
 return [
-    'source_locale' => 'en',
     'source_directory' => 'lang',
-    'chunk_size' => 10,
 
     'ai' => [
         'provider' => 'openai', // or 'anthropic'

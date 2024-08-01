@@ -1,10 +1,7 @@
 <?php
 
 return [
-    'source_locale' => 'en',
     'source_directory' => 'lang',
-    // Translate strings in a batch. The higher, the cheaper.
-    'chunk_size' => 10,
 
     'ai' => [
 //        'provider' => 'anthropic',

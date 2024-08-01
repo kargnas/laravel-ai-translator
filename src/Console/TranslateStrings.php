@@ -292,7 +292,7 @@ class TranslateStrings extends Command
             $this->referenceLocales = $this->choiceLanguages("Choose a language to reference when translating, preferably one that has already been vetted and translated to a high quality. You can select multiple languages via ',' (e.g. '1, 2')", true);
         }
 
-        $this->chunkSize = $this->ask("Enter the chunk size for translation. Translate strings in a batch. The higher, the cheaper. (default: 10)", 10);
+        $this->chunkSize = $this->ask("Enter the chunk size for translation. Translate strings in a batch. The higher, the cheaper. (default: 30)", 30);
         $this->translate();
     }
 

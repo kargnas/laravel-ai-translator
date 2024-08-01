@@ -24,9 +24,7 @@ class TranslateCrowdin extends Command
     protected Crowdin $crowdin;
     protected array $selectedProject;
 
-    public function __construct() {
-        parent::__construct();
-
+    public function handle() {
         if (!env('CROWDIN_API_KEY')) {
             $this->error('CROWDIN_API_KEY is not set');
             exit(1);
@@ -35,9 +33,7 @@ class TranslateCrowdin extends Command
         $this->crowdin = new Crowdin([
             'access_token' => env('CROWDIN_API_KEY'),
         ]);
-    }
 
-    public function handle() {
         $this->chunkSize = $this->ask('How many strings to translate at once?', 30);
 
         $this->choiceProjects();

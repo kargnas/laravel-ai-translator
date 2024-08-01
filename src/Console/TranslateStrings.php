@@ -329,11 +329,13 @@ class TranslateStrings extends Command
         }
     }
 
-    private static function getAdditionalRulesFromConfig($locale): array {
+    private static function getAdditionalRulesFromConfig($originalLocale): array {
         $list = config('ai-translator.additional_rules');
-        $locale = strtolower(str_replace('-', '_', $locale));
+        $locale = strtolower(str_replace('-', '_', $originalLocale));
 
-        if (key_exists($locale, $list)) {
+        if (key_exists($originalLocale, $list)) {
+            return $list[$originalLocale];
+        } else if (key_exists($locale, $list)) {
             return $list[$locale];
         } else if (key_exists(substr($locale, 0, 2), $list)) {
             return $list[substr($locale, 0, 2)];

@@ -13,7 +13,7 @@ class TranslateStrings extends Command
     // en_us (all capital, underscore)
     protected static $additionalRules = [
         'zh' => [
-            "- CRITICAL: For ALL Chinese translations, ALWAYS use exactly THREE parts: 一 + measure word + noun|两 + measure word + noun|:count + measure word + noun. This is MANDATORY, even if the original only has two parts. NO SPACES in Chinese text except right after numbers in curly braces and square brackets.",
+            "- CRITICAL: For ALL Chinese translations, ALWAYS use exactly THREE parts if there is '|': 一 + measure word + noun|两 + measure word + noun|:count + measure word + noun. This is MANDATORY, even if the original only has two parts. NO SPACES in Chinese text except right after numbers in curly braces and square brackets.",
             "- Example structure (DO NOT COPY WORDS, only structure): {1} 一X词Y|{2} 两X词Y|[3,*] :countX词Y. Replace X with correct measure word, Y with noun. Ensure NO SPACE between :count and the measure word. If any incorrect spaces are found, remove them and flag for review.",
         ],
         'ko' => [
@@ -361,16 +361,19 @@ class TranslateStrings extends Command
         return match ($plural) {
             1 => [
                 "- Pluralization Rules",
-                "  - For plurals, always use the format: {1} singular|[2,*] plural. This is MANDATORY, even if the original only has one part.",
+                "  - Never follow these plural rules if the original does not have multiple forms without '|'. (e.g. `:count items` -> `:count items`)",
+                "  - For plurals, always use the format: {1} singular|[2,*] plural.",
                 "  - Example structure (DO NOT COPY WORDS, only structure): {1} singular|[2,*] plural",
                 "  - Consider language-specific features like gender, case, and measure words when applicable.",
             ],
             2 => [
                 "- Pluralization Rules",
+                "  - Never follow these plural rules if the original does not have multiple forms without '|'. (e.g. `:count items` -> `:count items`)",
                 "  - Research and apply the correct plural forms for each specific noun in target language and preserve case of letters for each.",
             ],
             3 => [
                 "- Pluralization Rules",
+                "  - Never follow these plural rules if the original does not have multiple forms without '|'. (e.g. `:count items` -> `:count items`)",
                 "  - Always expand all plural forms into multiple forms, regardless of the source format or word type. Don't specify a range.",
                 "    - Always use: singular|few|many",
                 "    - Apply this to ALL nouns, regular or irregular",
@@ -378,6 +381,7 @@ class TranslateStrings extends Command
             ],
             4 => [
                 "- Pluralization Rules",
+                "  - Never follow these plural rules if the original does not have multiple forms without '|'. (e.g. `:count items` -> `:count items`)",
                 "  - Always expand all plural forms into multiple forms, regardless of the source format or word type. Don't specify a range.",
                 "    - Always use: singular|dual|few|many",
                 "    - Apply this to ALL nouns, regardless of their original plural formation",
@@ -385,6 +389,7 @@ class TranslateStrings extends Command
             ],
             6 => [
                 "- Pluralization Rules",
+                "  - Never follow these plural rules if the original does not have multiple forms without '|'. (e.g. `:count items` -> `:count items`)",
                 "  - Always expand all plural forms into multiple forms, regardless of the source format or word type. Don't specify a range.",
                 "    - Always use: zero|one|two|few|many|other",
                 "    - Apply this to ALL nouns, regardless of their original plural formation",

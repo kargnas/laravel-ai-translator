@@ -71,6 +71,7 @@ class AIProvider
             'targetLanguage' => $this->targetLanguage,
             'filename' => $this->filename,
             'parentKey' => basename($this->filename, '.php'),
+            'keys' => collect($this->strings)->keys()->implode(", "),
             'strings' => collect($this->strings)->map(function ($string, $key) {
                 if (is_string($string)) {
                     return "  - `{$key}`: \"\"\"{$string}\"\"\"";

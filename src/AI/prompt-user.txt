@@ -1,10 +1,10 @@
-# Target String
+# Target Definition
 The most important mission: All strings should be translated into {targetLanguage} from {sourceLanguage}.
 - Source Language: `{sourceLanguage}`
 - Target Language: `{targetLanguage}`
 - Source filename: `{filename}`
 
-## Context
+# Content
 - Parent key (Only for your reference, don't put to the key): `{parentKey}`
 - To make sure, the keys you should translate are: {keys}
 - These are the strings that you should translate into the target language. The source strings: (e.g. `key`: """(value)""")

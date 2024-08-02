@@ -164,6 +164,8 @@ class AIProvider
                 \Log::error($e->getMessage());
             } catch (VerifyFailedException $e) {
                 \Log::error($e->getMessage());
+            } catch (\Exception $e) {
+                \Log::critical($e->getMessage());
             }
         } while (++$tried <= $this->configRetries);
 

@@ -29,11 +29,14 @@ class AIProvider
     }
 
     protected function verify(array $list): void {
-        $sourceKeys = collect($this->strings)->keys()->unique()->sort()->values()->toArray();
-        $resultKeys = collect($list)->pluck('key')->unique()->sort()->values()->toArray();
+        $sourceKeys = collect($this->strings)->keys()->unique()->sort()->values();
+        $resultKeys = collect($list)->pluck('key')->unique()->sort()->values();
 
-        if ($sourceKeys !== $resultKeys) {
-            throw new VerifyFailedException("Failed to translate the string. The keys are not matched. (Source: " . implode(', ', $sourceKeys) . ") (Result: " . implode(', ', $resultKeys) . ")");
+        $diff = $sourceKeys->diff($resultKeys);
+
+        if ($diff->count() > 0) {
+//            \Log::error("Failed to translate the string. The keys are not matched. (Diff: {$diff->implode(', ')})");
+            throw new VerifyFailedException("Failed to translate the string. The keys are not matched. (Diff: {$diff->implode(', ')})");
         }
 
         foreach ($list as $item) {
@@ -71,7 +74,7 @@ class AIProvider
             'targetLanguage' => $this->targetLanguage,
             'filename' => $this->filename,
             'parentKey' => basename($this->filename, '.php'),
-            'keys' => collect($this->strings)->keys()->implode(", "),
+            'keys' => collect($this->strings)->keys()->implode("`, `"),
             'strings' => collect($this->strings)->map(function ($string, $key) {
                 if (is_string($string)) {
                     return "  - `{$key}`: \"\"\"{$string}\"\"\"";

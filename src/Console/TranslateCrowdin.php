@@ -312,6 +312,9 @@ class TranslateCrowdin extends Command
                 $this->line("      Retrieving strings...");
                 $allStrings = $this->getAllSourceString($this->selectedProject['id'], $file['id']);
 
+                $this->line("      Retrieving translations...");
+                $allTranslations = $this->getAllLanguageTranslations($this->selectedProject['id'], $file['id'], $targetLanguage['id']);
+
                 $this->line("      Retrieving approvals...");
                 $approvals = $this->getApprovals($this->selectedProject['id'], $file['id'], $targetLanguage['id']);
 
@@ -338,17 +341,21 @@ class TranslateCrowdin extends Command
                 });
 
                 $untranslatedStrings = $allStrings
-                    ->filter(function (SourceString $sourceString) use ($approvals) {
+                    ->filter(function (SourceString $sourceString) use ($approvals, $allTranslations) {
                         if (!$sourceString->getIdentifier()) return false;
 
                         if ($sourceString->isHidden()) {
-//                                $this->line("      Skip: {$sourceString->getIdentifier()}: {$sourceString->getText()} (hidden)");
+//                            $this->line("      Skip: {$sourceString->getIdentifier()}: {$sourceString->getText()} (hidden)");
                             return false;
                         }
 
-                        if (!$approvals->filter(fn(StringTranslationApproval $ap) => $ap->getStringId() == $sourceString->getId())->isEmpty()) {
-//                                $this->line("      Skip: {$sourceString->getIdentifier()}: {$sourceString->getText()} (approved)");
-                            return false;
+                        $approved = $approvals->filter(fn(StringTranslationApproval $ap) => $ap->getStringId() == $sourceString->getId());
+                        if ($approved->count() > 0) {
+                            $translation = $allTranslations->filter(fn(LanguageTranslation $t) => $t->getTranslationId() == $approved->first()->getTranslationId())->first();
+                            if ($translation) {
+                                $this->line("      Skip: {$sourceString->getIdentifier()}: {$sourceString->getText()} (approved)");
+                                return false;
+                            }
                         }
 
                         return true;
@@ -397,6 +404,10 @@ class TranslateCrowdin extends Command
 
                         foreach ($translated as $item) {
                             $targetString = $untranslatedStrings->where('identifier', $item->key)->first();
+                            if (!$targetString) {
+                                $this->info("Skipping translation: {$item->key} (Not found)");
+                                continue;
+                            }
 
                             $existsTranslations = $this->getAllTranslations($this->selectedProject['id'], $targetString['id'], $targetLanguage['id']);
                             $existsTranslations = $existsTranslations->sortByDesc(fn(StringTranslation $t) => Carbon::make($t->getDataProperty('created_at')))->values();

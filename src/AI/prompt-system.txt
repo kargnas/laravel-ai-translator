@@ -23,6 +23,7 @@ Follow these additional rules:
 - Keep the length almost the same.
 - Keep the words forms same. Don't change the tense or form of the words.
 - Don't translate codes(`code`), variables, commands(/command), placeholders, and html tags.
+- Keep the html codes like <0>, </0>, <1>, </1>. Don't remove.
 - For time expressions:
   - Translate time-related phrases like "Updated at :time" by adjusting the variable position to fit the target language's natural word order while preserving the meaning.
 - For count expressions:

@@ -58,6 +58,8 @@ class TranslateCrowdin extends Command
 
     protected Crowdin $crowdin;
     protected array $selectedProject;
+    protected array $referenceLanguages = [];
+    protected string $targetLanguage;
 
     public function handle() {
         if (!env('CROWDIN_API_KEY')) {
@@ -72,6 +74,18 @@ class TranslateCrowdin extends Command
         $this->chunkSize = $this->ask('How many strings to translate at once?', 30);
 
         $this->choiceProjects();
+        $this->targetLanguage = $this->choiceLanguages("Choose a language to translate", false);
+
+
+        if ($this->ask('Do you want to choose reference languages? (y/n)', 'n') === 'y') {
+            $this->referenceLanguages = $this->choiceLanguages("Choose a language to reference when translating, preferably one that has already been vetted and translated to a high quality. You can select multiple languages via ',' (e.g. '1, 2')", true);
+        }
+
+        $this->info("Target language: {$this->targetLanguage}");
+        if ($this->referenceLanguages) {
+            $this->info("Reference languages: " . implode(", ", $this->referenceLanguages));
+        }
+
         $this->translate();
     }
 
@@ -256,116 +270,148 @@ class TranslateCrowdin extends Command
         $this->info("Selected project: {$this->selectedProject['name']} ({$this->selectedProject['id']})");
     }
 
+    public function choiceLanguages($question, $multiple, $default = null) {
+        $locales = collect($this->selectedProject['targetLanguages'])->sortBy('id')->pluck('id')->values()->toArray();
+
+        $selectedLocales = $this->choice(
+            $question,
+            $locales,
+            $default,
+            3,
+            $multiple);
+
+        return $selectedLocales;
+    }
+
     public function translate() {
-        $languages = collect($this->selectedProject['targetLanguages'])->sortBy(function ($languagae) {
-            $firstOrder = [
-                'vi', 'en', 'ko', 'zh', 'ja',
-            ];
-            if (in_array($languagae['twoLettersCode'], $firstOrder)) {
-                return array_search($languagae['twoLettersCode'], $firstOrder);
-            }
-            return 100;
-        })->values();
+        $targetLanguage = collect($this->selectedProject['targetLanguages'])->where('id', $this->targetLanguage)->first();
 
-        foreach ($languages as $targetLanguage) {
-            $locale = $targetLanguage['locale'];
-            $pluralRules = $targetLanguage['pluralRules'];
-            $pluralExamples = $targetLanguage['pluralExamples'];
+        $locale = $targetLanguage['locale'];
+        $pluralRules = $targetLanguage['pluralRules'];
+        $pluralExamples = $targetLanguage['pluralExamples'];
 
-            $this->info("Translating to {$targetLanguage['name']} ({$targetLanguage['id']})");
-            $this->info("  Locale: {$locale}");
-            $this->info("  Plural Rules: {$pluralRules}");
-            $this->info("  Plural Examples: " . implode(", ", array_keys($pluralExamples)));
+        $this->info("Source Language: {$this->selectedProject['sourceLanguage']['name']} ({$this->selectedProject['sourceLanguage']['id']})");
+        $this->info("Translating to {$targetLanguage['name']} ({$targetLanguage['id']})");
+        $this->info("  Locale: {$locale}");
+        $this->info("  Plural Rules: {$pluralRules}");
+        $this->info("  Plural Examples: " . implode(", ", array_keys($pluralExamples)));
 
-            $this->ask('Press any key to continue', 'continue', ['continue', 'c']);
+        foreach ($this->getAllDirectories($this->selectedProject['id']) as $directory) {
+            $directory = $directory->getData();
+            $files = collect($this->getAllFiles($this->selectedProject['id'], $directory['id']))->map(function ($file) {
+                return $file->getData();
+            });
+            if ($files->count() === 0) continue;
 
-            foreach ($this->getAllDirectories($this->selectedProject['id']) as $directory) {
-                $directory = $directory->getData();
-                $files = collect($this->getAllFiles($this->selectedProject['id'], $directory['id']))->map(function ($file) {
-                    return $file->getData();
+            $this->info("  Directory: {$directory['path']} ({$files->count()} files)");
+
+            foreach ($files as $file) {
+                $this->info("    File: {$file['name']} ({$file['id']})");
+
+                $this->line("      Retrieving strings...");
+                $allStrings = $this->getAllSourceString($this->selectedProject['id'], $file['id']);
+
+                $this->line("      Retrieving approvals...");
+                $approvals = $this->getApprovals($this->selectedProject['id'], $file['id'], $targetLanguage['id']);
+
+                $referenceApprovals = collect($this->referenceLanguages)->reject($this->selectedProject['sourceLanguage']['id'])->mapWithKeys(function ($refLocale) use ($allStrings, $file) {
+                    $this->line("      Retrieving approvals for reference language...: {$refLocale}");
+                    $approvals = $this->getApprovals($this->selectedProject['id'], $file['id'], $refLocale);
+
+                    $this->line("      Retrieving translations for reference language...: {$refLocale}");
+                    $allTranslations = $this->getAllLanguageTranslations($this->selectedProject['id'], $file['id'], $refLocale);
+
+                    return [
+                        $refLocale => collect($allStrings)->mapWithKeys(function (SourceString $sourceString) use ($approvals, $allTranslations) {
+                            $approved = $approvals->map(fn(StringTranslationApproval $ap) => $ap->getData())->where('stringId', $sourceString->getId())->first();
+                            if (!$approved) return [];
+
+                            $approvedTranslation = $allTranslations->map(fn(LanguageTranslation $t) => $t->getData())->where('translationId', $approved['translationId'])->first();
+                            if (!$approvedTranslation) return [];
+
+                            return [
+                                $sourceString->getIdentifier() => $approvedTranslation['text'],
+                            ];
+                        }),
+                    ];
                 });
-                if ($files->count() === 0) continue;
 
-                $this->info("  Directory: {$directory['path']} ({$files->count()} files)");
+                $untranslatedStrings = $allStrings
+                    ->filter(function (SourceString $sourceString) use ($approvals) {
+                        if (!$sourceString->getIdentifier()) return false;
 
-                foreach ($files as $file) {
-                    $this->info("    File: {$file['name']} ({$file['id']})");
-
-                    $allStrings = $this->getAllSourceString($this->selectedProject['id'], $file['id']);
-                    $approvals = $this->getApprovals($this->selectedProject['id'], $file['id'], $targetLanguage['id']);
-
-                    $untranslatedStrings = $allStrings
-                        ->filter(function (SourceString $sourceString) use ($approvals) {
-                            if (!$sourceString->getIdentifier()) return false;
-
-                            if ($sourceString->isHidden()) {
+                        if ($sourceString->isHidden()) {
 //                                $this->line("      Skip: {$sourceString->getIdentifier()}: {$sourceString->getText()} (hidden)");
-                                return false;
-                            }
+                            return false;
+                        }
 
-                            if (!$approvals->filter(fn(StringTranslationApproval $ap) => $ap->getStringId() == $sourceString->getId())->isEmpty()) {
+                        if (!$approvals->filter(fn(StringTranslationApproval $ap) => $ap->getStringId() == $sourceString->getId())->isEmpty()) {
 //                                $this->line("      Skip: {$sourceString->getIdentifier()}: {$sourceString->getText()} (approved)");
-                                return false;
-                            }
+                            return false;
+                        }
 
-                            return true;
-                        })
-                        ->map(function (SourceString $sourceString) use ($targetLanguage) {
-                            return $sourceString->getData();
-                        });
+                        return true;
+                    })
+                    ->map(function (SourceString $sourceString) use ($targetLanguage) {
+                        return $sourceString->getData();
+                    });
 
-                    $this->info("      Total: {$allStrings->count()} strings");
-                    $this->info("      Untranslated: {$untranslatedStrings->count()} strings");
+                $this->info("      Total: {$allStrings->count()} strings");
+                $this->info("      Untranslated: {$untranslatedStrings->count()} strings");
 
-                    $untranslatedStrings
-                        ->chunk($this->chunkSize)
-                        ->each(function ($chunk) use ($file, $targetLanguage, $untranslatedStrings) {
-                            $translator = new AIProvider(
-                                filename: $file['name'],
-                                strings: $chunk->mapWithKeys(function ($string) {
-                                    $context = $string['context'] ?? null;
-                                    $context = preg_replace("/[\.\s\->]/", "", $context);
-                                    if (preg_replace("/[\.\s\->]/", "", $string['identifier']) === $context) {
-                                        $context = null;
-                                    }
-
-                                    return [
-                                        $string['identifier'] => [
-                                            'text' => $string['text'],
-                                            'context' => $context,
-                                        ],
-                                    ];
-                                })->toArray(),
-                                sourceLanguage: $this->selectedProject['sourceLanguage']['name'],
-                                targetLanguage: $targetLanguage['name'],
-                                additionalRules: static::getAdditionalRules($targetLanguage['locale']),
-                            );
-
-                            $translated = $translator->translate();
-
-                            foreach ($translated as $item) {
-                                $targetString = $untranslatedStrings->where('identifier', $item->key)->first();
-
-                                $existsTranslations = $this->getAllTranslations($this->selectedProject['id'], $targetString['id'], $targetLanguage['id']);
-                                $existsTranslations = $existsTranslations->sortByDesc(fn(StringTranslation $t) => Carbon::make($t->getDataProperty('created_at')))->values();
-
-                                // 같은 번역이 있다면 패스
-                                if ($existsTranslations->filter(fn(StringTranslation $t) => $t->getText() === $item->translated)->isNotEmpty()) {
-                                    $this->info("Skipping translation: {$item->key} [{$targetString['id']}]: {$item->translated} (Duplicated)");
-                                    continue;
+                $untranslatedStrings
+                    ->chunk($this->chunkSize)
+                    ->each(function ($chunk) use ($file, $targetLanguage, $untranslatedStrings, $referenceApprovals) {
+                        $translator = new AIProvider(
+                            filename: $file['name'],
+                            strings: $chunk->mapWithKeys(function ($string) use ($referenceApprovals) {
+                                $context = $string['context'] ?? null;
+                                $context = preg_replace("/[\.\s\->]/", "", $context);
+                                if (preg_replace("/[\.\s\->]/", "", $string['identifier']) === $context) {
+                                    $context = null;
                                 }
 
-                                $this->info("Adding translation: {$item->key} [{$targetString['id']}]: {$item->translated}");
-                                $myTransitions = $existsTranslations->filter(fn(StringTranslation $t) => $t->getUser()['id'] === 16501205);
-                                if ($myTransitions->count() > 0) {
-                                    $this->delTranslation($this->selectedProject['id'], $myTransitions->first()->getId());
-                                }
-                                $this->addTranslation($this->selectedProject['id'], $targetString['id'], $targetLanguage['id'], $item->translated);
-                            }
-                        });
+                                return [
+                                    $string['identifier'] => [
+                                        'text' => $string['text'],
+                                        'context' => $context,
+                                        'references' => $referenceApprovals->map(function ($items) use ($string) {
+                                            return $items[$string['identifier']] ?? "";
+                                        })->filter(function ($value) {
+                                            return strlen($value) > 0;
+                                        }),
+                                    ],
+                                ];
+                            })->toArray(),
+                            sourceLanguage: $this->selectedProject['sourceLanguage']['name'],
+                            targetLanguage: $targetLanguage['name'],
+                            additionalRules: static::getAdditionalRules($targetLanguage['locale']),
+                        );
 
-                    // dd($sourceStrings);
-                }
+                        $translated = $translator->translate();
+
+                        foreach ($translated as $item) {
+                            $targetString = $untranslatedStrings->where('identifier', $item->key)->first();
+
+                            $existsTranslations = $this->getAllTranslations($this->selectedProject['id'], $targetString['id'], $targetLanguage['id']);
+                            $existsTranslations = $existsTranslations->sortByDesc(fn(StringTranslation $t) => Carbon::make($t->getDataProperty('created_at')))->values();
+
+                            // 같은 번역이 있다면 패스
+                            if ($existsTranslations->filter(fn(StringTranslation $t) => $t->getText() === $item->translated)->isNotEmpty()) {
+                                $this->info("Skipping translation: {$item->key} [{$targetString['id']}]: {$item->translated} (Duplicated)");
+                                continue;
+                            }
+
+                            $this->info("Adding translation: {$item->key} [{$targetString['id']}]: {$item->translated}");
+                            $myTransitions = $existsTranslations->filter(fn(StringTranslation $t) => $t->getUser()['id'] === 16501205);
+                            if ($myTransitions->count() > 0) {
+                                $this->delTranslation($this->selectedProject['id'], $myTransitions->first()->getId());
+                            }
+                            $this->addTranslation($this->selectedProject['id'], $targetString['id'], $targetLanguage['id'], $item->translated);
+                        }
+                    });
+
+                // dd($sourceStrings);
             }
         }
     }

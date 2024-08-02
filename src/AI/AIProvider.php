@@ -169,6 +169,6 @@ class AIProvider
             }
         } while (++$tried <= $this->configRetries);
 
-        throw new VerifyFailedException('Failed to translate the string after ' . ($tried + 1) . ' retries. If you run the command again, it will try to translate the strings starting from the failed one.');
+        throw new VerifyFailedException('Failed to translate the string after ' . ($tried - 1) . ' retries. If you run the command again, it will try to translate the strings starting from the failed one.');
     }
 }

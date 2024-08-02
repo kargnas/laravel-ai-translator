@@ -11,6 +11,7 @@ use CrowdinApiClient\Model\SourceString;
 use CrowdinApiClient\Model\StringTranslation;
 use CrowdinApiClient\Model\StringTranslationApproval;
 use Illuminate\Console\Command;
+use Illuminate\Support\Collection;
 use Kargnas\LaravelAiTranslator\AI\AIProvider;
 
 class TranslateCrowdin extends Command
@@ -314,7 +315,7 @@ class TranslateCrowdin extends Command
                 $this->line("      Retrieving approvals...");
                 $approvals = $this->getApprovals($this->selectedProject['id'], $file['id'], $targetLanguage['id']);
 
-                $referenceApprovals = collect($this->referenceLanguages)->reject($this->selectedProject['sourceLanguage']['id'])->mapWithKeys(function ($refLocale) use ($allStrings, $file) {
+                $referenceApprovals = collect($this->referenceLanguages)->mapWithKeys(function ($refLocale) use ($allStrings, $file) {
                     $this->line("      Retrieving approvals for reference language...: {$refLocale}");
                     $approvals = $this->getApprovals($this->selectedProject['id'], $file['id'], $refLocale);
 
@@ -371,15 +372,19 @@ class TranslateCrowdin extends Command
                                     $context = null;
                                 }
 
+                                /** @var Collection $references */
+                                $references = $referenceApprovals->map(function ($items) use ($string) {
+                                    return $items[$string['identifier']] ?? "";
+                                })->filter(function ($value) {
+                                    return strlen($value) > 0;
+                                });
+
                                 return [
                                     $string['identifier'] => [
-                                        'text' => $string['text'],
+                                        // source text 를 그대로 쓰면 안되고 Translation 에서 따로 가져와서 써야한다.
+                                        'text' => $references->only($this->selectedProject['sourceLanguage']['id'])->first() ?? $string['text'],
                                         'context' => $context,
-                                        'references' => $referenceApprovals->map(function ($items) use ($string) {
-                                            return $items[$string['identifier']] ?? "";
-                                        })->filter(function ($value) {
-                                            return strlen($value) > 0;
-                                        }),
+                                        'references' => $references->except($this->selectedProject['sourceLanguage']['id'])->toArray(),
                                     ],
                                 ];
                             })->toArray(),

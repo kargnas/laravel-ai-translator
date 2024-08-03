@@ -296,19 +296,6 @@ class TranslateStrings extends Command
         $this->translate();
     }
 
-    protected static function getLanguageNameDefault($locale): ?string {
-        $list = static::$localeNames;
-        $locale = strtolower(str_replace('-', '_', $locale));
-
-        if (key_exists($locale, $list)) {
-            return $list[$locale];
-        } else if (key_exists(substr($locale, 0, 2), $list)) {
-            return $list[substr($locale, 0, 2)];
-        } else {
-            return null;
-        }
-    }
-
     protected static function getLanguageName($originalLocale): ?string {
         $list = array_merge(self::$localeNames, config('ai-translator.locale_names'));
 

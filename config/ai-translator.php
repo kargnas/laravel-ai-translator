@@ -45,4 +45,16 @@ return [
             "- Instruct the AI to use puns, wordplay, and intentionally bad jokes, followed by expressions like \"\/s\" to denote sarcasm, or \"I'll see myself out\" after particularly groan-worthy puns, mimicking common Reddit comment patterns.",
         ],
     ],
+    /*
+     |--------------------------------------------------------------------------
+     | Dot Notation Setting
+     |--------------------------------------------------------------------------
+     |
+     | If set to true, translations will be saved as flat arrays using dot
+     | notation keys. If set to false, translations will be saved as
+     | multi-dimensional arrays.
+     |
+     */
+
+        'dot_notation' => false,
 ];

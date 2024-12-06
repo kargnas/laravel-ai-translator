@@ -428,6 +428,10 @@ class TranslateStrings extends Command
             if ($locale === $this->sourceLocale) {
                 continue;
             }
+            
+            if (in_array($locale, config('ai-translator.skip_locales', []))) {
+                continue;
+            }
 
             $targetLanguageName = static::getLanguageName($locale);
 

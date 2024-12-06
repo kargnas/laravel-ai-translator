@@ -21,6 +21,8 @@ return [
         'api_key' => env('OPENAI_API_KEY'),
         'retries' => 5,
     ],
+    
+    // 'skip_locales' => [],
 
     // Example: 'en_us' (all capital, underscore)
     // You can add custom locale names here.

@@ -268,7 +268,11 @@ class TranslateStrings extends Command
         'zu' => 'Zulu',
     ];
 
-    protected $signature = 'ai-translator:translate';
+    protected $signature = 'ai-translator:translate
+                          {--source= : Source language to translate from (default: config value)}
+                          {--reference=* : Reference languages to use for translation quality}
+                          {--chunk=30 : Chunk size for translation batches}
+                          {--force : Skip all confirmations}';
 
     protected $sourceLocale;
     protected $sourceDirectory;
@@ -286,13 +290,32 @@ class TranslateStrings extends Command
     public function handle() {
         $this->sourceDirectory = config('ai-translator.source_directory');
 
-        $this->sourceLocale = $this->choiceLanguages("Choose a source language to translate from", false, 'en');
-
-        if ($this->ask('Do you want to add reference languages? (y/n)', 'n') === 'y') {
-            $this->referenceLocales = $this->choiceLanguages("Choose a language to reference when translating, preferably one that has already been vetted and translated to a high quality. You can select multiple languages via ',' (e.g. '1, 2')", true);
+        // Handle source language
+        $this->sourceLocale = $this->option('source');
+        if (!$this->sourceLocale) {
+            $this->sourceLocale = $this->choiceLanguages("Choose a source language to translate from", false, 'en');
+        } elseif (!in_array($this->sourceLocale, $this->getExistingLocales())) {
+            $this->error("Source language '{$this->sourceLocale}' not found in available locales.");
+            return Command::FAILURE;
         }
 
-        $this->chunkSize = $this->ask("Enter the chunk size for translation. Translate strings in a batch. The higher, the cheaper. (default: 30)", 30);
+        // Handle reference languages
+        $referenceOption = $this->option('reference');
+        if (!empty($referenceOption)) {
+            $this->referenceLocales = $referenceOption;
+            // Validate reference locales
+            foreach ($this->referenceLocales as $locale) {
+                if (!in_array($locale, $this->getExistingLocales())) {
+                    $this->error("Reference language '{$locale}' not found in available locales.");
+                    return Command::FAILURE;
+                }
+            }
+        } elseif ($this->ask('Do you want to add reference languages? (y/n)', 'n') === 'y') {
+            $this->referenceLocales = $this->choiceLanguages("Choose reference languages (comma-separated)", true);
+        }
+
+        $this->chunkSize = $this->option('chunk') ?: $this->ask("Enter the chunk size for translation (default: 30)", 30);
+
         $this->translate();
     }
 
@@ -468,7 +491,7 @@ class TranslateStrings extends Command
                     })
                     ->toArray();
 
-                if (sizeof($sourceStringList) > 100) {
+                if (sizeof($sourceStringList) > 100 && !$this->option('force')) {
                     if (!$this->confirm("{$outputFile}, Strings: " . sizeof($sourceStringList) . " -> Many strings to translate. Could be expensive. Continue?")) {
                         $this->warn("Stopped translating!");
                         exit;

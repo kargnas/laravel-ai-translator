@@ -112,6 +112,8 @@ class AIProvider
                 'claude-3-sonnet-20240229' => Anthropic::CLAUDE3_SONNET,
                 'claude-3-opus-20240229' => Anthropic::CLAUDE3_OPUS,
                 'claude-3-5-sonnet-20240620' => Anthropic::CLAUDE35_SONNET,
+                'claude-3-5-sonnet-20241022' => Anthropic::CLAUDE35_SONNET,
+                'claude-3-5-haiku-20241022' => Anthropic::CLAUDE35_HAIKU,
             },
             'openai' => match ($this->configModel) {
                 'gpt-4o' => OpenAi::GPT_4O,

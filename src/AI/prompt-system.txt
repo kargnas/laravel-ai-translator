@@ -31,17 +31,3 @@ Follow these additional rules:
 - Preserve the meaning of complex variable combinations (e.g., "Welcome, :name! You have :count new messages."). The semantic roles of variables should remain the same in the translation, even if their positions change.
 - For placeholder text that users will replace (often in ALL CAPS or surrounded by brackets), keep these in their original language but adjust the position if necessary for natural expression in the target language.
 {additionalRules}
-
-The result variable should be like this:
-- `key`: The key of the text.
-- `translated`: The translated text into {targetLanguage}.
-
-This is example:
-```
-[
- {
-  "key": "commands.build.description_help",
-  "translated": "Builds a structure from a file\n(Use \"{command}\" to see the list of available structures)" // Should be writtein in {targetLanguage}
- }
-]
-```

@@ -3,11 +3,10 @@
 namespace Kargnas\LaravelAiTranslator\AI;
 
 
-use AdrienBrault\Instructrice\InstructriceFactory;
-use AdrienBrault\Instructrice\LLM\Provider\Anthropic;
-use AdrienBrault\Instructrice\LLM\Provider\OpenAi;
+use Kargnas\LaravelAiTranslator\AI\Clients\AnthropicClient;
 use Kargnas\LaravelAiTranslator\Exceptions\VerifyFailedException;
 use Kargnas\LaravelAiTranslator\Models\LocalizedString;
+use OpenAI;
 use Symfony\Component\Serializer\Exception\NotNormalizableValueException;
 
 class AIProvider
@@ -18,24 +17,25 @@ class AIProvider
 
     public function __construct(
         public string $filename,
-        public array  $strings,
+        public array $strings,
         public string $sourceLanguage,
         public string $targetLanguage,
-        public array  $additionalRules = [],
+        public array $additionalRules = [],
     ) {
         $this->configProvider = config('ai-translator.ai.provider');
         $this->configModel = config('ai-translator.ai.model');
         $this->configRetries = config('ai-translator.ai.retries');
     }
 
-    protected function verify(array $list): void {
+    protected function verify(array $list): void
+    {
         $sourceKeys = collect($this->strings)->keys()->unique()->sort()->values();
         $resultKeys = collect($list)->pluck('key')->unique()->sort()->values();
 
         $diff = $sourceKeys->diff($resultKeys);
 
         if ($diff->count() > 0) {
-//            \Log::error("Failed to translate the string. The keys are not matched. (Diff: {$diff->implode(', ')})");
+            \Log::error("Failed to translate the string. The keys are not matched. (Diff: {$diff->implode(', ')})");
             throw new VerifyFailedException("Failed to translate the string. The keys are not matched. (Diff: {$diff->implode(', ')})");
         }
 
@@ -50,7 +50,8 @@ class AIProvider
         }
     }
 
-    protected function getSystemPrompt($replaces = []) {
+    protected function getSystemPrompt($replaces = [])
+    {
         $systemPrompt = file_get_contents(__DIR__ . '/prompt-system.txt');
 
         $replaces = array_merge($replaces, [
@@ -66,10 +67,15 @@ class AIProvider
         return $systemPrompt;
     }
 
-    protected function getUserPrompt($replaces = []) {
+    protected function getUserPrompt($replaces = [])
+    {
         $userPrompt = file_get_contents(__DIR__ . '/prompt-user.txt');
 
         $replaces = array_merge($replaces, [
+            // Options
+            'options.disablePlural' => config('ai-translator.disable_plural', false) ? 'true' : 'false',
+
+            // Data
             'sourceLanguage' => $this->sourceLanguage,
             'targetLanguage' => $this->targetLanguage,
             'filename' => $this->filename,
@@ -105,68 +111,140 @@ class AIProvider
      * @return LocalizedString[]
      * @throws \Exception
      */
-    public function getTranslatedObjects(): array {
-        $model = match ($this->configProvider) {
-            'anthropic' => match ($this->configModel) {
-                'claude-3-haiku-20240307' => Anthropic::CLAUDE3_HAIKU,
-                'claude-3-sonnet-20240229' => Anthropic::CLAUDE3_SONNET,
-                'claude-3-opus-20240229' => Anthropic::CLAUDE3_OPUS,
-                'claude-3-5-sonnet-20240620' => Anthropic::CLAUDE35_SONNET,
-                'claude-3-5-sonnet-20241022' => Anthropic::CLAUDE35_SONNET,
-                'claude-3-5-haiku-20241022' => Anthropic::CLAUDE35_HAIKU,
-            },
-            'openai' => match ($this->configModel) {
-                'gpt-4o' => OpenAi::GPT_4O,
-                'gpt-4o-mini' => OpenAi::GPT_4O_MINI,
-                'gpt-4-turbo' => OpenAi::GPT_4T,
-                'gpt-3.5-turbo' => OpenAi::GPT_35T,
-            },
-            default => null,
+    public function getTranslatedObjects(): array
+    {
+        return match ($this->configProvider) {
+            'anthropic' => $this->getTranslatedObjectsFromAnthropic(),
+            'openai' => $this->getTranslatedObjectsFromOpenAI(),
+            default => throw new \Exception("Provider {$this->configProvider} is not supported."),
         };
+    }
 
-        if (!$model) throw new \Exception("Provider {$this->configProvider} with model {$this->configModel} is not supported.");
+    protected function getTranslatedObjectsFromOpenAI(): array
+    {
+        $client = OpenAI::client(config('ai-translator.ai.api_key'));
 
-        // Start
-        $instructrice = InstructriceFactory::create(
-            defaultLlm: $model,
-            apiKeys: [ // Unless you inject keys here, api keys will be fetched from environment variables
-                OpenAi::class => config('ai-translator.ai.api_key'),
-                Anthropic::class => config('ai-translator.ai.api_key'),
+        $response = $client->chat()->create([
+            'model' => $this->configModel,
+            'messages' => [
+                ['role' => 'system', 'content' => $this->getSystemPrompt()],
+                ['role' => 'user', 'content' => $this->getUserPrompt()],
             ],
-        );
+            'response_format' => [
+                'type' => 'json_schema',
+                'json_schema' => [
+                    'name' => 'response',
+                    'schema' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'translations' => [
+                                'type' => 'array',
+                                'items' => [
+                                    'type' => 'object',
+                                    'properties' => [
+                                        'key' => ['type' => 'string', 'description' => 'The key of the string to translate'],
+                                        'translated' => ['type' => 'string', 'description' => 'The translated string in ' . $this->targetLanguage . ' (Encode double quotes to avoid errors)'],
+                                    ],
+                                    'required' => ['key', 'translated'],
+                                    'additionalProperties' => false,
+                                ],
+                            ],
+                        ],
+                        'required' => ['translations'],
+                        'additionalProperties' => false,
+                    ],
+                    'strict' => true,
+                ],
+            ],
+        ]);
 
-        $result = $instructrice->list(
-            type: LocalizedString::class,
-            context: $this->getUserPrompt(),
-            prompt: $this->getSystemPrompt(),
-        );
+        $content = json_decode($response->choices[0]->message->content, true);
 
-        // Fix Parent key issue
-        $parentKey = basename($this->filename, '.php');
-        foreach ($result as $item) {
-            if (str_starts_with($item->key, $parentKey)) {
-                $item->key = str_replace($parentKey . '.', '', $item->key);
-            }
+        return array_map(function ($item) {
+            $localizedString = new LocalizedString();
+            $localizedString->key = $item['key'];
+            $localizedString->translated = $item['translated'];
+            return $localizedString;
+        }, $content['translations']);
+    }
+
+    protected function getTranslatedObjectsFromAnthropic(): array
+    {
+        $client = new AnthropicClient(config('ai-translator.ai.api_key'));
+
+        $response = $client->messages()->create([
+            'model' => $this->configModel,
+            'max_tokens' => (int) max(config('ai-translator.ai.max_tokens'), 4096),
+            'messages' => [
+                ['role' => 'user', 'content' => $this->getUserPrompt()],
+            ],
+            'system' => $this->getSystemPrompt(),
+            'tools' => [
+                [
+                    'name' => 'translate',
+                    'description' => 'Translate the given strings to the target language',
+                    'input_schema' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'translations' => [
+                                'type' => 'array',
+                                'items' => [
+                                    'type' => 'object',
+                                    'properties' => [
+                                        'key' => [
+                                            'type' => 'string',
+                                            'description' => 'The key of the string to translate',
+                                        ],
+                                        'translated' => [
+                                            'type' => 'string',
+                                            'description' => 'The translated string in ' . $this->targetLanguage . ' (Encode double quotes to avoid errors)',
+                                        ],
+                                    ],
+                                    'required' => ['key', 'translated'],
+                                ],
+                            ],
+                        ],
+                        'required' => ['translations'],
+                    ],
+                ],
+            ],
+            'tool_choice' => ['type' => 'tool', 'name' => 'translate'],
+        ]);
+
+        $content = $response['content'][0]['input'];
+
+        if (isset($content['translations'])) {
+            $content = $content['translations'];
         }
 
-        return $result;
+        if (!isset($content['translations']) && is_string($content)) {
+            $content = json_decode($content, true);
+        }
+
+        return array_map(function ($item) {
+            $localizedString = new LocalizedString();
+            $localizedString->key = $item['key'];
+            $localizedString->translated = $item['translated'];
+            return $localizedString;
+        }, $content);
     }
 
     /**
      * @return LocalizedString[]
      * @throws VerifyFailedException
      */
-    public function translate(): array {
+    public function translate(): array
+    {
         $tried = 1;
         do {
             try {
-                \Log::debug("Translating " . sizeof($this->strings) . " strings to {$this->targetLanguage}, using {$this->configProvider} with {$this->configModel} model. Tried: {$tried}/{$this->configRetries}");
+                if ($tried > 1) {
+                    \Log::warning("[{$tried}/{$this->configRetries}] Retrying translation into {$this->targetLanguage} using {$this->configProvider} with {$this->configModel} model...");
+                }
 
                 $items = $this->getTranslatedObjects();
                 $this->verify($items);
                 return $items;
-            } catch (NotNormalizableValueException $e) {
-                \Log::error($e->getMessage());
             } catch (VerifyFailedException $e) {
                 \Log::error($e->getMessage());
             } catch (\Exception $e) {
@@ -174,6 +252,6 @@ class AIProvider
             }
         } while (++$tried <= $this->configRetries);
 
-        throw new VerifyFailedException('Failed to translate the string after ' . ($tried - 1) . ' retries. If you run the command again, it will try to translate the strings starting from the failed one.');
+        throw new VerifyFailedException("Translation was not successful after " . ($tried - 1) . " attempts. Please run the command again to continue from the last failure.");
     }
 }

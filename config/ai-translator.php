@@ -4,7 +4,7 @@ return [
     'source_directory' => 'lang',
 
     'ai' => [
-//        'provider' => 'anthropic',
+        //        'provider' => 'anthropic',
 //        'model' => 'claude-3-5-sonnet-20240620', // Best result. Recommend for production.
 //        'api_key' => env('ANTHROPIC_API_KEY'),
 //        'retries' => 3,
@@ -20,11 +20,13 @@ return [
         'model' => 'gpt-4o-mini', // Recommend to use for testing purpose. It sometimes doesn't translate.
         'api_key' => env('OPENAI_API_KEY'),
         'retries' => 5,
+        'max_tokens' => 4096,
     ],
-    
+
+    // 'disable_plural' => true,
     // 'skip_locales' => [],
 
-    // Example: 'en_us' (all capital, underscore)
+    // Example: 'en_us' (all lowercase, underscore)
     // You can add custom locale names here.
     'locale_names' => [
         'en_reddit' => 'English (Reddit)',

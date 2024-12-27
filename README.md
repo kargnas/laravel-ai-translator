@@ -116,7 +116,7 @@ These custom styles offer creative ways to customize your translations, adding a
     ```php
     'ai' => [
         'provider' => 'anthropic',
-        'model' => 'claude-3-5-sonnet-20240620',
+        'model' => 'claude-3-5-sonnet-20241022',
         'api_key' => env('ANTHROPIC_API_KEY'),
     ],
     ```
@@ -215,27 +215,34 @@ This will create a `config/ai-translator.php` file where you can modify the foll
 
 - `source_directory`: If you use a different directory for language files instead of the default `lang` directory, you can specify it here.
 
-- `ai`: Configure the AI provider, model, and API key here. Here are our recommendation for the best models:
+- `ai`: Configure the AI provider and model:
+  ```php
+  'ai' => [
+      'provider' => 'anthropic', // or 'openai'
+      'model' => 'claude-3-5-sonnet-20241022',
+      'api_key' => env('ANTHROPIC_API_KEY'), // or env('OPENAI_API_KEY')
+      'retries' => 3,
+      'max_tokens' => 4096,
+  ],
+  ```
 
-  | Provider  | Model                          | Cost (I/O per 1M tokens) | Descrpition                                      |
-  |-----------|--------------------------------|--------------------------|--------------------------------------------------|
-  | anthropic | **claude-3-5-sonnet-20240620** | $3.00 / $15.00           | The best quality, little bit slow. We recommend. |
-  | anthropic | **claude-3-haiku-20240307**    | $0.25 / $1.25            | Low quality, but better than gpt-3.5             |
-  | openai    | **gpt-4o**                     | $5.00 / $15.00           | Balanced quality and high speed                  |
-  | openai    | **gpt-4o-mini**                | $0.15 / $0.60            | Balanced quality and cheap                       |
+  For available models:
+  - Anthropic: See [Anthropic Models Documentation](https://docs.anthropic.com/en/docs/about-claude/models)
+  - OpenAI: See [OpenAI Models Documentation](https://platform.openai.com/docs/models)
 
-  Here are not recommended models which are expensive or low quality:
-
-  | Provider   | Model                    | Cost (I/O per 1M tokens) |
-  |------------|--------------------------|--------------------------|
-  | anthropic  | claude-3-opus-20240229   | $15.00 / $75.00          |
-  | anthropic  | claude-3-sonnet-20240229 | $3.00 / $15.00           |
-  | openai     | gpt-4-turbo              | $10.0 / $30.0            |
-  | openai     | gpt-3.5-turbo            | $0.50 / $1.50            |
+  > **⭐️ Strong Recommendation**: We highly recommend using Anthropic's Claude models, particularly `claude-3-5-sonnet`. Here's why:
+  > - More accurate and natural translations
+  > - Better understanding of context and nuances
+  > - More consistent output quality
+  > - More cost-effective for the quality provided
+  > 
+  > While OpenAI integration is available, we strongly advise against using it for translations. Our extensive testing has shown that Claude models consistently produce superior results for localization tasks.
 
 - `locale_names`: This mapping of locale codes to language names enhances translation quality by providing context to the AI.
 
 - `additional_rules`: Add custom rules to the translation prompt. This is useful for customizing the style of the messages or creating entirely new language styles.
+
+- `disable_plural`: Disable pluralization. Use ":count apples" instead of ":count apple|:count apples"
 
 Example configuration:
 
@@ -249,6 +256,8 @@ return [
         'provider' => 'openai', // or 'anthropic'
         'model' => 'gpt-4o', // or 'gpt-4', 'gpt-3.5-turbo', 'claude-3-5-sonnet-20240620'
         'api_key' => env('OPENAI_API_KEY'), // or env('ANTHROPIC_API_KEY')
+        'retries' => 3,
+        'max_tokens' => 4096,
     ],
 
     'locale_names' => [
@@ -257,6 +266,8 @@ return [
         'zh_cn' => 'Chinese (Simplified)',
         // ... other locales
     ],
+
+    'disable_plural' => false,
 
     'additional_rules' => [
         'default' => [

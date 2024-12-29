@@ -80,6 +80,49 @@ You can create your own custom language styles by adding new entries to the `loc
 
 These custom styles offer creative ways to customize your translations, adding a unique flair to your localized content. Use responsibly to enhance user engagement while maintaining clarity and appropriateness for your audience.
 
+## 💡 New Configuration Feature: Dot Notation vs Multi-dimensional Arrays
+
+With the new configuration option, you can choose how translations are structured when saved:
+
+- **Dot Notation**: Translations are saved in a flat format with keys using dot notation (default behavior).
+- **Multi-dimensional Arrays**: Translations can also be saved as nested arrays for better structure.
+
+### Config Example
+
+To control this behavior, you can set the `dot_notation` option in your configuration file `config/ai-translator.php`:
+
+```php
+return [
+    'dot_notation' => true, // If set to true, translations will be saved in dot notation format.
+];
+```
+
+When `dot_notation` is set to `false`, translations will be saved as multi-dimensional arrays instead of a flat array with dot notation keys.
+
+Example:
+
+**Dot Notation (if true):**
+
+```php
+<?php
+return [
+    'notifications.new_feature' => 'New feature!',
+];
+```
+
+**Multi-dimensional Array (if false):**
+
+```php
+<?php
+return [
+    'notifications' => [
+        'new_feature' => 'New feature!',
+    ],
+];
+```
+
+This gives you more flexibility to structure your language files as per your project needs.
+
 ## Prerequisites
 
 - PHP 8.0 or higher
@@ -277,6 +320,8 @@ return [
             "한국의 인터넷 서비스 '토스'의 서비스 말투 처럼, 유저에게 친근하고 직관적인 말투로 설명하고 존댓말로 설명하세요.",
         ],
     ],
+    
+    'dot_notation' => true,
 ];
 ```
 

@@ -25,15 +25,15 @@ class TranslateStrings extends Command
             "# 조선어(문화어) 변환 규칙",
             "## 1. 자모 및 철자 규칙",
             "- **자모 순서 차이**",
-            "  - 초성: ㄱ → ㄴ → ㄷ → ㄹ → … 순서, 쌍자음은 ‘쌍기역’ 대신 ‘된기윽’ 등으로 명명",
+            "  - 초성: ㄱ → ㄴ → ㄷ → ㄹ → … 순서, 쌍자음은 '쌍기역' 대신 '된기윽' 등으로 명명",
             "  - 중성: ㅏ → ㅑ → ㅓ → ㅕ … (배열 차이 존재)",
             "- **두음 법칙 배제**",
-            "  - 한국어에서 ‘이, 여, 요’처럼 변하는 단어를 그대로 ㄴ/ㄹ 표기로 유지",
+            "  - 한국어에서 '이, 여, 요'처럼 변하는 단어를 그대로 ㄴ/ㄹ 표기로 유지",
             "  - 예) *이승만* → **리승만**, *양력* → **량력**, *노인* → **로인**",
             "**(참고: 한자어 시작에 ㄴ/ㄹ 그대로 쓰는 관습 유지)**",
             "## 2. 받침 및 된소리 활용",
             "- **된소리 표기**",
-            "  - 한국어 ‘색깔’ → 조선어 ‘색갈’, ‘밟다’ → ‘밟다’(표기는 동일하나 발음은 [밥따])",
+            "  - 한국어 '색깔' → 조선어 '색갈', '밟다' → '밟다'(표기는 동일하나 발음은 [밥따])",
             "- **합성어 받침**",
             "  - 합성 시 원형 유지, 발음에서만 된소리화 허용",
             "  - 예) *손뼉* → **손벽**, 실제 발음 [손뼉/손뼉] 가능",
@@ -48,33 +48,33 @@ class TranslateStrings extends Command
             "   - 예) *안아 주다* → **안아주다**, *먹어 보다* → **먹어보다**",
             "3. **고유명사 결합**",
             "   - 예) *조선로동당 중앙위원회 평양시위원회* → **조선로동당 중앙위원회 평양시위원회** (단위마다 띄우기)",
-            "> **주의**: 한국어보다 전반적 ‘붙여쓰기’ 경향이 강함",
+            "> **주의**: 한국어보다 전반적 '붙여쓰기' 경향이 강함",
             "## 4. 어간·어미 차이",
-            "- **‘-어, -었’ vs ‘-여, -였’**",
-            "  - ㅣ·ㅐ·ㅔ 등 뒤는 ‘-여, -였’으로 적는 경우 많음",
+            "- **'-어, -었' vs '-여, -였'**",
+            "  - ㅣ·ㅐ·ㅔ 등 뒤는 '-여, -였'으로 적는 경우 많음",
             "  - 예) *되어*→**되여**, *고쳐*→**고치여**(발음 [고치여/고쳐])",
             "- **형용사·동사 활용**",
-            "  - 한국어와 기본 유사하나, 두음법칙 관련 용언 변형에서 ‘ㄹ/ㄴ’ 유지",
+            "  - 한국어와 기본 유사하나, 두음법칙 관련 용언 변형에서 'ㄹ/ㄴ' 유지",
             "  - 예) *날라가다* → **날라가다** (표기 동일, 발음도 같거나 [날라가다])",
             "## 5. 부정 표현, 높임·경어",
             "- **부정 표현**",
-            "  - ‘일없다’ = ‘괜찮다’, 그 외 *아니하다*·*못하다*도 그대로 씀",
+            "  - '일없다' = '괜찮다', 그 외 *아니하다*·*못하다*도 그대로 씀",
             "  - 예) *괜찮아?* → **일없니?**",
             "- **경어체**",
-            "  - ‘-오, -소, -요’ 등을 자주 씀",
-            "  - 예) “배고프오?” / “그렇소.” / “일없어요.”",
+            "  - '-오, -소, -요' 등을 자주 씀",
+            "  - 예) \"배고프오?\" / \"그렇소.\" / \"일없어요.\"",
             "- **하오체, 하십시오체, 해요체** 모두 존재",
             "## 6. 외래어·한자어 표기",
             "1. **영어·러시아어 등 외래어**",
             "   - 영어: *computer* → **콤퓨터**, *apartment* → **아빠트**",
-            "   - 일제강점기 유래 외래어도 일부 잔존(‘삐라’, ‘빠다’, ‘뽀오성(볼링)’ 등)",
+            "   - 일제강점기 유래 외래어도 일부 잔존('삐라', '빠다', '뽀오성(볼링)' 등)",
             "2. **한자어**",
             "   - 두음 ㄹ·ㄴ을 탈락시키지 않음",
             "   - 예) *녹두* → **록두**, *예외* → **례외**",
             "3. **고유어로 대체**",
             "   - *채소*→**남새**, *설탕*→**사탕가루**, 허나 혼용 가능",
             "4. **국제적 용어**",
-            "   - ‘텐트, 택시, 토마토’ 등 굳어진 외래어는 그대로 쓰기도 함",
+            "   - '텐트, 택시, 토마토' 등 굳어진 외래어는 그대로 쓰기도 함",
             "## 7. 추가 세부 규칙",
             "- **합성명사 원형 보존**",
             "  - 예) *가을걷이* → **가을걷이**, *별빛* → **별빛** (큰 변화 없음이나 받침 표기 유의)",
@@ -84,20 +84,20 @@ class TranslateStrings extends Command
             "  - 거의 쓰이지 않음. *뱃사공*→**배사공**, *댓잎*→**대잎**",
             "- **문장부호법**",
             "  - 한국어와 유사하나, 《 》 인용부 많이 사용",
-            "  - 예) “안녕?” → **《안녕?》** (보도·문헌체에서)",
+            "  - 예) \"안녕?\" → **《안녕?》** (보도·문헌체에서)",
             "## 8. 예문 3가지 (3열=특이사항/한자)",
             "| **한국어**             | **조선어**                | **특이참고사항**                      |",
             "|------------------------|---------------------------|---------------------------------------|",
-            "| 1) “이사 갈 건데, 괜찮아?”    | “리사 갈건데, 일없니?”         | ‘이사(移徙)’→‘리사’ (두음ㄹ 유지)       |",
-            "| 2) “채소를 좀 사 왔어.”       | “남새를 좀 사왔소.”            | ‘채소’→‘남새’ / 붙여쓰기(사왔소)         |",
-            "| 3) “그 사람이 영리하긴 하지만, 잘난 척 좀 해.” | “그 사람이 령리하긴 하나, 잘난체 좀 하오.” | ‘영리(英利)’→‘령리’ (두음법칙X), 경어 ‘하오’ |",
+            "| 1) \"이사 갈 건데, 괜찮아?\"    | \"리사 갈건데, 일없니?\"         | '이사(移徙)'→'리사' (두음ㄹ 유지)       |",
+            "| 2) \"채소를 좀 사 왔어.\"       | \"남새를 좀 사왔소.\"            | '채소'→'남새' / 붙여쓰기(사왔소)         |",
+            "| 3) \"그 사람이 영리하긴 하지만, 잘난 척 좀 해.\" | \"그 사람이 령리하긴 하나, 잘난체 좀 하오.\" | '영리(英利)'→'령리' (두음법칙X), 경어 '하오' |",
             "## 9. 변환시 유의사항 정리",
             "1. **두음법칙** 완전 배제 → ㄹ·ㄴ 어두 유지",
-            "2. **자주 사용**: ‘일없다(괜찮다)’, ‘남새(채소)’, ‘아빠트(아파트)’ 등",
+            "2. **자주 사용**: '일없다(괜찮다)', '남새(채소)', '아빠트(아파트)' 등",
             "3. **띄여쓰기**는 의미 단위로 확장, 의존명사는 앞말에 붙이기",
             "4. **발음상 된소리** 가능하나 표기는 본형 유지 (색갈, 첫날 등)",
             "5. **고유한 발음·표기**: 《 》 인용, -소·-오·-니 등 종결 어미 활용",
-            "6. **외래어·한자어 처리**: 굳어진 말(‘텔레비죤’, ‘전투’) 그대로",
+            "6. **외래어·한자어 처리**: 굳어진 말('텔레비죤', '전투') 그대로",
             "# 추가 특별 규칙들",
             "- 혁명적이고 전투적인 말투로 설명하세요. '혁명적인'이라는 표현을 자주 쓰면 조선어처럼 보입니다.",
             "- 과거시제 표현 변경: '-었-'을 '-였-'으로 대체하라. 이는 모음 조화와 관계없이 적용한다. 예: 되었다 → 되였다, 갔었다 → 갔였다, 먹었다 → 먹였다, 찾았다 → 찾았다(변경 없음)",
@@ -518,15 +518,37 @@ class TranslateStrings extends Command
                     })
                     ->toArray();
 
+                // 번역할 항목이 없으면 건너뛰기
+                if (count($sourceStringList) === 0) {
+                    $this->info("  > All strings are already translated. Skipping.");
+                    continue;
+                }
+
+                // 프로그레스바 설정
+                $progressBar = $this->output->createProgressBar(count($sourceStringList));
+                $progressBar->setFormat(' %current%/%max% [%bar%] %percent:3s%% %elapsed:6s%/%estimated:-6s% %memory:6s%');
+                $progressBar->start();
+
+                // Extended Thinking 설정
+                config(['ai-translator.ai.use_extended_thinking' => false]);
+
                 $referenceStringList = collect($this->referenceLocales)
                     ->filter(fn($referenceLocale) => !in_array($referenceLocale, [$locale, $this->sourceLocale]))
-                    ->mapWithKeys(function ($referenceLocale) use ($file, $targetStringTransformer) {
+                    ->map(function ($referenceLocale) use ($file, $sourceStringList) {
                         $referenceFile = $this->getOutputDirectoryLocale($referenceLocale) . '/' . basename($file);
+                        if (!file_exists($referenceFile)) {
+                            return null;
+                        }
+
                         $referenceTransformer = new PHPLangTransformer($referenceFile);
+                        $referenceStringList = $referenceTransformer->flatten();
+
                         return [
-                            $referenceLocale => $referenceTransformer->flatten(),
+                            'locale' => $referenceLocale,
+                            'strings' => $referenceStringList,
                         ];
                     })
+                    ->filter()
                     ->toArray();
 
                 if (sizeof($sourceStringList) > 100) {
@@ -540,7 +562,7 @@ class TranslateStrings extends Command
                 // But also this will increase the speed of the translation, and quality of continuous translation
                 collect($sourceStringList)
                     ->chunk($this->chunkSize)
-                    ->each(function ($chunk) use ($locale, $file, $targetStringTransformer, $referenceStringList) {
+                    ->each(function ($chunk) use ($locale, $file, $targetStringTransformer, $referenceStringList, $progressBar) {
                         $translator = new AIProvider(
                             filename: $file,
                             strings: $chunk->mapWithKeys(function ($item, $key) use ($referenceStringList) {
@@ -548,7 +570,7 @@ class TranslateStrings extends Command
                                     $key => [
                                         'text' => $item,
                                         'references' => collect($referenceStringList)->map(function ($items) use ($key) {
-                                            return $items[$key] ?? "";
+                                            return $items['strings'][$key] ?? "";
                                         })->filter(function ($value) {
                                             return strlen($value) > 0;
                                         }),
@@ -560,11 +582,24 @@ class TranslateStrings extends Command
                             additionalRules: static::getAdditionalRules($locale),
                         );
 
-                        $items = $translator->translate();
+                        // 프로그레스바 업데이트를 위한 이벤트 리스너 설정
+                        \Event::listen('ai-translator.progress', function ($processed) use ($progressBar) {
+                            $progressBar->setProgress($processed);
+                        });
 
-                        foreach ($items as $item) {
-                            \Log::debug('Saving: ' . $item->key . ' => ' . $item->translated);
-                            $targetStringTransformer->updateString($item->key, $item->translated);
+                        try {
+                            $translatedItems = $translator->translate();
+                            $progressBar->finish();
+                            $this->line('');
+
+                            foreach ($translatedItems as $item) {
+                                \Log::debug('Saving: ' . $item->key . ' => ' . $item->translated);
+                                $targetStringTransformer->updateString($item->key, $item->translated);
+                            }
+                        } catch (\Exception $e) {
+                            $progressBar->finish();
+                            $this->line('');
+                            $this->error("Translation failed: " . $e->getMessage());
                         }
                     });
             }

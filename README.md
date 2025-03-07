@@ -116,7 +116,7 @@ These custom styles offer creative ways to customize your translations, adding a
     ```php
     'ai' => [
         'provider' => 'anthropic',
-        'model' => 'claude-3-5-sonnet-20241022',
+        'model' => 'claude-3-7-sonnet-20250219',
         'api_key' => env('ANTHROPIC_API_KEY'),
     ],
     ```
@@ -309,17 +309,26 @@ This package supports both OpenAI's GPT models and Anthropic's Claude for transl
 - OpenAI
 - Anthropic
 
+## Recent Updates (March 2025)
+
+We've made significant improvements to the Laravel AI Translator:
+
+- ✅ Enhanced XML and AI response parsing system for more reliable translations
+- ✅ Optimized batch translation capabilities for processing multiple items simultaneously
+
 ## TODO List
 
 We're constantly working to improve Laravel AI Translator. Here are some features and improvements we're planning:
 
 - [ ] Implement strict validation for translations:
     - Verify that variables are correctly preserved in translated strings
-    - Ensure placeholders and Laravel-specific syntax are maintained
+    - Ensure placeholders and Laravel-specific syntax are maintained 
     - Check for consistency in pluralization rules across translations
 - [ ] Write test code to ensure reliability and catch potential issues
 - [ ] Implement functionality to maintain the array structure of strings during translation
 - [ ] Expand support for other LLMs (such as Gemini)
+- [ ] Add context from previous translations:
+    - Use previously translated strings as reference for consistency
 
 If you'd like to contribute to any of these tasks, please feel free to submit a pull request!
 

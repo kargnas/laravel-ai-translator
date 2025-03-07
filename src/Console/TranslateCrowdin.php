@@ -291,6 +291,9 @@ class TranslateCrowdin extends Command
         $pluralRules = $targetLanguage['pluralRules'];
         $pluralExamples = $targetLanguage['pluralExamples'];
 
+        $skipUntil = 'commingSoon.tft.btn';
+        $skip = false;
+
         $this->info("Source Language: {$this->selectedProject['sourceLanguage']['name']} ({$this->selectedProject['sourceLanguage']['id']})");
         $this->info("Translating to {$targetLanguage['name']} ({$targetLanguage['id']})");
         $this->info("  Locale: {$locale}");
@@ -341,8 +344,10 @@ class TranslateCrowdin extends Command
                 });
 
                 $untranslatedStrings = $allStrings
-                    ->filter(function (SourceString $sourceString) use ($approvals, $allTranslations) {
+                    ->filter(function (SourceString $sourceString) use ($approvals, $allTranslations, $skipUntil, &$skip) {
                         if (!$sourceString->getIdentifier()) return false;
+                        if ($skipUntil && $sourceString->getIdentifier() === $skipUntil) $skip = false;
+                        if ($skip) return false;
 
                         if ($sourceString->isHidden()) {
 //                            $this->line("      Skip: {$sourceString->getIdentifier()}: {$sourceString->getText()} (hidden)");

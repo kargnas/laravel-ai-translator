@@ -1,6 +1,7 @@
 <?php
 
 return [
+    // Language file directory. 'lang' for Laravel.
     'source_directory' => 'lang',
 
     'ai' => [

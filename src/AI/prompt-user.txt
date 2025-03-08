@@ -15,6 +15,14 @@
   - Special characters in keys ('', "", {}, :, etc.) must be preserved exactly as they appear
 </special_instructions>
 
+<consistency_guidelines>
+  - CRITICAL: Maintain consistent translations for the same strings across the entire application
+  - Prioritize consistency with existing translations in the global context
+  - Use the same terminology, style, and tone throughout all translations
+  - If you see a term has been translated a certain way in other files, use the same translation
+  - Pay special attention to button labels, error messages, and common UI elements - these should be translated consistently
+</consistency_guidelines>
+
 <content_to_translate>
 {strings}
 </content_to_translate>

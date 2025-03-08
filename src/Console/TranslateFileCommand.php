@@ -4,18 +4,23 @@ namespace Kargnas\LaravelAiTranslator\Console;
 
 use Illuminate\Console\Command;
 use Kargnas\LaravelAiTranslator\AI\AIProvider;
+use Kargnas\LaravelAiTranslator\AI\TranslationContextProvider;
+use Kargnas\LaravelAiTranslator\AI\Language\Language;
+use Kargnas\LaravelAiTranslator\AI\Printer\TokenUsagePrinter;
 use Kargnas\LaravelAiTranslator\Enums\TranslationStatus;
 use Kargnas\LaravelAiTranslator\Models\LocalizedString;
+use Kargnas\LaravelAiTranslator\Transformers\PHPLangTransformer;
 
 class TranslateFileCommand extends Command
 {
     protected $signature = 'ai-translator:translate-file
-                           {file : PHP file with return array of strings}
-                           {target_language=ko : Target language code (ex: ko)}
-                           {source_language=en : Source language code (ex: en)}
+                           {file : Path to the PHP file to translate}
+                           {--source-language=en : Source language code (ex: en)}
+                           {--target-language=ko : Target language code (ex: ko)}
                            {--rules=* : Additional rules}
                            {--debug : Enable debug mode}
-                           {--show-ai-response : Show raw AI response during translation}';
+                           {--show-ai-response : Show raw AI response during translation}
+                           {--max-context-items=100 : Maximum number of context items}';
 
     protected $description = 'Translate a specific PHP file with an array of strings';
 
@@ -44,45 +49,60 @@ class TranslateFileCommand extends Command
         // 전역 변수 설정 (실시간 결과 저장용)
         $GLOBALS['instant_results'] = [];
 
-        $filePath = $this->argument('file');
-        $targetLanguage = $this->argument('target_language');
-        $sourceLanguage = $this->argument('source_language');
-        $rules = $this->option('rules');
-        $debug = (bool) $this->option('debug');
-        $showAiResponse = (bool) $this->option('show-ai-response');
-
-        // 파일 존재 확인
-        if (!file_exists($filePath)) {
-            $this->error("File not found: {$filePath}");
-            return 1;
-        }
-
-        // 파일 로드 (PHP 배열 반환 형식 필요)
-        $strings = include $filePath;
-        if (!is_array($strings)) {
-            $this->error('File must return an array of strings');
-            return 1;
-        }
-
-        $this->info("Starting translation of file: {$filePath}");
-        $this->info("Source language: {$sourceLanguage}");
-        $this->info("Target language: {$targetLanguage}");
-        $this->info('Total strings: ' . count($strings));
-
-        if ($debug) {
-            $this->info('Debug mode enabled');
-            config(['ai-translator.debug' => true]);
-        }
-
-        config(['ai-translator.ai.model' => 'claude-3-7-sonnet-latest']);
-        config(['ai-translator.ai.max_tokens' => 64000]);
-        // config(['ai-translator.ai.model' => 'claude-3-5-sonnet-latest']);
-        // config(['ai-translator.ai.max_tokens' => 8192]);
-        config(['ai-translator.ai.use_extended_thinking' => true]);
-        config(['ai-translator.ai.disable_stream' => false]);
-
         try {
+            $filePath = $this->argument('file');
+            $sourceLanguage = $this->option('source-language');
+            $targetLanguage = $this->option('target-language');
+            $rules = $this->option('rules') ?: [];
+            $showAiResponse = $this->option('show-ai-response');
+            $debug = $this->option('debug');
+
+            // 디버그 모드 설정
+            if ($debug) {
+                config(['app.debug' => true]);
+                config(['ai-translator.debug' => true]);
+            }
+
+            // 파일 존재 확인
+            if (!file_exists($filePath)) {
+                $this->error("File not found: {$filePath}");
+                return 1;
+            }
+
+            // 파일 로드 (PHP 배열 반환 형식 필요)
+            $strings = include $filePath;
+            if (!is_array($strings)) {
+                $this->error('File must return an array of strings');
+                return 1;
+            }
+
+            $this->info("Starting translation of file: {$filePath}");
+            $this->info("Source language: {$sourceLanguage}");
+            $this->info("Target language: {$targetLanguage}");
+            $this->info('Total strings: ' . count($strings));
+
+            config(['ai-translator.ai.model' => 'claude-3-7-sonnet-latest']);
+            config(['ai-translator.ai.max_tokens' => 64000]);
+            // config(['ai-translator.ai.model' => 'claude-3-5-sonnet-latest']);
+            // config(['ai-translator.ai.max_tokens' => 8192]);
+            config(['ai-translator.ai.use_extended_thinking' => false]);
+            config(['ai-translator.ai.disable_stream' => false]);
+
             \Log::info("TranslateFileCommand: Starting translation with source language = {$sourceLanguage}, target language = {$targetLanguage}, additional rules = " . json_encode($rules));
+
+            // 전역 번역 컨텍스트 가져오기
+            $contextProvider = new TranslationContextProvider();
+            $maxContextItems = (int) $this->option('max-context-items') ?: 100;
+            $globalContext = $contextProvider->getGlobalTranslationContext(
+                $sourceLanguage,
+                $targetLanguage,
+                $filePath,
+                $maxContextItems
+            );
+
+            $this->line($this->colors['blue_bg'] . $this->colors['white'] . $this->colors['bold'] . " Translation Context " . $this->colors['reset']);
+            $this->line(" - Context files: " . count($globalContext));
+            $this->line(" - Total context items: " . collect($globalContext)->map(fn($items) => count($items))->sum());
 
             // AIProvider 생성
             $provider = new AIProvider(
@@ -91,6 +111,7 @@ class TranslateFileCommand extends Command
                 sourceLanguage: $sourceLanguage,
                 targetLanguage: $targetLanguage,
                 additionalRules: $rules,
+                globalTranslationContext: $globalContext
             );
 
             // 번역 시작 정보. sourceLanguageObj, targetLanguageObj, 총 추가 규칙 수등 표현
@@ -134,6 +155,26 @@ class TranslateFileCommand extends Command
             // 총 항목 수
             $totalItems = count($strings);
             $results = [];
+
+            // 토큰 사용량 추적을 위한 변수
+            $tokenUsage = [
+                'input_tokens' => 0,
+                'output_tokens' => 0,
+                'cache_creation_input_tokens' => 0,
+                'cache_read_input_tokens' => 0,
+                'total_tokens' => 0
+            ];
+
+            // 토큰 사용량 업데이트 콜백
+            $onTokenUsage = function (array $usage) use ($provider) {
+                $this->updateTokenUsageDisplay($usage);
+
+                // 마지막 토큰 사용량 정보는 바로 출력
+                if (isset($usage['final']) && $usage['final']) {
+                    $printer = new TokenUsagePrinter($provider->getModel());
+                    $printer->printFullReport($this, $usage);
+                }
+            };
 
             // 번역 완료 콜백
             $onTranslated = function (LocalizedString $item, string $status, array $translatedItems) use ($strings, $totalItems) {
@@ -194,7 +235,14 @@ class TranslateFileCommand extends Command
             };
 
             // 번역 실행
-            $translatedItems = $provider->translate($onTranslated, $onThinking, $onProgress, $onThinkingStart, $onThinkingEnd);
+            $translatedItems = $provider
+                ->setOnTranslated($onTranslated)
+                ->setOnThinking($onThinking)
+                ->setOnProgress($onProgress)
+                ->setOnThinkingStart($onThinkingStart)
+                ->setOnThinkingEnd($onThinkingEnd)
+                ->setOnTokenUsage($onTokenUsage)
+                ->translate();
 
             // 번역 결과를 배열로 변환
             $results = [];
@@ -223,5 +271,32 @@ class TranslateFileCommand extends Command
         }
 
         return 0;
+    }
+
+    /**
+     * 현재 토큰 사용량을 실시간으로 출력합니다.
+     * 
+     * @param array $usage 토큰 사용량 정보
+     */
+    protected function updateTokenUsageDisplay(array $usage): void
+    {
+        // 0이면 표시하지 않음
+        if ($usage['input_tokens'] == 0 && $usage['output_tokens'] == 0) {
+            return;
+        }
+
+        // 현재 커서 위치 저장 및 이전 라인 지우기
+        $this->output->write("\033[2K\r");
+
+        // 토큰 사용량 표시
+        $this->output->write(
+            $this->colors['purple'] . "Tokens: " .
+            $this->colors['reset'] . "Input: " . $this->colors['green'] . $usage['input_tokens'] .
+            $this->colors['reset'] . " | Output: " . $this->colors['green'] . $usage['output_tokens'] .
+            $this->colors['reset'] . " | Cache created: " . $this->colors['blue'] . $usage['cache_creation_input_tokens'] .
+            $this->colors['reset'] . " | Cache read: " . $this->colors['blue'] . $usage['cache_read_input_tokens'] .
+            $this->colors['reset'] . " | Total: " . $this->colors['yellow'] . $usage['total_tokens'] .
+            $this->colors['reset']
+        );
     }
 }

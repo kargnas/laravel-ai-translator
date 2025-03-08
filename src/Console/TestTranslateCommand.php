@@ -9,6 +9,7 @@ use Kargnas\LaravelAiTranslator\AI\Language\LanguageRules;
 use Kargnas\LaravelAiTranslator\Enums\TranslationStatus;
 use Kargnas\LaravelAiTranslator\Models\LocalizedString;
 use Illuminate\Support\Facades\Log;
+use Kargnas\LaravelAiTranslator\AI\Printer\TokenUsagePrinter;
 
 class TestTranslateCommand extends Command
 {
@@ -48,9 +49,11 @@ class TestTranslateCommand extends Command
         $sourceLanguage = $this->argument('source_language');
         $targetLanguage = $this->argument('target_language');
         $text = $this->option('text');
-        $rules = $this->option('rules');
-        $debug = (bool) $this->option('debug');
+        $rulesList = $this->option('rules');
+        $useExtendedThinking = $this->option('extended-thinking');
+        $debug = $this->option('debug');
         $showXml = $this->option('show-xml');
+        $showThinking = true; // 항상 thinking 내용 표시
 
         if (!$text) {
             $text = $this->ask('Enter text to translate');
@@ -61,89 +64,130 @@ class TestTranslateCommand extends Command
             config(['ai-translator.debug' => true]);
         }
 
-        if ($this->option('extended-thinking')) {
+        if ($useExtendedThinking) {
             config(['ai-translator.ai.use_extended_thinking' => true]);
         }
 
-        return (function () use ($sourceLanguage, $targetLanguage, $text, $rules, $debug, $showXml) {
-            try {
-                \Log::info("TestTranslateCommand: Starting translation with source language = {$sourceLanguage}, target language = {$targetLanguage}, additional rules = " . json_encode($rules));
-                $provider = new AIProvider(
-                    filename: 'test.php',
-                    strings: ['test' => $text],
-                    sourceLanguage: $sourceLanguage,
-                    targetLanguage: $targetLanguage,
-                    additionalRules: $rules,
-                );
+        // 토큰 사용량 추적을 위한 변수
+        $tokenUsage = [
+            'input_tokens' => 0,
+            'output_tokens' => 0,
+            'cache_creation_input_tokens' => 0,
+            'cache_read_input_tokens' => 0,
+            'total_tokens' => 0
+        ];
 
-                // Called when a translation item is completed
-                $onTranslated = function (LocalizedString $item, string $status, array $translatedItems) use ($text) {
-                    // 원본 텍스트 가져오기
-                    $originalText = $text;
+        // AIProvider 생성
+        $provider = new AIProvider(
+            filename: 'Test.php',
+            strings: ['test' => $text],
+            sourceLanguage: $sourceLanguage,
+            targetLanguage: $targetLanguage,
+            additionalRules: $rulesList,
+            globalTranslationContext: null
+        );
 
-                    switch ($status) {
-                        case TranslationStatus::STARTED:
-                            $this->line("\n" . str_repeat('─', 80));
-                            $this->line("\033[1;44;37m 번역시작 \033[0m \033[1;43;30m {$item->key} \033[0m");
-                            $this->line("\033[90m원본:\033[0m " . substr($originalText, 0, 100) .
-                                (strlen($originalText) > 100 ? '...' : ''));
-                            break;
+        // 토큰 사용량 추적 콜백
+        $onTokenUsage = function (array $usage) use ($debug, $provider) {
+            // 토큰 사용량을 한 줄로 표시 (실시간 업데이트)
+            $this->output->write("\033[2K\r");
+            $this->output->write(
+                "<fg=magenta>Tokens:</> " .
+                "Input: <fg=green>{$usage['input_tokens']}</> | " .
+                "Output: <fg=green>{$usage['output_tokens']}</> | " .
+                "Cache created: <fg=blue>{$usage['cache_creation_input_tokens']}</> | " .
+                "Cache read: <fg=blue>{$usage['cache_read_input_tokens']}</> | " .
+                "Total: <fg=yellow>{$usage['total_tokens']}</>"
+            );
 
-                        case TranslationStatus::COMPLETED:
-                            $this->line("\033[1;32m번역:\033[0m \033[1m" . substr($item->translated, 0, 100) .
-                                (strlen($item->translated) > 100 ? '...' : '') . "\033[0m");
-                            break;
-                    }
-                };
-
-                // Called for AI's thinking process
-                $onThinking = function ($thinkingDelta) {
-                    // Display thinking content in gray
-                    echo $this->colors['gray'] . $thinkingDelta . $this->colors['reset'];
-                };
-
-                // Called when thinking block starts
-                $onThinkingStart = function () {
-                    $this->thinkingBlockCount++;
-                    $this->line('');
-                    $this->line($this->colors['purple'] . "🧠 AI Thinking Block #" . $this->thinkingBlockCount . " Started..." . $this->colors['reset']);
-                };
-
-                // Called when thinking block ends
-                $onThinkingEnd = function ($thinkingContent) {
-                    $this->line('');
-                    $this->line($this->colors['purple'] . "🧠 AI Thinking Block #" . $this->thinkingBlockCount . " Completed" . $this->colors['reset']);
-                };
-
-                // Called for each chunk of response
-                $onProgress = function ($chunk, $translatedItems) use ($showXml) {
-                    if ($showXml) {
-                        $this->rawXmlResponse .= $chunk;
-                    }
-                };
-
-                $translatedItems = $provider->translate(
-                    $onTranslated,
-                    $onThinking,
-                    $onProgress,
-                    $onThinkingStart,
-                    $onThinkingEnd
-                );
-
-                if ($showXml) {
-                    $this->line("\n" . str_repeat('─', 80));
-                    $this->line("\033[1;44;37m Raw XML Response \033[0m");
-                    $this->line($this->rawXmlResponse);
-                }
-
-                return 0;
-            } catch (\Exception $e) {
-                $this->error($e->getMessage());
-                if ($debug) {
-                    Log::error($e);
-                }
-                return 1;
+            // 마지막 토큰 사용량 정보는 자세히 출력
+            if (isset($usage['final']) && $usage['final']) {
+                $this->output->writeln(''); // 줄바꿈 추가
+                $printer = new TokenUsagePrinter($provider->getModel());
+                $printer->printFullReport($this, $usage);
             }
-        })();
+        };
+
+        \Log::info("TestTranslateCommand: Starting translation with source language = {$sourceLanguage}, target language = {$targetLanguage}, additional rules = " . json_encode($rulesList));
+
+        // Called when a translation item is completed
+        $onTranslated = function (LocalizedString $item, string $status, array $translatedItems) use ($text) {
+            // 원본 텍스트 가져오기
+            $originalText = $text;
+
+            switch ($status) {
+                case TranslationStatus::STARTED:
+                    $this->line("\n" . str_repeat('─', 80));
+                    $this->line("\033[1;44;37m 번역시작 \033[0m \033[1;43;30m {$item->key} \033[0m");
+                    $this->line("\033[90m원본:\033[0m " . substr($originalText, 0, 100) .
+                        (strlen($originalText) > 100 ? '...' : ''));
+                    break;
+
+                case TranslationStatus::COMPLETED:
+                    $this->line("\033[1;32m번역:\033[0m \033[1m" . substr($item->translated, 0, 100) .
+                        (strlen($item->translated) > 100 ? '...' : '') . "\033[0m");
+                    break;
+            }
+        };
+
+        // Called when a thinking delta is received (Claude 3.7 only)
+        $onThinking = function ($delta) use ($showThinking) {
+            // Display thinking content in gray
+            if ($showThinking) {
+                echo $this->colors['gray'] . $delta . $this->colors['reset'];
+            }
+        };
+
+        // Called when thinking starts
+        $onThinkingStart = function () use ($showThinking) {
+            if ($showThinking) {
+                $this->thinkingBlockCount++;
+                $this->line('');
+                $this->line($this->colors['purple'] . "🧠 AI Thinking Block #" . $this->thinkingBlockCount . " Started..." . $this->colors['reset']);
+            }
+        };
+
+        // Called when thinking ends
+        $onThinkingEnd = function ($content = null) use ($showThinking) {
+            if ($showThinking) {
+                $this->line('');
+                $this->line($this->colors['purple'] . "🧠 AI Thinking Block #" . $this->thinkingBlockCount . " Completed" . $this->colors['reset']);
+            }
+        };
+
+        // Called for each progress chunk (streamed response)
+        $onProgress = function ($chunk, $translatedItems) use ($showXml) {
+            if ($showXml) {
+                $this->rawXmlResponse .= $chunk;
+            }
+        };
+
+        try {
+            $translatedItems = $provider
+                ->setOnTranslated($onTranslated)
+                ->setOnThinking($onThinking)
+                ->setOnProgress($onProgress)
+                ->setOnThinkingStart($onThinkingStart)
+                ->setOnThinkingEnd($onThinkingEnd)
+                ->setOnTokenUsage($onTokenUsage)
+                ->translate();
+
+            // Show raw XML response if requested
+            if ($showXml) {
+                $this->line("\n" . str_repeat('─', 80));
+                $this->line("\033[1;44;37m Raw XML Response \033[0m");
+                $this->line($this->rawXmlResponse);
+            }
+
+            // 토큰 사용량은 콜백에서 직접 출력하므로 여기서는 출력하지 않음
+
+            return 0;
+        } catch (\Exception $e) {
+            $this->error("Error: " . $e->getMessage());
+            if ($debug) {
+                Log::error($e);
+            }
+            return 1;
+        }
     }
 }

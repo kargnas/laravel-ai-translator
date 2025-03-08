@@ -6,6 +6,7 @@ use Illuminate\Console\Command;
 use Kargnas\LaravelAiTranslator\AI\AIProvider;
 use Kargnas\LaravelAiTranslator\AI\Language\LanguageConfig;
 use Kargnas\LaravelAiTranslator\AI\Language\LanguageRules;
+use Kargnas\LaravelAiTranslator\AI\TranslationContextProvider;
 use Kargnas\LaravelAiTranslator\Transformers\PHPLangTransformer;
 use Kargnas\LaravelAiTranslator\Utility;
 
@@ -38,7 +39,8 @@ class TranslateStrings extends Command
         }
 
         $this->chunkSize = $this->ask("Enter the chunk size for translation. Translate strings in a batch. The higher, the cheaper. (default: 30)", 30);
-        $this->translate();
+        $maxContextItems = $this->ask("Maximum number of context items to include for consistency (default: 100, set 0 to disable)", 100);
+        $this->translate($maxContextItems);
     }
 
     public function choiceLanguages($question, $multiple, $default = null)
@@ -62,7 +64,7 @@ class TranslateStrings extends Command
         return $selectedLocales;
     }
 
-    public function translate()
+    public function translate($maxContextItems = 100)
     {
         $locales = $this->getExistingLocales();
         foreach ($locales as $locale) {
@@ -137,7 +139,22 @@ class TranslateStrings extends Command
                 // But also this will increase the speed of the translation, and quality of continuous translation
                 collect($sourceStringList)
                     ->chunk($this->chunkSize)
-                    ->each(function ($chunk) use ($locale, $file, $targetStringTransformer, $referenceStringList) {
+                    ->each(function ($chunk) use ($locale, $file, $targetStringTransformer, $referenceStringList, $maxContextItems) {
+                        // 전역 번역 컨텍스트 가져오기
+                        $globalContext = [];
+                        if ($maxContextItems > 0) {
+                            $contextProvider = new TranslationContextProvider();
+                            $globalContext = $contextProvider->getGlobalTranslationContext(
+                                $this->sourceLocale,
+                                $locale,
+                                $file,
+                                $maxContextItems
+                            );
+
+                            $this->info(" - Using global context: " . count($globalContext) . " files, " .
+                                collect($globalContext)->map(fn($items) => count($items))->sum() . " items");
+                        }
+
                         $translator = new AIProvider(
                             filename: $file,
                             strings: $chunk->mapWithKeys(function ($item, $key) use ($referenceStringList) {
@@ -155,6 +172,7 @@ class TranslateStrings extends Command
                             sourceLanguage: $this->sourceLocale,
                             targetLanguage: $locale,
                             additionalRules: [],
+                            globalTranslationContext: $globalContext
                         );
 
                         try {

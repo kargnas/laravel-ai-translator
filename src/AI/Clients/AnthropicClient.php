@@ -74,6 +74,8 @@ class AnthropicClient
                 'input_tokens' => 0,
                 'output_tokens' => 0
             ],
+            'cache_creation_input_tokens' => 0,
+            'cache_read_input_tokens' => 0,
             'thinking' => ''
         ];
 
@@ -91,6 +93,15 @@ class AnthropicClient
                     return;
                 }
 
+                // 디버그 로깅 - 개발 모드에서 API 응답 구조 확인
+                if (config('app.debug', false) || config('ai-translator.debug', false)) {
+                    $eventType = $parsedData['type'] ?? 'unknown';
+                    if (in_array($eventType, ['message_start', 'message_stop', 'message_delta']) && !isset($parsedData['__logged'])) {
+                        \Log::debug("Anthropic API Raw Event: {$eventType}", json_decode(json_encode($parsedData), true));
+                        $parsedData['__logged'] = true;
+                    }
+                }
+
                 // Event type check
                 $eventType = $parsedData['type'] ?? '';
 
@@ -106,8 +117,28 @@ class AnthropicClient
                     if (isset($message['role'])) {
                         $finalResponse['role'] = $message['role'];
                     }
+
+                    // 토큰 사용량 정보 추출 - message 객체 안에 있는 경우
                     if (isset($message['usage'])) {
                         $finalResponse['usage'] = $message['usage'];
+                    }
+
+                    // 토큰 사용량 정보 추출 - 루트 레벨에 있는 경우
+                    if (isset($parsedData['usage'])) {
+                        $finalResponse['usage'] = $parsedData['usage'];
+                    }
+
+                    // 캐시 관련 토큰 정보 추출
+                    if (isset($message['cache_creation_input_tokens'])) {
+                        $finalResponse['cache_creation_input_tokens'] = (int) $message['cache_creation_input_tokens'];
+                    } elseif (isset($parsedData['cache_creation_input_tokens'])) {
+                        $finalResponse['cache_creation_input_tokens'] = (int) $parsedData['cache_creation_input_tokens'];
+                    }
+
+                    if (isset($message['cache_read_input_tokens'])) {
+                        $finalResponse['cache_read_input_tokens'] = (int) $message['cache_read_input_tokens'];
+                    } elseif (isset($parsedData['cache_read_input_tokens'])) {
+                        $finalResponse['cache_read_input_tokens'] = (int) $parsedData['cache_read_input_tokens'];
                     }
                 }
                 // Handle content_block_start event
@@ -175,9 +206,41 @@ class AnthropicClient
                         if (isset($parsedData['delta']['stop_reason'])) {
                             $finalResponse['stop_reason'] = $parsedData['delta']['stop_reason'];
                         }
+
+                        // 토큰 사용량 정보 추출 - delta 객체 안에 있는 경우
+                        if (isset($parsedData['delta']['usage'])) {
+                            $finalResponse['usage'] = $parsedData['delta']['usage'];
+                        }
                     }
+
+                    // 토큰 사용량 정보 추출 - 루트 레벨에 있는 경우
                     if (isset($parsedData['usage'])) {
                         $finalResponse['usage'] = $parsedData['usage'];
+                    }
+                }
+                // Handle message_stop event
+                else if ($eventType === 'message_stop') {
+                    // 토큰 사용량 정보 추출 - 메시지 안에 있는 경우
+                    if (isset($parsedData['message']) && isset($parsedData['message']['usage'])) {
+                        $finalResponse['usage'] = $parsedData['message']['usage'];
+                    }
+
+                    // 토큰 사용량 정보 추출 - 루트 레벨에 있는 경우
+                    if (isset($parsedData['usage'])) {
+                        $finalResponse['usage'] = $parsedData['usage'];
+                    }
+
+                    // 캐시 관련 토큰 정보 추출
+                    if (isset($parsedData['message']) && isset($parsedData['message']['cache_creation_input_tokens'])) {
+                        $finalResponse['cache_creation_input_tokens'] = (int) $parsedData['message']['cache_creation_input_tokens'];
+                    } elseif (isset($parsedData['cache_creation_input_tokens'])) {
+                        $finalResponse['cache_creation_input_tokens'] = (int) $parsedData['cache_creation_input_tokens'];
+                    }
+
+                    if (isset($parsedData['message']) && isset($parsedData['message']['cache_read_input_tokens'])) {
+                        $finalResponse['cache_read_input_tokens'] = (int) $parsedData['message']['cache_read_input_tokens'];
+                    } elseif (isset($parsedData['cache_read_input_tokens'])) {
+                        $finalResponse['cache_read_input_tokens'] = (int) $parsedData['cache_read_input_tokens'];
                     }
                 }
 
@@ -223,6 +286,7 @@ class AnthropicClient
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, false);
         curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, strtoupper($method));
+        curl_setopt($ch, CURLOPT_TIMEOUT, 300);
 
         if (strtoupper($method) !== 'GET') {
             curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));

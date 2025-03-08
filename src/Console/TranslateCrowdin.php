@@ -14,10 +14,18 @@ use Illuminate\Support\Collection;
 use Kargnas\LaravelAiTranslator\AI\AIProvider;
 use Kargnas\LaravelAiTranslator\AI\Language\LanguageConfig;
 use Kargnas\LaravelAiTranslator\AI\Language\LanguageRules;
+use Kargnas\LaravelAiTranslator\AI\TranslationContextProvider;
 
 class TranslateCrowdin extends Command
 {
-    protected $signature = 'ai-translator:crowdin';
+    protected $signature = 'ai-translator:translate-crowdin
+                            {--token= : Crowdin API token}
+                            {--organization= : Crowdin organization}
+                            {--project= : Crowdin project ID}
+                            {--source-language= : Source language code}
+                            {--target-language= : Target language code}
+                            {--chunk-size=30 : Chunk size for translation}
+                            {--max-context-items=100 : Maximum number of context items}';
 
     protected $description = 'Translate strings in Crowdin';
 
@@ -33,19 +41,94 @@ class TranslateCrowdin extends Command
 
     public function handle()
     {
-        if (!env('CROWDIN_API_KEY')) {
-            $this->error('CROWDIN_API_KEY is not set');
-            exit(1);
+        // 옵션 값 가져오기
+        $token = $this->option('token');
+        $organization = $this->option('organization');
+        $projectId = $this->option('project');
+        $sourceLanguage = $this->option('source-language');
+        $targetLanguage = $this->option('target-language');
+        $chunkSize = (int) $this->option('chunk-size') ?: 30;
+
+        // 토큰이 없으면 입력 받기
+        if (empty($token)) {
+            $token = $this->secret('Enter your Crowdin API token');
         }
 
-        $this->crowdin = new Crowdin([
-            'access_token' => env('CROWDIN_API_KEY'),
-        ]);
+        // 조직이 없으면 입력 받기
+        if (empty($organization)) {
+            $organization = $this->ask('Enter your Crowdin organization');
+        }
 
-        $this->chunkSize = $this->ask('How many strings to translate at once?', 30);
+        $this->crowdinToken = $token;
+        $this->crowdinOrganization = $organization;
+        $this->chunkSize = $chunkSize;
 
-        $this->choiceProjects();
-        $this->targetLanguage = $this->choiceLanguages("Choose a language to translate", false);
+        // 프로젝트 목록 가져오기
+        $projects = $this->getProjects();
+
+        // 프로젝트 선택
+        if (!empty($projectId)) {
+            $this->selectedProject = collect($projects)->firstWhere('id', $projectId);
+            if (empty($this->selectedProject)) {
+                $this->error("Project with ID {$projectId} not found.");
+                return;
+            }
+        } else {
+            $projectChoices = collect($projects)->mapWithKeys(function ($project) {
+                return [$project['id'] => "{$project['name']} ({$project['id']})"];
+            })->toArray();
+
+            $selectedProjectId = $this->choice('Select a project', $projectChoices);
+            $this->selectedProject = collect($projects)->firstWhere('id', $selectedProjectId);
+        }
+
+        // 소스 언어 선택
+        if (!empty($sourceLanguage)) {
+            $this->selectedProject['sourceLanguage'] = collect($this->selectedProject['targetLanguages'])
+                ->firstWhere('name', $sourceLanguage);
+
+            if (empty($this->selectedProject['sourceLanguage'])) {
+                $this->error("Source language {$sourceLanguage} not found in project.");
+                return;
+            }
+        }
+
+        // 타겟 언어 선택
+        if (!empty($targetLanguage)) {
+            $this->selectedTargetLanguages = [
+                collect($this->selectedProject['targetLanguages'])
+                    ->firstWhere('name', $targetLanguage)
+            ];
+
+            if (empty($this->selectedTargetLanguages[0])) {
+                $this->error("Target language {$targetLanguage} not found in project.");
+                return;
+            }
+        } else {
+            // 기존 로직 유지
+            $targetLanguageChoices = collect($this->selectedProject['targetLanguages'])
+                ->filter(function ($language) {
+                    return $language['id'] !== $this->selectedProject['sourceLanguage']['id'];
+                })
+                ->mapWithKeys(function ($language) {
+                    return [$language['id'] => "{$language['name']} ({$language['id']})"];
+                })
+                ->toArray();
+
+            $selectedTargetLanguageIds = $this->choice(
+                'Select target languages (comma-separated)',
+                $targetLanguageChoices,
+                null,
+                null,
+                true
+            );
+
+            $this->selectedTargetLanguages = collect($this->selectedProject['targetLanguages'])
+                ->filter(function ($language) use ($selectedTargetLanguageIds) {
+                    return in_array($language['id'], $selectedTargetLanguageIds);
+                })
+                ->toArray();
+        }
 
         if ($this->ask('Do you want to choose reference languages? (y/n)', 'n') === 'y') {
             $this->referenceLanguages = $this->choiceLanguages("Choose a language to reference when translating, preferably one that has already been vetted and translated to a high quality. You can select multiple languages via ',' (e.g. '1, 2')", true);
@@ -280,8 +363,24 @@ class TranslateCrowdin extends Command
                 $untranslatedStrings
                     ->chunk($this->chunkSize)
                     ->each(function ($chunk) use ($file, $targetLanguage, $untranslatedStrings, $referenceApprovals) {
+                        $this->info("Starting translation for {$targetLanguage['name']}...");
+
+                        $contextProvider = new TranslationContextProvider();
+                        $maxContextItems = (int) $this->option('max-context-items') ?: 100;
+                        $globalContext = $contextProvider->getGlobalTranslationContext(
+                            $this->selectedProject['sourceLanguage']['name'],
+                            $targetLanguage['name'],
+                            basename($file['name']),
+                            $maxContextItems
+                        );
+
+                        if (!empty($globalContext)) {
+                            $this->info(" - Using global context: " . count($globalContext) . " files, " .
+                                collect($globalContext)->map(fn($items) => count($items))->sum() . " items");
+                        }
+
                         $translator = new AIProvider(
-                            filename: $file['name'],
+                            filename: basename($file['name']),
                             strings: $chunk->mapWithKeys(function ($string) use ($referenceApprovals) {
                                 $context = $string['context'] ?? null;
                                 $context = preg_replace("/[\.\s\->]/", "", $context);
@@ -307,6 +406,7 @@ class TranslateCrowdin extends Command
                             sourceLanguage: $this->selectedProject['sourceLanguage']['name'],
                             targetLanguage: $targetLanguage['name'],
                             additionalRules: [],
+                            globalTranslationContext: $globalContext
                         );
 
                         $translated = $translator->translate();

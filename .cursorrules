@@ -3,16 +3,101 @@ You are an expert in Laravel, PHP. This project is my blog project.
 - Always print logs, messages in English. This is a laravel package for English people.
 - Write the code shorter, and less complex as much as possible. Don't need to do over-engineering.
 
+## Laravel Debugging Best Practices
+- Use the `dump()` function to inspect variable values without stopping execution:
+  ```php
+  dump($variable); // Shows the value and continues execution
+  dump($user->profile, $settings); // Can dump multiple variables at once
+  ```
+- Use the `dd()` (dump and die) function to inspect values and halt execution at critical points:
+  ```php
+  dd($variable); // Displays the value and stops execution completely
+  ```
+- For complex debugging, use strategic placement of dump/dd calls:
+  ```php
+  // Place before suspected problem areas
+  dump('Checkpoint 1', $data);
+  // Complex logic here
+  dump('Checkpoint 2', $data); // See how data changed
+  ```
+- Use the Laravel Debug Bar package for advanced debugging:
+  ```bash
+  composer require barryvdh/laravel-debugbar --dev
+  ```
+- For API debugging, use `Log::debug()` to record values without affecting the response:
+  ```php
+  Log::debug('API Request', ['data' => $request->all()]);
+  ```
+- In loops or collections, use the `tap()` helper to debug without breaking chains:
+  ```php
+  $collection->map(function ($item) {
+      return tap($item->process(), function ($processed) use ($item) {
+          dump("Processing item {$item->id}", $processed);
+      });
+  });
+  ```
+
+## Command-line Debugging in Laravel
+- Use Artisan Tinker for interactive debugging:
+  ```bash
+  php artisan tinker
+  >>> App\Models\User::find(1) // Test queries directly
+  >>> DB::table('users')->where('email', 'test@example.com')->first() // Check data
+  ```
+- Check Laravel logs for errors:
+  ```bash
+  tail -f storage/logs/laravel.log
+  ```
+- Use Artisan to clear caches when experiencing unexpected behavior:
+  ```bash
+  php artisan cache:clear
+  php artisan config:clear
+  php artisan route:clear
+  php artisan view:clear
+  ```
+- Debug failing tests with verbose output:
+  ```bash
+  php artisan test --filter=TestName -v
+  ```
+- Run a specific piece of code for testing:
+  ```bash
+  php artisan tinker
+  >>> require app_path('path/to/your/file.php');
+  >>> $result = (new SomeClass())->methodToTest('test');
+  >>> dump($result);
+  ```
+- Check route list to verify routes are registered correctly:
+  ```bash
+  php artisan route:list --method=GET
+  ```
+- Test queue jobs explicitly:
+  ```bash
+  php artisan queue:work --once
+  ```
+- Analyze database queries with query counting:
+  ```php
+  DB::enableQueryLog();
+  // Code with queries here
+  dd(DB::getQueryLog());
+  ```
+
+## Cursor Best Practice for Debugging
+
 ## PHP/Laravel
-- This project strictly uses PHP 8.0. You MUST utilize all PHP 8.0 features for optimal and concise code. Features from PHP 8.1 and above are STRICTLY PROHIBITED:
-  - Required PHP 8.0 Features (USE THESE):
+- This project strictly uses PHP 8.1. You MUST utilize all PHP 8.1 features for optimal and concise code. Features from PHP 8.2 and above are STRICTLY PROHIBITED:
+  - Required PHP 8.0 & 8.1 Features (USE THESE):
     - **Match Expression**: Always prefer match over switch. Example: `match($status) { 200 => 'OK', 404 => 'Not Found', default => 'Unknown' };`
     - **Named Arguments**: Use for better readability. Example: `function greet(string $name, int $age) { ... } greet(age: 30, name: 'Alice');`
     - **Union Types**: Always use for flexible typing. Example: `function process(int|float $value): int|float { return $value * 2; }`
-    - **Constructor Property Promotion**: Required for all new classes. Example: `class User { public function __construct(private string $name, private int $age) {} }`. Note: `readonly` properties are NOT supported in PHP 8.0, use only `public`, `protected`, or `private`.
+    - **Constructor Property Promotion**: Required for all new classes. Example: `class User { public function __construct(private string $name, private int $age) {} }`
     - **Attributes**: Use for metadata. Example: `#[ExampleAttribute] class MyClass { ... }`
     - **Nullsafe Operator**: Required for all nullable chains. Example: `$username = $user?->getProfile()?->getUsername();`
     - **String Functions**: Always use new string functions. Example: `str_contains()`, `str_starts_with()`, `str_ends_with()`
+    - **Enums**: Define custom types with fixed values. Example: `enum Status { case PENDING; case APPROVED; case REJECTED; } $currentStatus = Status::PENDING;`
+    - **Readonly Properties**: Properties that can only be written once. Example: `class User { public readonly string $name; public function __construct(string $name) { $this->name = $name; } }`
+    - **Intersection Types**: Require multiple types at once. Example: `interface A {} interface B {} function test(A&B $obj) { /* ... */ }`
+    - **`never` Return Type**: For functions that never return. Example: `function stop(): never { exit(); }`
+    - **`new` in Initializers**: Use `new` directly in property defaults. Example: `class Service { public object $logger; public function __construct(object $logger = new Logger()) { $this->logger = $logger; } }`
   - PROHIBITED Features (DO NOT USE):
     - PHP 8.1: Enums, Readonly Properties, First-class Callable Syntax, Pure Intersection Types, Never Return Type
     - PHP 8.2: Readonly Classes, DNF Types, Null/False Standalone Types
@@ -36,7 +121,13 @@ You are an expert in Laravel, PHP. This project is my blog project.
 - When you make new migration file, use `php artisan make:migration create_table_name_table` command first before ccoding the Schema.
 - When you code scheduled task, use the file 'console.php' instead of 'Kernel.php'.
 - Never put two classes in a single file. Every php files should be only one single class.
-- When creating classes and methods, always add comments describing their purpose and objectives. This helps AI better understand and respect the intended functionality during development. Example:
+- When creating classes and methods, always add comments describing their purpose and objectives. For method implementations, only add comments when:
+  - The code logic is complex or not immediately obvious
+  - There are important business rules or constraints that need to be documented
+  - The implementation requires specific context or background information
+  - There are performance considerations or edge cases to be aware of
+- Never use numbered lists (1. 2. 3. 4.) in comments.
+  Example:
   ```php
   /**
    * Purpose: Handles user authentication and authorization
@@ -45,16 +136,23 @@ You are an expert in Laravel, PHP. This project is my blog project.
    * - Handle session management
    * - Implement role-based access control
    */
-  class AuthenticationService { ... }
+  class AuthenticationService {
+      /**
+       * Complex business logic that requires explanation
+       * - Implements special rate limiting rules based on user type
+       * - Handles legacy authentication methods for backward compatibility
+       * - Uses exponential backoff for failed attempts
+       */
+      public function complexAuthenticationLogic(): bool {
+          // Code here needs comments due to complexity
+      }
 
-  /**
-   * Purpose: Validates user credentials against database
-   * Objectives:
-   * - Check if user exists
-   * - Verify password hash
-   * - Return authentication result
-   */
-  public function validateCredentials(array $credentials): bool { ... }
+      // Simple methods with clear implementation don't need comments
+      public function logout(): void {
+          $this->guard->logout();
+          session()->invalidate();
+      }
+  }
   ```
 
 Dependencies

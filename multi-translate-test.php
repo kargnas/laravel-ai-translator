@@ -20,15 +20,15 @@ Third line.',
 
 // temp.php 파일에 저장
 file_put_contents('temp.php', '<?php return ' . var_export($items, true) . ';');
-
+$targetLanguage = 'ko_KR';
 // 번역 명령 실행 - 디버그 모드 (자세한 출력)
-$command = 'cd /Volumes/Data/projects/test.af && php artisan ai-translator:translate-file modules/libraries/laravel-ai-translator/temp.php ko_KR en --debug -vvv && cd modules/libraries/laravel-ai-translator';
+$command = "cd /Volumes/Data/projects/test.af && php artisan ai-translator:translate-file modules/libraries/laravel-ai-translator/temp.php {$targetLanguage} en --debug -vvv && cd modules/libraries/laravel-ai-translator";
 echo "Executing: $command\n";
 system($command);
 
 // 결과 확인
 echo "\nTranslation results:\n";
-$results = include('temp-ko.php');
+$results = include("temp-{$targetLanguage}.php");
 foreach ($results as $key => $text) {
     echo "[$key] => $text\n";
 }
@@ -37,8 +37,8 @@ foreach ($results as $key => $text) {
 if (file_exists('temp.php')) {
     unlink('temp.php');
 }
-if (file_exists('temp-ko.php')) {
-    unlink('temp-ko.php');
+if (file_exists("temp-{$targetLanguage}.php")) {
+    unlink("temp-{$targetLanguage}.php");
 }
 
 echo "\nTest completed.\n";

@@ -4,6 +4,8 @@ namespace Kargnas\LaravelAiTranslator\AI;
 
 use Kargnas\LaravelAiTranslator\AI\Clients\AnthropicClient;
 use Kargnas\LaravelAiTranslator\AI\Clients\OpenAIClient;
+use Kargnas\LaravelAiTranslator\AI\Language\LanguageConfig;
+use Kargnas\LaravelAiTranslator\AI\Language\LanguageRules;
 use Kargnas\LaravelAiTranslator\AI\Parsers\AIResponseParser;
 use Kargnas\LaravelAiTranslator\Enums\TranslationStatus;
 use Kargnas\LaravelAiTranslator\Exceptions\VerifyFailedException;
@@ -37,6 +39,16 @@ class AIProvider
             $newKey = "{$prefix}.{$key}";
             return [$newKey => $value];
         })->toArray();
+
+        // Get language names from LanguageConfig
+        $this->sourceLanguage = LanguageConfig::getLanguageName($this->sourceLanguage) ?? $this->sourceLanguage;
+        $this->targetLanguage = LanguageConfig::getLanguageName($this->targetLanguage) ?? $this->targetLanguage;
+
+        // Get additional rules from LanguageRules
+        $this->additionalRules = array_merge(
+            $this->additionalRules,
+            LanguageRules::getAdditionalRules($this->targetLanguage)
+        );
     }
 
     protected function getFilePrefix(): string

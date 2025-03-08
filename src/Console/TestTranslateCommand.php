@@ -4,6 +4,8 @@ namespace Kargnas\LaravelAiTranslator\Console;
 
 use Illuminate\Console\Command;
 use Kargnas\LaravelAiTranslator\AI\AIProvider;
+use Kargnas\LaravelAiTranslator\AI\Language\LanguageConfig;
+use Kargnas\LaravelAiTranslator\AI\Language\LanguageRules;
 use Kargnas\LaravelAiTranslator\Enums\TranslationStatus;
 use Kargnas\LaravelAiTranslator\Models\LocalizedString;
 use Illuminate\Support\Facades\Log;
@@ -45,128 +47,102 @@ class TestTranslateCommand extends Command
     {
         $sourceLanguage = $this->argument('source_language');
         $targetLanguage = $this->argument('target_language');
-        $text = $this->option('text') ?? $this->ask('Enter text to translate');
+        $text = $this->option('text');
         $rules = $this->option('rules');
-        $useExtendedThinking = (bool) $this->option('extended-thinking');
-        $useExtendedThinking = false;
-        $debugMode = (bool) $this->option('debug');
-        $showXml = (bool) $this->option('show-xml');
+        $debug = (bool) $this->option('debug');
+        $showXml = $this->option('show-xml');
 
-        $this->info("Starting translation test...");
-        $this->info("Source language: {$sourceLanguage}");
-        $this->info("Target language: {$targetLanguage}");
-        $this->info("Text to translate: {$text}");
+        if (!$text) {
+            $text = $this->ask('Enter text to translate');
+        }
 
-        if ($debugMode) {
-            $this->info("Debug mode: Enabled");
+        if ($debug) {
+            config(['app.debug' => true]);
             config(['ai-translator.debug' => true]);
         }
 
-        if ($showXml) {
-            $this->info("Show XML: Enabled");
+        if ($this->option('extended-thinking')) {
+            config(['ai-translator.ai.use_extended_thinking' => true]);
         }
 
-        if (!empty($rules)) {
-            $this->info("Additional rules:");
-            foreach ($rules as $rule) {
-                $this->info("- {$rule}");
-            }
-        }
+        return (function () use ($sourceLanguage, $targetLanguage, $text, $rules, $debug, $showXml) {
+            try {
+                $provider = new AIProvider(
+                    filename: 'test.php',
+                    strings: ['test' => $text],
+                    sourceLanguage: $sourceLanguage,
+                    targetLanguage: $targetLanguage,
+                    additionalRules: $rules,
+                );
 
-        if ($useExtendedThinking) {
-            $this->info("Extended Thinking: Enabled");
-        }
+                // Called when a translation item is completed
+                $onTranslated = function (LocalizedString $item, string $status, array $translatedItems) use ($text) {
+                    // 원본 텍스트 가져오기
+                    $originalText = $text;
 
-        // Set Extended Thinking configuration
-        config(['ai-translator.ai.model' => 'claude-3-5-haiku-20241022']);
-        config(['ai-translator.ai.use_extended_thinking' => $useExtendedThinking]);
+                    switch ($status) {
+                        case TranslationStatus::STARTED:
+                            $this->line("\n" . str_repeat('─', 80));
+                            $this->line("\033[1;44;37m 번역시작 \033[0m \033[1;43;30m {$item->key} \033[0m");
+                            $this->line("\033[90m원본:\033[0m " . substr($originalText, 0, 100) .
+                                (strlen($originalText) > 100 ? '...' : ''));
+                            break;
 
-        // Indicates whether we've displayed thinking output
-        $hasDisplayedThinking = true;
+                        case TranslationStatus::COMPLETED:
+                            $this->line("\033[1;32m번역:\033[0m \033[1m" . substr($item->translated, 0, 100) .
+                                (strlen($item->translated) > 100 ? '...' : '') . "\033[0m");
+                            break;
+                    }
+                };
 
-        try {
-            $provider = new AIProvider(
-                filename: 'test.php',
-                strings: ['test' => $text],
-                sourceLanguage: $sourceLanguage,
-                targetLanguage: $targetLanguage,
-                additionalRules: $rules,
-            );
+                // Called for AI's thinking process
+                $onThinking = function ($thinkingDelta) {
+                    // Display thinking content in gray
+                    echo $this->colors['gray'] . $thinkingDelta . $this->colors['reset'];
+                };
 
-            // Called when a translation item is completed
-            $onTranslated = function (LocalizedString $item, string $status, array $translatedItems) use ($text) {
-                // 원본 텍스트 가져오기
-                $originalText = $text;
+                // Called when thinking block starts
+                $onThinkingStart = function () {
+                    $this->thinkingBlockCount++;
+                    $this->line('');
+                    $this->line($this->colors['purple'] . "🧠 AI Thinking Block #" . $this->thinkingBlockCount . " Started..." . $this->colors['reset']);
+                };
 
-                switch ($status) {
-                    case TranslationStatus::STARTED:
-                        $this->line("\n" . str_repeat('─', 80));
-                        $this->line("\033[1;44;37m 번역시작 \033[0m \033[1;43;30m {$item->key} \033[0m");
-                        $this->line("\033[90m원본:\033[0m " . substr($originalText, 0, 100) .
-                            (strlen($originalText) > 100 ? '...' : ''));
-                        break;
+                // Called when thinking block ends
+                $onThinkingEnd = function ($thinkingContent) {
+                    $this->line('');
+                    $this->line($this->colors['purple'] . "🧠 AI Thinking Block #" . $this->thinkingBlockCount . " Completed" . $this->colors['reset']);
+                };
 
-                    case TranslationStatus::COMPLETED:
-                        $this->line("\033[1;32m번역:\033[0m \033[1m" . substr($item->translated, 0, 100) .
-                            (strlen($item->translated) > 100 ? '...' : '') . "\033[0m");
-                        break;
-                }
-            };
+                // Called for each chunk of response
+                $onProgress = function ($chunk, $translatedItems) use ($showXml) {
+                    if ($showXml) {
+                        $this->rawXmlResponse .= $chunk;
+                    }
+                };
 
-            // Called for AI's thinking process
-            $onThinking = function ($thinkingDelta) {
-                // Display thinking content in gray
-                echo $this->colors['gray'] . $thinkingDelta . $this->colors['reset'];
-            };
-
-            // Called when thinking block starts
-            $onThinkingStart = function () {
-                $this->thinkingBlockCount++;
-                $this->line('');
-                $this->line($this->colors['purple'] . "🧠 AI Thinking Block #" . $this->thinkingBlockCount . " Started..." . $this->colors['reset']);
-            };
-
-            // Called when thinking block ends
-            $onThinkingEnd = function ($completeThinkingContent) {
-                // Add a separator line to indicate the end of thinking block
-                $this->line('');
-                $this->line($this->colors['purple'] . "✓ Thinking completed (" . strlen($completeThinkingContent) . " chars)" . $this->colors['reset']);
-                $this->line('');
-            };
-
-            // Called for each response chunk to show progress
-            $onProgress = function ($currentText, $translatedItems) use ($showXml) {
-                // Store the response for later use (always store it)
-                $this->rawXmlResponse = $currentText;
+                $translatedItems = $provider->translate(
+                    $onTranslated,
+                    $onThinking,
+                    $onProgress,
+                    $onThinkingStart,
+                    $onThinkingEnd
+                );
 
                 if ($showXml) {
-                    $responsePreview = preg_replace('/[\n\r]+/', ' ', substr($currentText, -100));
-                    $this->line("\033[2K\r\033[35mAI응답:\033[0m " . $responsePreview);
+                    $this->line("\n" . str_repeat('─', 80));
+                    $this->line("\033[1;44;37m Raw XML Response \033[0m");
+                    $this->line($this->rawXmlResponse);
                 }
-            };
 
-            // Execute translation with callbacks
-            $result = $provider->translate($onTranslated, $onThinking, $onProgress, $onThinkingStart, $onThinkingEnd);
-
-            // Show raw XML response if requested
-            if ($showXml && !empty($this->rawXmlResponse)) {
-                $this->line('');
-                $this->line($this->colors['yellow'] . "Raw XML Response:" . $this->colors['reset']);
-                $this->line($this->colors['gray'] . $this->rawXmlResponse . $this->colors['reset']);
+                return 0;
+            } catch (\Exception $e) {
+                $this->error($e->getMessage());
+                if ($debug) {
+                    Log::error($e);
+                }
+                return 1;
             }
-
-        } catch (\Exception $e) {
-            $this->error("Error occurred during translation: " . $e->getMessage());
-
-            if ($debugMode) {
-                $this->line('');
-                $this->line($this->colors['red'] . "Error details:" . $this->colors['reset']);
-                $this->line($this->colors['red'] . $e->getTraceAsString() . $this->colors['reset']);
-            }
-
-            return 1;
-        }
-
-        return 0;
+        })();
     }
 }

@@ -33,8 +33,8 @@ return [
     // 'disable_plural' => true,
     // 'skip_locales' => [],
 
-    // Example: 'en_us' (all lowercase, underscore)
     // You can add additional custom locale names here.
+    // Example: 'en_us', 'en-us', 'en_US', 'en-US'
     'locale_names' => [
         'en_reddit' => 'English (Reddit)',
     ],

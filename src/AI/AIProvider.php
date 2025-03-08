@@ -15,7 +15,7 @@ class AIProvider
 
     protected string $configModel;
 
-    protected int $configRetries = 3;
+    protected int $configRetries;
 
     // 번역 응답의 원본 XML을 저장하는 변수
     public static string $lastRawResponse = '';
@@ -75,6 +75,12 @@ class AIProvider
             /** @var LocalizedString $item */
             if (!empty($item->key) && isset($item->translated) && $sourceKeys->contains($item->key)) {
                 $hasValidTranslations = true;
+
+                // 코멘트가 있는 경우 경고 로그 출력
+                if (!empty($item->comment)) {
+                    \Log::warning("Translation comment for key '{$item->key}': {$item->comment}");
+                }
+
                 break;
             }
         }

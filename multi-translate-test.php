@@ -13,7 +13,9 @@ $items = [
     'item4' => 'Fourth item with multiple lines.
 Second line.
 Third line.',
-    'item5' => 'Fifth item with emoji 🚀 and Japanese 日本語.'
+    'item5' => 'Fifth item with emoji 🚀 and Japanese 日本語.',
+    'games_count_label' => ':games_count',
+    'kills_label' => ':kills kills',
 ];
 
 // temp.php 파일에 저장

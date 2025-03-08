@@ -1,17 +1,20 @@
-# Target Definition
-The most important mission: All strings should be translated into {targetLanguage} from {sourceLanguage}.
-- Source Language: `{sourceLanguage}`
-- Target Language: `{targetLanguage}`
-- Source filename: `{filename}`
-- Options (for only this request):
-  - Disable plural: {options.disablePlural}
+<translation_request>
+  <source_language>{sourceLanguage}</source_language>
+  <target_language>{targetLanguage}</target_language>
+  <source_file>{filename}</source_file>
+  <parent_namespace>{parentKey}</parent_namespace>
+</translation_request>
 
-# References
-- If 'disablePlural' is true, don't use plural rules, use just one form. (e.g. `:count item|:count items` -> `:count items`)
-- Parent key (Only for your reference, don't put to the key): `{parentKey}`
-- To make sure, the keys you should translate are: `{keys}`
-- Sometimes key has double quotes, '’', '"', '{', '}', ':' or other special characters. You should keep them in the translation.
-- These are the strings that you should translate into the target language. The source strings: (e.g. `key`: """(value)""")
+<translation_keys>
+  The keys that must be translated: `{keys}`
+</translation_keys>
 
-# Content
+<special_instructions>
+  - If 'disablePlural' is true, don't use plural rules, use just one form. (e.g. `:count item|:count items` -> `:count items`)
+  - Current configuration: Disable plural = {options.disablePlural}
+  - Special characters in keys ('', "", {}, :, etc.) must be preserved exactly as they appear
+</special_instructions>
+
+<content_to_translate>
 {strings}
+</content_to_translate>

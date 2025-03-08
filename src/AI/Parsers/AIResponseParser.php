@@ -81,13 +81,19 @@ class AIResponseParser
                     $localizedString->key = $key;
                     $localizedString->translated = $translatedText;
 
+                    // comment 태그가 있는 경우 처리
+                    if (preg_match('/<comment>(.*?)<\/comment>/s', $fullItem, $commentMatch)) {
+                        $localizedString->comment = $this->cleanContent($commentMatch[1]);
+                    }
+
                     $this->translatedItems[] = $localizedString;
                     $this->processedKeys[] = $key;
 
                     if ($this->debug) {
                         Log::debug('AIResponseParser: Processed translation item', [
                             'key' => $key,
-                            'translated_text' => $translatedText
+                            'translated_text' => $translatedText,
+                            'comment' => $localizedString->comment ?? null
                         ]);
                     }
 
@@ -413,7 +419,7 @@ class AIResponseParser
      * @param  string  $key  키
      * @param  string  $translated  번역된 내용
      */
-    private function createTranslationItem(string $key, string $translated): void
+    private function createTranslationItem(string $key, string $translated, ?string $comment = null): void
     {
         if (empty($key) || empty($translated) || in_array($key, $this->processedKeys)) {
             return;
@@ -422,6 +428,7 @@ class AIResponseParser
         $localizedString = new LocalizedString;
         $localizedString->key = $key;
         $localizedString->translated = $translated;
+        $localizedString->comment = $comment;
 
         $this->translatedItems[] = $localizedString;
         $this->processedKeys[] = $key;
@@ -429,7 +436,8 @@ class AIResponseParser
         if ($this->debug) {
             Log::debug('AIResponseParser: Created translation item', [
                 'key' => $key,
-                'translated_length' => strlen($translated)
+                'translated_length' => strlen($translated),
+                'comment' => $comment
             ]);
         }
     }

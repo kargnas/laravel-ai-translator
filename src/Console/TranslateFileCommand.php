@@ -30,7 +30,13 @@ class TranslateFileCommand extends Command
         'yellow' => "\033[38;5;220m",
         'purple' => "\033[38;5;141m",
         'red' => "\033[38;5;196m",
-        'reset' => "\033[0m"
+        'reset' => "\033[0m",
+        'blue_bg' => "\033[48;5;24m",
+        'white' => "\033[38;5;255m",
+        'bold' => "\033[1m",
+        'yellow_bg' => "\033[48;5;220m",
+        'black' => "\033[38;5;16m",
+        'line_clear' => "\033[2K\r"
     ];
 
     public function handle()
@@ -103,14 +109,17 @@ class TranslateFileCommand extends Command
                     case TranslationStatus::STARTED:
                         $this->line("\n" . str_repeat('─', 80));
 
-                        $this->line("\033[1;44;37m 번역시작 " . count($translatedItems) . "/{$totalItems} \033[0m \033[1;43;30m {$item->key} \033[0m");
-                        $this->line("\033[90m원본:\033[0m " . substr($originalText, 0, 100) .
+                        $this->line($this->colors['blue_bg'] . $this->colors['white'] . $this->colors['bold'] . " 번역시작 " . count($translatedItems) . "/{$totalItems} " . $this->colors['reset'] . " " . $this->colors['yellow_bg'] . $this->colors['black'] . $this->colors['bold'] . " {$item->key} " . $this->colors['reset']);
+                        $this->line($this->colors['gray'] . "원본:" . $this->colors['reset'] . " " . substr($originalText, 0, 100) .
                             (strlen($originalText) > 100 ? '...' : ''));
                         break;
 
                     case TranslationStatus::COMPLETED:
-                        $this->line("\033[1;32m번역:\033[0m \033[1m" . substr($item->translated, 0, 100) .
-                            (strlen($item->translated) > 100 ? '...' : '') . "\033[0m");
+                        $this->line($this->colors['green'] . $this->colors['bold'] . "번역:" . $this->colors['reset'] . " " . $this->colors['bold'] . substr($item->translated, 0, 100) .
+                            (strlen($item->translated) > 100 ? '...' : '') . $this->colors['reset']);
+                        if ($item->comment) {
+                            $this->line($this->colors['gray'] . "주석:" . $this->colors['reset'] . " " . $item->comment);
+                        }
                         break;
                 }
             };
@@ -119,7 +128,7 @@ class TranslateFileCommand extends Command
             $onProgress = function ($currentText, $translatedItems) use ($showAiResponse) {
                 if ($showAiResponse) {
                     $responsePreview = preg_replace('/[\n\r]+/', ' ', substr($currentText, -100));
-                    $this->line("\033[2K\r\033[35mAI응답:\033[0m " . $responsePreview);
+                    $this->line($this->colors['line_clear'] . $this->colors['purple'] . "AI응답:" . $this->colors['reset'] . " " . $responsePreview);
                 }
             };
 

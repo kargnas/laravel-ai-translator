@@ -82,6 +82,8 @@ class TranslateFileCommand extends Command
         config(['ai-translator.ai.disable_stream' => false]);
 
         try {
+            \Log::info("TranslateFileCommand: Starting translation with source language = {$sourceLanguage}, target language = {$targetLanguage}, additional rules = " . json_encode($rules));
+
             // AIProvider 생성
             $provider = new AIProvider(
                 filename: basename($filePath),
@@ -90,6 +92,44 @@ class TranslateFileCommand extends Command
                 targetLanguage: $targetLanguage,
                 additionalRules: $rules,
             );
+
+            // 번역 시작 정보. sourceLanguageObj, targetLanguageObj, 총 추가 규칙 수등 표현
+            $this->line("\n" . str_repeat('─', 80));
+            $this->line($this->colors['blue_bg'] . $this->colors['white'] . $this->colors['bold'] . " Translation Configuration " . $this->colors['reset']);
+
+            // Source Language
+            $this->line($this->colors['yellow'] . "Source" . $this->colors['reset'] . ": " .
+                $this->colors['green'] . $provider->sourceLanguageObj->name .
+                $this->colors['gray'] . " (" . $provider->sourceLanguageObj->code . ")" .
+                $this->colors['reset']);
+
+            // Target Language
+            $this->line($this->colors['yellow'] . "Target" . $this->colors['reset'] . ": " .
+                $this->colors['green'] . $provider->targetLanguageObj->name .
+                $this->colors['gray'] . " (" . $provider->targetLanguageObj->code . ")" .
+                $this->colors['reset']);
+
+            // Additional Rules
+            $this->line($this->colors['yellow'] . "Rules" . $this->colors['reset'] . ": " .
+                $this->colors['purple'] . count($provider->additionalRules) . " rules" .
+                $this->colors['reset']);
+
+            // Display rules if present
+            if (!empty($provider->additionalRules)) {
+                $this->line($this->colors['gray'] . "Rule Preview:" . $this->colors['reset']);
+                foreach (array_slice($provider->additionalRules, 0, 3) as $index => $rule) {
+                    $shortRule = strlen($rule) > 100 ? substr($rule, 0, 97) . '...' : $rule;
+                    $this->line($this->colors['blue'] . " " . ($index + 1) . ". " .
+                        $this->colors['reset'] . $shortRule);
+                }
+                if (count($provider->additionalRules) > 3) {
+                    $this->line($this->colors['gray'] . " ... and " .
+                        (count($provider->additionalRules) - 3) . " more rules" .
+                        $this->colors['reset']);
+                }
+            }
+
+            $this->line(str_repeat('─', 80) . "\n");
 
             // 총 항목 수
             $totalItems = count($strings);

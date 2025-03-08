@@ -226,21 +226,30 @@ class LanguageConfig
         'zu' => 'Zulu',
     ];
 
-    public static function getLanguageName(string $originalLocale): ?string
+    public static function getLanguageName(string $code): ?string
     {
-        $list = array_merge(self::$localeNames, config('ai-translator.locale_names', []));
+        $code = Language::normalizeCode($code);
 
-        $locale = strtolower(str_replace('-', '_', $originalLocale));
-
-        if (key_exists($originalLocale, $list)) {
-            return $list[$originalLocale];
-        } else if (key_exists($locale, $list)) {
-            return $list[$locale];
-        } else if (key_exists(substr($locale, 0, 2), $list)) {
-            return $list[substr($locale, 0, 2)];
-        } else {
-            \Log::warning("Language name not found for locale: {$locale}. Please add it to the config file.");
-            return null;
+        if (isset(static::$localeNames[$code])) {
+            return static::$localeNames[$code];
         }
+
+        // Try base code if full code not found
+        $baseCode = substr($code, 0, 2);
+        return static::$localeNames[$baseCode] ?? null;
+    }
+
+    public static function getAllLanguages(): array
+    {
+        $languages = [];
+        foreach (static::$localeNames as $code => $name) {
+            $languages[$code] = Language::fromCode($code);
+        }
+        return $languages;
+    }
+
+    public static function isValidLanguage(string $code): bool
+    {
+        return static::getLanguageName($code) !== null;
     }
 }

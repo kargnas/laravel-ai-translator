@@ -4,6 +4,7 @@ namespace Kargnas\LaravelAiTranslator\AI;
 
 use Kargnas\LaravelAiTranslator\AI\Clients\AnthropicClient;
 use Kargnas\LaravelAiTranslator\AI\Clients\OpenAIClient;
+use Kargnas\LaravelAiTranslator\AI\Language\Language;
 use Kargnas\LaravelAiTranslator\AI\Language\LanguageConfig;
 use Kargnas\LaravelAiTranslator\AI\Language\LanguageRules;
 use Kargnas\LaravelAiTranslator\AI\Parsers\AIResponseParser;
@@ -18,6 +19,10 @@ class AIProvider
     protected string $configModel;
 
     protected int $configRetries;
+
+    public Language $sourceLanguageObj;
+
+    public Language $targetLanguageObj;
 
     // 번역 응답의 원본 XML을 저장하는 변수
     public static string $lastRawResponse = '';
@@ -40,15 +45,18 @@ class AIProvider
             return [$newKey => $value];
         })->toArray();
 
-        // Get language names from LanguageConfig
-        $this->sourceLanguage = LanguageConfig::getLanguageName($this->sourceLanguage) ?? $this->sourceLanguage;
-        $this->targetLanguage = LanguageConfig::getLanguageName($this->targetLanguage) ?? $this->targetLanguage;
+        // Create Language objects
+        $this->sourceLanguageObj = Language::fromCode($this->sourceLanguage);
+        $this->targetLanguageObj = Language::fromCode($this->targetLanguage);
 
         // Get additional rules from LanguageRules
         $this->additionalRules = array_merge(
             $this->additionalRules,
-            LanguageRules::getAdditionalRules($this->targetLanguage)
+            LanguageRules::getAdditionalRules($this->targetLanguageObj)
         );
+
+        \Log::info("AIProvider initiated: Source language = {$this->sourceLanguageObj->name} ({$this->sourceLanguageObj->code}), Target language = {$this->targetLanguageObj->name} ({$this->targetLanguageObj->code})");
+        \Log::info("AIProvider additional rules: " . json_encode($this->additionalRules));
     }
 
     protected function getFilePrefix(): string
@@ -127,9 +135,9 @@ class AIProvider
         $systemPrompt = file_get_contents(__DIR__ . '/prompt-system.txt');
 
         $replaces = array_merge($replaces, [
-            'sourceLanguage' => $this->sourceLanguage,
-            'targetLanguage' => $this->targetLanguage,
-            'additionalRules' => count($this->additionalRules) > 0 ? "\nSpecial rules for {$this->targetLanguage}:\n" . implode("\n", $this->additionalRules) : '',
+            'sourceLanguage' => $this->sourceLanguageObj->name,
+            'targetLanguage' => $this->targetLanguageObj->name,
+            'additionalRules' => count($this->additionalRules) > 0 ? "\nSpecial rules for {$this->targetLanguageObj->name}:\n" . implode("\n", $this->additionalRules) : '',
         ]);
 
         foreach ($replaces as $key => $value) {
@@ -148,8 +156,8 @@ class AIProvider
             'options.disablePlural' => config('ai-translator.disable_plural', false) ? 'true' : 'false',
 
             // Data
-            'sourceLanguage' => $this->sourceLanguage,
-            'targetLanguage' => $this->targetLanguage,
+            'sourceLanguage' => $this->sourceLanguageObj->name,
+            'targetLanguage' => $this->targetLanguageObj->name,
             'filename' => $this->filename,
             'parentKey' => basename($this->filename, '.php'),
             'keys' => collect($this->strings)->keys()->implode('`, `'),
@@ -201,7 +209,7 @@ class AIProvider
         do {
             try {
                 if ($tried > 1) {
-                    \Log::warning("[{$tried}/{$this->configRetries}] Retrying translation into {$this->targetLanguage} using {$this->configProvider} with {$this->configModel} model...");
+                    \Log::warning("[{$tried}/{$this->configRetries}] Retrying translation into {$this->targetLanguageObj->name} using {$this->configProvider} with {$this->configModel} model...");
                 }
 
                 $items = $this->getTranslatedObjects($onTranslated, $onThinking, $onProgress, $onThinkingStart, $onThinkingEnd);
@@ -310,8 +318,8 @@ class AIProvider
         if ($debugMode) {
             \Log::debug('AIProvider: Starting translation with Anthropic', [
                 'model' => $this->configModel,
-                'source_language' => $this->sourceLanguage,
-                'target_language' => $this->targetLanguage,
+                'source_language' => $this->sourceLanguageObj->name,
+                'target_language' => $this->targetLanguageObj->name,
                 'extended_thinking' => $useExtendedThinking,
             ]);
         }

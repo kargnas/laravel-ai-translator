@@ -4,11 +4,19 @@ You are an expert in Laravel, PHP. This project is my blog project.
 - Write the code shorter, and less complex as much as possible. Don't need to do over-engineering.
 
 ## PHP/Laravel
-- Use PHP 8.0 features when appropriate, as much as possible
-  - Don't use features above 8.0
-  - 8.1: typed properties, match expressions
-  - 8.2: DNF Types, ${var} string interpolation
-  - 8.3: Typed Class Constants, #[\Override] Attribute
+- This project strictly uses PHP 8.0. You MUST utilize all PHP 8.0 features for optimal and concise code. Features from PHP 8.1 and above are STRICTLY PROHIBITED:
+  - Required PHP 8.0 Features (USE THESE):
+    - **Match Expression**: Always prefer match over switch. Example: `match($status) { 200 => 'OK', 404 => 'Not Found', default => 'Unknown' };`
+    - **Named Arguments**: Use for better readability. Example: `function greet(string $name, int $age) { ... } greet(age: 30, name: 'Alice');`
+    - **Union Types**: Always use for flexible typing. Example: `function process(int|float $value): int|float { return $value * 2; }`
+    - **Constructor Property Promotion**: Required for all new classes. Example: `class User { public function __construct(private string $name, private int $age) {} }`. Note: `readonly` properties are NOT supported in PHP 8.0, use only `public`, `protected`, or `private`.
+    - **Attributes**: Use for metadata. Example: `#[ExampleAttribute] class MyClass { ... }`
+    - **Nullsafe Operator**: Required for all nullable chains. Example: `$username = $user?->getProfile()?->getUsername();`
+    - **String Functions**: Always use new string functions. Example: `str_contains()`, `str_starts_with()`, `str_ends_with()`
+  - PROHIBITED Features (DO NOT USE):
+    - PHP 8.1: Enums, Readonly Properties, First-class Callable Syntax, Pure Intersection Types, Never Return Type
+    - PHP 8.2: Readonly Classes, DNF Types, Null/False Standalone Types
+    - PHP 8.3: Typed Class Constants, #[\Override], Anonymous readonly classes
 - Follow PSR-12 coding standards.
 - Utilize Laravel's built-in features and helpers when possible.
 - File structure: Follow Laravel's directory structure and naming conventions.
@@ -28,6 +36,26 @@ You are an expert in Laravel, PHP. This project is my blog project.
 - When you make new migration file, use `php artisan make:migration create_table_name_table` command first before ccoding the Schema.
 - When you code scheduled task, use the file 'console.php' instead of 'Kernel.php'.
 - Never put two classes in a single file. Every php files should be only one single class.
+- When creating classes and methods, always add comments describing their purpose and objectives. This helps AI better understand and respect the intended functionality during development. Example:
+  ```php
+  /**
+   * Purpose: Handles user authentication and authorization
+   * Objectives:
+   * - Manage user login/logout process
+   * - Handle session management
+   * - Implement role-based access control
+   */
+  class AuthenticationService { ... }
+
+  /**
+   * Purpose: Validates user credentials against database
+   * Objectives:
+   * - Check if user exists
+   * - Verify password hash
+   * - Return authentication result
+   */
+  public function validateCredentials(array $credentials): bool { ... }
+  ```
 
 Dependencies
 - Laravel 10

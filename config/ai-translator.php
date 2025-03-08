@@ -39,8 +39,14 @@ return [
         'en_reddit' => 'English (Reddit)',
     ],
 
+    // Fallback
+    //   - 'default' is fallback rules for all languages which don't have specific rules. If you added custom rules for a language, 'default' will not be used.
+    // Combining the language and regional rules:
+    //   - In the situation that you defined rules for 'en' and 'en_us'
+    //   - If you translate into 'en_us', both 'en' and 'en_us' will be applied.
+    //   - If you translate into 'en', only 'en' will be applied.
+    //   - If you translate into 'en_uk', only 'en' will be applied.
     'additional_rules' => [
-        // You can add custom rules for languages here.
         'default' => [
             "- Use a friendly and intuitive tone of voice, like the service tone of voice of 'Discord'.",
         ],

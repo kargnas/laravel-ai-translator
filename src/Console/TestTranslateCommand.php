@@ -67,6 +67,7 @@ class TestTranslateCommand extends Command
 
         return (function () use ($sourceLanguage, $targetLanguage, $text, $rules, $debug, $showXml) {
             try {
+                \Log::info("TestTranslateCommand: Starting translation with source language = {$sourceLanguage}, target language = {$targetLanguage}, additional rules = " . json_encode($rules));
                 $provider = new AIProvider(
                     filename: 'test.php',
                     strings: ['test' => $text],

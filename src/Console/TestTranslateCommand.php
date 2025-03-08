@@ -4,6 +4,7 @@ namespace Kargnas\LaravelAiTranslator\Console;
 
 use Illuminate\Console\Command;
 use Kargnas\LaravelAiTranslator\AI\AIProvider;
+use Kargnas\LaravelAiTranslator\Enums\TranslationStatus;
 use Kargnas\LaravelAiTranslator\Models\LocalizedString;
 use Illuminate\Support\Facades\Log;
 
@@ -76,16 +77,12 @@ class TestTranslateCommand extends Command
             $this->info("Extended Thinking: Enabled");
         }
 
-        // Set up the progress bar
-        $progressBar = $this->output->createProgressBar(1);
-        $progressBar->setFormat(' %current%/%max% [%bar%] %percent:3s%% %elapsed:6s%/%estimated:-6s%');
-        $progressBar->start();
-
         // Set Extended Thinking configuration
+        config(['ai-translator.ai.model' => 'claude-3-5-haiku-20241022']);
         config(['ai-translator.ai.use_extended_thinking' => $useExtendedThinking]);
 
         // Indicates whether we've displayed thinking output
-        $hasDisplayedThinking = false;
+        $hasDisplayedThinking = true;
 
         try {
             $provider = new AIProvider(
@@ -97,34 +94,36 @@ class TestTranslateCommand extends Command
             );
 
             // Called when a translation item is completed
-            $onTranslated = function (LocalizedString $translatedItem, int $count) use ($progressBar, &$text) {
-                $progressBar->setProgress($count);
+            $onTranslated = function (LocalizedString $item, string $status, array $translatedItems) use ($text) {
+                // 원본 텍스트 가져오기
+                $originalText = $text;
 
-                // 이 번역 결과는 디버깅용이며 실제 번역은 원래  번역 결과를 사용
-                $cleanTranslation = $translatedItem->translated;
+                switch ($status) {
+                    case TranslationStatus::STARTED:
+                        $this->line("\n" . str_repeat('─', 80));
+                        $this->line("\033[1;44;37m 번역시작 \033[0m \033[1;43;30m {$item->key} \033[0m");
+                        $this->line("\033[90m원본:\033[0m " . substr($originalText, 0, 100) .
+                            (strlen($originalText) > 100 ? '...' : ''));
+                        break;
 
-                // Show completed translation in green with full content preserved
-                $this->line('');
-                $this->line($this->colors['green'] . "✅ Translation completed: " . $translatedItem->key . $this->colors['reset']);
-                $this->line($this->colors['green'] . "   " . $cleanTranslation . $this->colors['reset']);
-                $this->line('');
-
-                // 번역된 결과 객체의 번역 내용도 업데이트
-                $translatedItem->translated = $cleanTranslation;
+                    case TranslationStatus::COMPLETED:
+                        $this->line("\033[1;32m번역:\033[0m \033[1m" . substr($item->translated, 0, 100) .
+                            (strlen($item->translated) > 100 ? '...' : '') . "\033[0m");
+                        break;
+                }
             };
 
             // Called for AI's thinking process
-            $onThinking = function ($thinkingDelta) use (&$hasDisplayedThinking) {
+            $onThinking = function ($thinkingDelta) {
                 // Display thinking content in gray
                 echo $this->colors['gray'] . $thinkingDelta . $this->colors['reset'];
             };
 
             // Called when thinking block starts
-            $onThinkingStart = function () use (&$hasDisplayedThinking, &$thinkingBlockCount) {
+            $onThinkingStart = function () {
                 $this->thinkingBlockCount++;
                 $this->line('');
                 $this->line($this->colors['purple'] . "🧠 AI Thinking Block #" . $this->thinkingBlockCount . " Started..." . $this->colors['reset']);
-                $hasDisplayedThinking = true;
             };
 
             // Called when thinking block ends
@@ -136,47 +135,18 @@ class TestTranslateCommand extends Command
             };
 
             // Called for each response chunk to show progress
-            $onProgress = function ($currentText, $translatedItems) {
+            $onProgress = function ($currentText, $translatedItems) use ($showXml) {
                 // Store the response for later use (always store it)
                 $this->rawXmlResponse = $currentText;
 
-                // We don't want to spam the console, so we'll only show summary of progress
-                // Extract last 50 characters of current text
-                // $lastChars = mb_substr($currentText, -50);
-
-                // // Only update if text is different from last displayed
-                // if ($lastChars !== $this->lastProgressInfo) {
-                //     echo "\r" . $this->colors['blue'] . "🔄 Processing: ..." . $lastChars . $this->colors['reset'] . str_repeat(' ', 10);
-                //     $this->lastProgressInfo = $lastChars;
-                // }
+                if ($showXml) {
+                    $responsePreview = preg_replace('/[\n\r]+/', ' ', substr($currentText, -100));
+                    $this->line("\033[2K\r\033[35mAI응답:\033[0m " . $responsePreview);
+                }
             };
 
             // Execute translation with callbacks
             $result = $provider->translate($onTranslated, $onThinking, $onProgress, $onThinkingStart, $onThinkingEnd);
-
-            $progressBar->finish();
-            $this->line('');
-
-            // 이미 $onTranslated 콜백에서 처리했으므로 여기서는 간소화
-            $this->info("\nTranslation result summary:");
-            $this->info("Original: {$text}");
-
-            // 모든 번역 결과 출력
-            if (count($result) > 1) {
-                $this->info("Multiple translations were generated (" . count($result) . " items):");
-
-                foreach ($result as $index => $item) {
-                    $this->info("Item #" . ($index + 1) . " [" . $item->key . "]: " . $item->translated);
-                }
-            }
-
-            // 이미 상단에서 원본 XML을 처리하고 표시했으므로 이 부분은 제거
-
-            // If it looks like the translation missed the HTML tags, show a tip
-            if (strpos($text, '<b>') !== false && strpos($result[0]->translated, '<b>') === false) {
-                $this->line('');
-                $this->line($this->colors['yellow'] . "Note: It appears HTML tags in the input were not translated completely. You may want to try again." . $this->colors['reset']);
-            }
 
             // Show raw XML response if requested
             if ($showXml && !empty($this->rawXmlResponse)) {
@@ -186,8 +156,6 @@ class TestTranslateCommand extends Command
             }
 
         } catch (\Exception $e) {
-            $progressBar->finish();
-            $this->line('');
             $this->error("Error occurred during translation: " . $e->getMessage());
 
             if ($debugMode) {

@@ -5,6 +5,7 @@ namespace Kargnas\LaravelAiTranslator\AI;
 use Kargnas\LaravelAiTranslator\AI\Clients\AnthropicClient;
 use Kargnas\LaravelAiTranslator\AI\Clients\OpenAIClient;
 use Kargnas\LaravelAiTranslator\AI\Parsers\AIResponseParser;
+use Kargnas\LaravelAiTranslator\Enums\TranslationStatus;
 use Kargnas\LaravelAiTranslator\Exceptions\VerifyFailedException;
 use Kargnas\LaravelAiTranslator\Models\LocalizedString;
 
@@ -28,7 +29,19 @@ class AIProvider
     ) {
         $this->configProvider = config('ai-translator.ai.provider');
         $this->configModel = config('ai-translator.ai.model');
-        $this->configRetries = config('ai-translator.ai.retries');
+        $this->configRetries = config('ai-translator.ai.retries', 1);
+
+        // Add file prefix to all keys
+        $prefix = $this->getFilePrefix();
+        $this->strings = collect($this->strings)->mapWithKeys(function ($value, $key) use ($prefix) {
+            $newKey = "{$prefix}.{$key}";
+            return [$newKey => $value];
+        })->toArray();
+    }
+
+    protected function getFilePrefix(): string
+    {
+        return pathinfo($this->filename, PATHINFO_FILENAME);
     }
 
     protected function verify(array $list): void
@@ -41,7 +54,7 @@ class AIProvider
             if (empty($item->key)) {
                 throw new VerifyFailedException('Failed to translate the string. The key is empty.');
             }
-            if (! isset($item->translated)) {
+            if (!isset($item->translated)) {
                 throw new VerifyFailedException("Failed to translate the string. The translation is not set for key: {$item->key}.");
             }
 
@@ -49,69 +62,56 @@ class AIProvider
             return;
         }
 
-        // 테스트 모드용 검증 건너뛰기 코드 제거 (더 이상 사용하지 않음)
-
         // Standard verification for production translations
         $sourceKeys = collect($this->strings)->keys()->unique()->sort()->values();
         $resultKeys = collect($list)->pluck('key')->unique()->sort()->values();
 
-        $diff = $sourceKeys->diff($resultKeys);
+        $missingKeys = $sourceKeys->diff($resultKeys);
+        $extraKeys = $resultKeys->diff($sourceKeys);
+        $hasValidTranslations = false;
 
-        if ($diff->count() > 0) {
-            // 디버그 로그
-            if (config('app.debug', false) || config('ai-translator.debug', false)) {
-                \Log::debug('AIProvider: Key mismatch details', [
-                    'source_keys' => $sourceKeys->toArray(),
-                    'result_keys' => $resultKeys->toArray(),
-                    'diff' => $diff->toArray(),
-                    'translated_count' => count($list),
-                ]);
-
-                // 가능한 경우 첫 번째 항목의 키를 수정
-                if (count($list) > 0 && count($sourceKeys) > 0) {
-                    $firstKey = $sourceKeys->first();
-                    \Log::debug('AIProvider: Attempting to fix key mismatch by setting first item key', [
-                        'old_key' => $list[0]->key,
-                        'new_key' => $firstKey,
-                    ]);
-
-                    // 첫 번째 항목의 키를 원본 문자열의 첫 번째 키로 변경
-                    $list[0]->key = $firstKey;
-
-                    // 다시 검증 시도
-                    try {
-                        $this->verify($list);
-
-                        return; // 검증 성공하면 종료
-                    } catch (VerifyFailedException $e) {
-                        // 재시도 실패 시 원래 오류로 진행
-                    }
-                }
-            }
-
-            \Log::error("Failed to translate the string. The keys are not matched. (Diff: {$diff->implode(', ')})");
-            throw new VerifyFailedException("Failed to translate the string. The keys are not matched. (Diff: {$diff->implode(', ')})");
-        }
-
+        // 번역된 항목들 중에서 유효한 번역이 하나라도 있는지 확인
         foreach ($list as $item) {
             /** @var LocalizedString $item */
-            if (empty($item->key)) {
-                throw new VerifyFailedException('Failed to translate the string. The key is empty.');
+            if (!empty($item->key) && isset($item->translated) && $sourceKeys->contains($item->key)) {
+                $hasValidTranslations = true;
+                break;
             }
-            if (! isset($item->translated)) {
-                throw new VerifyFailedException("Failed to translate the string. The translation is not set for key: {$item->key}.");
+        }
+
+        // 유효한 번역이 하나도 없는 경우에만 예외 발생
+        if (!$hasValidTranslations) {
+            throw new VerifyFailedException('No valid translations found in the response.');
+        }
+
+        // 누락된 키가 있는 경우 경고
+        if ($missingKeys->count() > 0) {
+            \Log::warning("Some keys were not translated: {$missingKeys->implode(', ')}");
+        }
+
+        // 추가로 생성된 키가 있는 경우 경고
+        if ($extraKeys->count() > 0) {
+            \Log::warning("Found unexpected translation keys: {$extraKeys->implode(', ')}");
+        }
+
+        // 검증이 완료된 후 원래 키로 복원
+        $prefix = $this->getFilePrefix();
+        foreach ($list as $item) {
+            /** @var LocalizedString $item */
+            if (!empty($item->key)) {
+                $item->key = preg_replace("/^{$prefix}\./", '', $item->key);
             }
         }
     }
 
     protected function getSystemPrompt($replaces = [])
     {
-        $systemPrompt = file_get_contents(__DIR__.'/prompt-system.txt');
+        $systemPrompt = file_get_contents(__DIR__ . '/prompt-system.txt');
 
         $replaces = array_merge($replaces, [
             'sourceLanguage' => $this->sourceLanguage,
             'targetLanguage' => $this->targetLanguage,
-            'additionalRules' => count($this->additionalRules) > 0 ? "\nSpecial rules for {$this->targetLanguage}:\n".implode("\n", $this->additionalRules) : '',
+            'additionalRules' => count($this->additionalRules) > 0 ? "\nSpecial rules for {$this->targetLanguage}:\n" . implode("\n", $this->additionalRules) : '',
         ]);
 
         foreach ($replaces as $key => $value) {
@@ -123,7 +123,7 @@ class AIProvider
 
     protected function getUserPrompt($replaces = [])
     {
-        $userPrompt = file_get_contents(__DIR__.'/prompt-user.txt');
+        $userPrompt = file_get_contents(__DIR__ . '/prompt-user.txt');
 
         $replaces = array_merge($replaces, [
             // Options
@@ -146,7 +146,7 @@ class AIProvider
                     if (isset($string['references']) && count($string['references']) > 0) {
                         $text .= "\n    - References:";
                         foreach ($string['references'] as $locale => $items) {
-                            $text .= "\n      - {$locale}: \"\"\"".$items.'"""';
+                            $text .= "\n      - {$locale}: \"\"\"" . $items . '"""';
                         }
                     }
 
@@ -165,7 +165,7 @@ class AIProvider
     /**
      * @param  callable|null  $onTranslated  번역 항목이 완료될 때마다 호출될 콜백 함수
      * @param  callable|null  $onThinking  모델의 thinking_delta를 받을 콜백 함수
-     * @param  callable|null  $onProgress  응답 청크가 올 때마다 호출될 콜백 함수 (현재 진행 상황 업데이트)
+     * @param  callable|null  $onProgress  응답 청크가 올 때마다 호출될 콜백 함수
      * @param  callable|null  $onThinkingStart  모델의 thinking 블록이 시작될 때 호출될 콜백 함수
      * @param  callable|null  $onThinkingEnd  모델의 thinking 블록이 끝날 때 호출될 콜백 함수
      * @return LocalizedString[]
@@ -197,13 +197,13 @@ class AIProvider
             }
         } while (++$tried <= $this->configRetries);
 
-        throw new VerifyFailedException('Translation was not successful after '.($tried - 1).' attempts. Please run the command again to continue from the last failure.');
+        throw new VerifyFailedException('Translation was not successful after ' . ($tried - 1) . ' attempts. Please run the command again to continue from the last failure.');
     }
 
     /**
      * @param  callable|null  $onTranslated  번역 항목이 완료될 때마다 호출될 콜백 함수
      * @param  callable|null  $onThinking  모델의 thinking_delta를 받을 콜백 함수
-     * @param  callable|null  $onProgress  응답 청크가 올 때마다 호출될 콜백 함수 (현재 진행 상황 업데이트)
+     * @param  callable|null  $onProgress  응답 청크가 올 때마다 호출될 콜백 함수
      * @param  callable|null  $onThinkingStart  모델의 thinking 블록이 시작될 때 호출될 콜백 함수
      * @param  callable|null  $onThinkingEnd  모델의 thinking 블록이 끝날 때 호출될 콜백 함수
      * @return LocalizedString[]
@@ -259,14 +259,14 @@ class AIProvider
 
                     // Call progress callback with current response
                     if ($onProgress) {
-                        $onProgress($responseText, $responseParser->getTranslatedItems());
+                        $onProgress($content, $responseParser->getTranslatedItems());
                     }
                 }
             }
         );
 
         // Process final response
-        if (empty($responseParser->getTranslatedItems()) && ! empty($responseText)) {
+        if (empty($responseParser->getTranslatedItems()) && !empty($responseText)) {
             // Try parsing the entire response
             $responseParser->parse($responseText);
         }
@@ -307,226 +307,214 @@ class AIProvider
             'system' => $this->getSystemPrompt(),
         ];
 
-        // Default max tokens and context window sizes by model
         $defaultMaxTokens = 4096;
-        $contextWindowSize = 200000; // Default Claude context window
 
-        // Adjust max tokens based on model
-        if (preg_match('/^claude\-3\-[57]\-/', $this->configModel)) {
+        if (preg_match('/^claude\-3\-5\-/', $this->configModel)) {
             $defaultMaxTokens = 8192;
-
-            // Claude 3.5 Sonnet has 200K context, Claude 3.7 Sonnet has 200K context
-            if (preg_match('/^claude\-3\-5\-sonnet/', $this->configModel)) {
-                $contextWindowSize = 200000;
-            } elseif (preg_match('/^claude\-3\-7\-sonnet/', $this->configModel)) {
-                $contextWindowSize = 200000;
-            }
+        } elseif (preg_match('/^claude\-3\-7\-/', $this->configModel)) {
+            // @TODO: if add betas=["output-128k-2025-02-19"], then 128000
+            $defaultMaxTokens = 64000;
         }
 
         // Set up Extended Thinking
         if ($useExtendedThinking && preg_match('/^claude\-3\-7\-/', $this->configModel)) {
-            $defaultMaxTokens = 64000;
             $requestData['thinking'] = [
                 'type' => 'enabled',
                 'budget_tokens' => 10000,
             ];
         }
 
-        // Estimate input tokens (rough estimation)
-        $systemPromptLength = mb_strlen($this->getSystemPrompt());
-        $userPromptLength = mb_strlen($this->getUserPrompt());
-        $estimatedInputTokens = ($systemPromptLength + $userPromptLength) / 3; // Rough estimation: ~3 chars per token on average
+        $requestData['max_tokens'] = (int) config('ai-translator.ai.max_tokens', $defaultMaxTokens);
 
-        // Calculate safe max_tokens to prevent context window limit errors
-        // Keep 20% buffer to account for token estimation inaccuracy
-        $safeMaxTokens = max(1000, min(
-            (int) config('ai-translator.ai.max_tokens', $defaultMaxTokens),
-            (int) ($contextWindowSize - $estimatedInputTokens - ($contextWindowSize * 0.2))
-        ));
-
-        if ($safeMaxTokens < $defaultMaxTokens) {
-            if (config('app.debug', false) || config('ai-translator.debug', false)) {
-                \Log::debug('AIProvider: Reducing max_tokens to fit context window', [
-                    'estimated_input_tokens' => $estimatedInputTokens,
-                    'context_window_size' => $contextWindowSize,
-                    'original_max_tokens' => $defaultMaxTokens,
-                    'adjusted_max_tokens' => $safeMaxTokens,
-                ]);
-            }
+        // verify options before request
+        if (isset($requestData['thinking']) && $requestData['max_tokens'] < $requestData['thinking']['budget_tokens']) {
+            throw new \Exception("Max tokens is less than thinking budget tokens. Please increase max tokens. Current max tokens: {$requestData['max_tokens']}, Thinking budget tokens: {$requestData['thinking']['budget_tokens']}");
         }
-
-        $requestData['max_tokens'] = $safeMaxTokens;
 
         // Response text buffer
         $responseText = '';
-
-        // Track if we're currently in a thinking block
+        $detectedXml = '';
+        $translatedItems = [];
+        $processedKeys = [];
         $inThinkingBlock = false;
         $currentThinkingContent = '';
 
-        // Store detected XML for debugging
-        $detectedXml = '';
-
         // Execute streaming request
-        $response = $client->messages()->createStream(
-            $requestData,
-            function ($chunk, $data) use (&$responseText, $responseParser, $onThinking, $onProgress, $onThinkingStart, $onThinkingEnd, &$inThinkingBlock, &$currentThinkingContent, $debugMode, &$detectedXml) {
-                // Skip if data is null or not an array
-                if (! is_array($data)) {
-                    return;
-                }
+        if (!config('ai-translator.ai.disable_stream', false)) {
+            $response = $client->messages()->createStream(
+                $requestData,
+                function ($chunk, $data) use (&$responseText, $responseParser, $onThinking, $onProgress, $onThinkingStart, $onThinkingEnd, &$inThinkingBlock, &$currentThinkingContent, $debugMode, &$detectedXml, $onTranslated, &$translatedItems, &$processedKeys, $totalItems) {
+                    // Skip if data is null or not an array
+                    if (!is_array($data)) {
+                        return;
+                    }
 
-                // Handle content_block_start event
-                if ($data['type'] === 'content_block_start') {
-                    if (isset($data['content_block']['type']) && $data['content_block']['type'] === 'thinking') {
-                        $inThinkingBlock = true;
-                        $currentThinkingContent = '';
+                    // Handle content_block_start event
+                    if ($data['type'] === 'content_block_start') {
+                        if (isset($data['content_block']['type']) && $data['content_block']['type'] === 'thinking') {
+                            $inThinkingBlock = true;
+                            $currentThinkingContent = '';
 
-                        // Call thinking start callback
-                        if ($onThinkingStart) {
-                            $onThinkingStart();
+                            // Call thinking start callback
+                            if ($onThinkingStart) {
+                                $onThinkingStart();
+                            }
                         }
                     }
-                }
 
-                // Process thinking delta
-                if (
-                    $data['type'] === 'content_block_delta' &&
-                    isset($data['delta']['type']) && $data['delta']['type'] === 'thinking_delta' &&
-                    isset($data['delta']['thinking'])
-                ) {
-                    $thinkingDelta = $data['delta']['thinking'];
-                    $currentThinkingContent .= $thinkingDelta;
-
-                    // Call thinking callback
-                    if ($onThinking) {
-                        $onThinking($thinkingDelta);
-                    }
-                }
-
-                // Handle content_block_stop event
-                if ($data['type'] === 'content_block_stop') {
-                    // If we're ending a thinking block
-                    if ($inThinkingBlock) {
-                        $inThinkingBlock = false;
-
-                        // Call thinking end callback
-                        if ($onThinkingEnd) {
-                            $onThinkingEnd($currentThinkingContent);
-                        }
-                    }
-                }
-
-                // Extract text content (content_block_delta event with text_delta)
-                if (
-                    $data['type'] === 'content_block_delta' &&
-                    isset($data['delta']['type']) && $data['delta']['type'] === 'text_delta' &&
-                    isset($data['delta']['text'])
-                ) {
-                    $text = $data['delta']['text'];
-                    $responseText .= $text;
-
-                    // 디버그 모드에서 XML 조각 수집 (로그 출력 없이)
+                    // Process thinking delta
                     if (
-                        $debugMode && (
-                            strpos($text, '<translations') !== false ||
-                            strpos($text, '<item') !== false ||
-                            strpos($text, '<trx') !== false ||
-                            strpos($text, 'CDATA') !== false
-                        )
+                        $data['type'] === 'content_block_delta' &&
+                        isset($data['delta']['type']) && $data['delta']['type'] === 'thinking_delta' &&
+                        isset($data['delta']['thinking'])
                     ) {
-                        $detectedXml .= $text;
+                        $thinkingDelta = $data['delta']['thinking'];
+                        $currentThinkingContent .= $thinkingDelta;
+
+                        // Call thinking callback
+                        if ($onThinking) {
+                            $onThinking($thinkingDelta);
+                        }
                     }
 
-                    // Parse XML
-                    $previousItemCount = count($responseParser->getTranslatedItems());
-                    $responseParser->parseChunk($text);
-                    $currentItems = $responseParser->getTranslatedItems();
-                    $currentItemCount = count($currentItems);
+                    // Handle content_block_stop event
+                    if ($data['type'] === 'content_block_stop') {
+                        // If we're ending a thinking block
+                        if ($inThinkingBlock) {
+                            $inThinkingBlock = false;
 
-                    // 새로운 번역 항목이 추가됐는지 확인
-                    if ($currentItemCount > $previousItemCount) {
-                        $newItems = array_slice($currentItems, $previousItemCount);
+                            // Call thinking end callback
+                            if ($onThinkingEnd) {
+                                $onThinkingEnd($currentThinkingContent);
+                            }
+                        }
+                    }
 
-                        // 새 번역 항목 각각에 대해 콜백 호출
-                        foreach ($newItems as $index => $newItem) {
-                            if ($onTranslated) {
-                                $translatedIndex = $previousItemCount + $index + 1;
-                                $onTranslated($newItem, $translatedIndex);
+                    // Extract text content (content_block_delta event with text_delta)
+                    if (
+                        $data['type'] === 'content_block_delta' &&
+                        isset($data['delta']['type']) && $data['delta']['type'] === 'text_delta' &&
+                        isset($data['delta']['text'])
+                    ) {
+                        $text = $data['delta']['text'];
+                        $responseText .= $text;
+
+                        // Parse XML
+                        $previousItemCount = count($responseParser->getTranslatedItems());
+                        $responseParser->parseChunk($text);
+                        $currentItems = $responseParser->getTranslatedItems();
+                        $currentItemCount = count($currentItems);
+
+                        // 새로운 번역 항목이 추가됐는지 확인
+                        if ($currentItemCount > $previousItemCount) {
+                            $newItems = array_slice($currentItems, $previousItemCount);
+                            $translatedItems = $currentItems; // 전체 번역 결과 업데이트
+    
+                            // 새 번역 항목 각각에 대해 콜백 호출
+                            foreach ($newItems as $index => $newItem) {
+                                // 이미 처리된 키는 건너뛰기
+                                if (isset($processedKeys[$newItem->key])) {
+                                    continue;
+                                }
+
+                                $processedKeys[$newItem->key] = true;
+                                $translatedCount = count($processedKeys);
+
+                                if ($onTranslated) {
+                                    // 번역이 완료된 항목에 대해서만 'completed' 상태로 호출
+                                    if ($newItem->translated) {
+                                        $onTranslated($newItem, TranslationStatus::COMPLETED, $translatedItems);
+                                    }
+
+                                    if ($debugMode) {
+                                        \Log::debug('AIProvider: Calling onTranslated callback', [
+                                            'key' => $newItem->key,
+                                            'status' => $newItem->translated ? TranslationStatus::COMPLETED : TranslationStatus::STARTED,
+                                            'translated_count' => $translatedCount,
+                                            'total_count' => $totalItems,
+                                            'translated_text' => $newItem->translated
+                                        ]);
+                                    }
+                                }
                             }
                         }
 
-                        if ($debugMode) {
-                            \Log::debug('AIProvider: New translation items detected during streaming', [
-                                'new_count' => $currentItemCount - $previousItemCount,
-                                'total_count' => $currentItemCount,
-                            ]);
+                        // Call progress callback with current response
+                        if ($onProgress) {
+                            $onProgress($responseText, $currentItems);
                         }
                     }
 
-                    // Call progress callback with current response
-                    if ($onProgress) {
-                        $onProgress($responseText, $currentItems);
+                    // Handle message_start event
+                    if ($data['type'] === 'message_start' && isset($data['message']['content'])) {
+                        // If there's initial content in the message
+                        foreach ($data['message']['content'] as $content) {
+                            if (isset($content['text'])) {
+                                $text = $content['text'];
+                                $responseText .= $text;
+
+                                // 디버그 모드에서 XML 조각 수집 (로그 출력 없이)
+                                if (
+                                    $debugMode && (
+                                        strpos($text, '<translations') !== false ||
+                                        strpos($text, '<item') !== false ||
+                                        strpos($text, '<trx') !== false ||
+                                        strpos($text, 'CDATA') !== false
+                                    )
+                                ) {
+                                    $detectedXml .= $text;
+                                }
+
+                                $responseParser->parseChunk($text);
+
+                                // Call progress callback with current response
+                                if ($onProgress) {
+                                    $onProgress($responseText, $responseParser->getTranslatedItems());
+                                }
+                            }
+                        }
                     }
                 }
-
-                // Handle message_start event
-                if ($data['type'] === 'message_start' && isset($data['message']['content'])) {
-                    // If there's initial content in the message
-                    foreach ($data['message']['content'] as $content) {
-                        if (isset($content['text'])) {
-                            $text = $content['text'];
-                            $responseText .= $text;
-
-                            // 디버그 모드에서 XML 조각 수집 (로그 출력 없이)
-                            if (
-                                $debugMode && (
-                                    strpos($text, '<translations') !== false ||
-                                    strpos($text, '<item') !== false ||
-                                    strpos($text, '<trx') !== false ||
-                                    strpos($text, 'CDATA') !== false
-                                )
-                            ) {
-                                $detectedXml .= $text;
-                            }
-
-                            $responseParser->parseChunk($text);
-
-                            // Call progress callback with current response
-                            if ($onProgress) {
-                                $onProgress($responseText, $responseParser->getTranslatedItems());
-                            }
-                        }
-                    }
-                }
+            );
+        } else {
+            $response = $client->messages()->create($requestData);
+            $responseText = $response['content'][0]['text'];
+            $responseParser->parse($responseText);
+            $onProgress($responseText, $responseParser->getTranslatedItems());
+            foreach ($responseParser->getTranslatedItems() as $item) {
+                $onTranslated($item, TranslationStatus::STARTED, $responseParser->getTranslatedItems());
+                $onTranslated($item, TranslationStatus::COMPLETED, $responseParser->getTranslatedItems());
             }
-        );
+        }
 
         // Process final response
-        if (empty($responseParser->getTranslatedItems()) && ! empty($responseText)) {
-            // Debug-log final response if no items were parsed
+        if (empty($responseParser->getTranslatedItems()) && !empty($responseText)) {
             if ($debugMode) {
                 \Log::debug('AIProvider: No items parsed from response, trying final parse', [
                     'response_length' => strlen($responseText),
                     'detected_xml_length' => strlen($detectedXml),
+                    'response_text' => $responseText,
+                    'detected_xml' => $detectedXml
                 ]);
-
-                // Log the detected XML to help debug
-                if (! empty($detectedXml)) {
-                    \Log::debug('AIProvider: Detected XML fragments', ['xml' => $detectedXml]);
-                }
-
-                // Try to find and log any CDATA sections
-                if (preg_match_all('/<!\[CDATA\[(.*?)\]\]>/s', $responseText, $matches)) {
-                    \Log::debug('AIProvider: Found CDATA sections', [
-                        'count' => count($matches[0]),
-                        'first_cdata' => isset($matches[0][0]) ? substr($matches[0][0], 0, 100) : 'none',
-                    ]);
-                }
             }
 
             // Try parsing the entire response
             $responseParser->parse($responseText);
+            $finalItems = $responseParser->getTranslatedItems();
+
+            // 마지막으로 파싱된 항목들에 대해 콜백 호출
+            if (!empty($finalItems) && $onTranslated) {
+                foreach ($finalItems as $item) {
+                    if (!isset($processedKeys[$item->key])) {
+                        $processedKeys[$item->key] = true;
+                        $translatedCount = count($processedKeys);
+                        // 마지막 파싱에서는 completed 상태를 호출하지 않음
+                        if ($translatedCount === 1) {
+                            $onTranslated($item, TranslationStatus::STARTED, $finalItems);
+                        }
+                    }
+                }
+            }
         }
 
         return $responseParser->getTranslatedItems();

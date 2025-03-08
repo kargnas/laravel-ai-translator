@@ -6,9 +6,10 @@ chdir(__DIR__);
 // Artisan 명령어로 여러 항목을 번역하는 테스트
 // 여러 번역할 항목들
 $items = [
-    'item1' => 'Hello, world\! This is the first item.',
+    'item1' => 'Hello, world! This is the first item.',
+    'title' => 'Hello world! This works well',
     'item2' => 'This is the second item with <b>HTML</b> tags.',
-    'item3' => 'Third item with "quotes" and special characters.',
+    'item3' => 'Third item with "quotes" and special characters. This is unslash: \\',
     'item4' => 'Fourth item with multiple lines.
 Second line.
 Third line.',
@@ -18,8 +19,8 @@ Third line.',
 // temp.php 파일에 저장
 file_put_contents('temp.php', '<?php return ' . var_export($items, true) . ';');
 
-// 번역 명령 실행 (디버그 모드 활성화 및 AI 응답 표시)
-$command = 'cd ../../../ && php artisan ai-translator:translate-file modules/libraries/laravel-ai-translator/temp.php ko en --debug --show-ai-response -vvv && cd modules/libraries/laravel-ai-translator';
+// 번역 명령 실행 - 디버그 모드 (자세한 출력)
+$command = 'cd /Volumes/Data/projects/test.af && php artisan ai-translator:translate-file modules/libraries/laravel-ai-translator/temp.php ko en --debug -vvv && cd modules/libraries/laravel-ai-translator';
 echo "Executing: $command\n";
 system($command);
 

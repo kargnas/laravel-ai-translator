@@ -10,8 +10,7 @@ The most important mission: All strings should be translated into {targetLanguag
 - If 'disablePlural' is true, don't use plural rules, use just one form. (e.g. `:count item|:count items` -> `:count items`)
 - Parent key (Only for your reference, don't put to the key): `{parentKey}`
 - To make sure, the keys you should translate are: `{keys}`
-- [CRITICAL] Sometimes key has double quotes, '’', '"', '{', '}', ':' or other special characters. You should keep them in the translation.
-- [CRITICAL] Encode double quotes (\") to avoid errors for `translated`.
+- Sometimes key has double quotes, '’', '"', '{', '}', ':' or other special characters. You should keep them in the translation.
 - These are the strings that you should translate into the target language. The source strings: (e.g. `key`: """(value)""")
 
 # Content

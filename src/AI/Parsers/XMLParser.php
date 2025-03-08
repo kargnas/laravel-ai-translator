@@ -21,22 +21,9 @@ class XMLParser
     // CDATA 내용 캐시 (완전한 CDATA 추출용)
     private string $cdataCache = '';
 
-    // 임시 XML 저장용 파일 경로
-    private string $tempFile = '';
-
     public function __construct(bool $debug = false)
     {
         $this->debug = $debug;
-        // 랜덤 임시 파일 생성
-        $this->tempFile = sys_get_temp_dir().'/xml_parser_'.md5(uniqid('', true)).'.xml';
-    }
-
-    public function __destruct()
-    {
-        // 임시 파일 정리
-        if (file_exists($this->tempFile)) {
-            @unlink($this->tempFile);
-        }
     }
 
     /**
@@ -80,136 +67,61 @@ class XMLParser
      */
     private function processFullResponse(): void
     {
-        if ($this->debug) {
-            Log::debug('XMLParser: Processing full response', [
-                'response_length' => strlen($this->fullResponse),
-                'has_translations_tag' => strpos($this->fullResponse, '<translations>') !== false,
-                'has_item_tags' => strpos($this->fullResponse, '<item>') !== false,
-            ]);
+        // XML 응답 정리
+        $xml = $this->prepareXmlForParsing($this->fullResponse);
+
+        // XML이 비어있거나 불완전하면 건너뛰기
+        if (empty($xml)) {
+            if ($this->debug) {
+                Log::debug('XMLParser: Empty XML response');
+            }
+            return;
         }
 
-        // 방법 1: 표준 XML 파서 사용 시도
-        if (! $this->tryStandardXmlParsing()) {
-            // 방법 2: 실패할 경우 정규식 기반 파싱으로 대체
-            if ($this->debug) {
-                Log::debug('XMLParser: Standard XML parsing failed, falling back to regex parsing');
+        // 각 <item> 태그를 개별적으로 처리
+        if (preg_match_all('/<item>(.*?)<\/item>/s', $xml, $matches)) {
+            foreach ($matches[1] as $itemContent) {
+                $this->processItem($itemContent);
             }
-
-            // 완전한 <item> 태그 추출 먼저 시도
-            if (strpos($this->fullResponse, '<item>') !== false) {
-                $this->extractCompleteItems();
-            }
-
-            // 정규식으로 필요한 태그와 내용 추출
-            $this->extractKeyItems();
-            $this->extractTrxItems();
         }
     }
 
     /**
-     * 표준 XML 파서를 사용한 처리 시도
+     * 단일 item 태그 처리
      */
-    private function tryStandardXmlParsing(): bool
+    private function processItem(string $itemContent): void
     {
-        // XML 응답 정리 및 CDATA 보존
-        $xml = $this->prepareXmlForParsing($this->fullResponse);
+        // key와 trx 추출
+        if (
+            preg_match('/<key>(.*?)<\/key>/s', $itemContent, $keyMatch) &&
+            preg_match('/<trx><!\[CDATA\[(.*?)\]\]><\/trx>/s', $itemContent, $trxMatch)
+        ) {
+            $key = $this->cleanContent($keyMatch[1]);
+            $trx = $this->cleanContent($trxMatch[1]);
 
-        // XML이 비어있거나 불완전하면 건너뛰기
-        if (empty($xml) || strpos($xml, '<translations') === false) {
+            // 파싱된 데이터 저장
+            if (!isset($this->parsedData['key'])) {
+                $this->parsedData['key'] = [];
+            }
+            if (!isset($this->parsedData['trx'])) {
+                $this->parsedData['trx'] = [];
+            }
+
+            $this->parsedData['key'][] = ['content' => $key];
+            $this->parsedData['trx'][] = ['content' => $trx];
+
+            // 노드 완료 콜백 호출
+            if ($this->nodeCompleteCallback) {
+                call_user_func($this->nodeCompleteCallback, 'item', $itemContent, []);
+            }
+
             if ($this->debug) {
-                Log::debug('XMLParser: Cannot parse with standard XML: empty or missing root element');
-            }
-
-            return false;
-        }
-
-        try {
-            // 기존 libxml 에러 처리 설정 백업
-            $useInternalErrors = libxml_use_internal_errors(true);
-
-            // 임시 파일에 XML 저장
-            file_put_contents($this->tempFile, $xml);
-
-            // SimpleXML 로드
-            $xmlObj = simplexml_load_file($this->tempFile, 'SimpleXMLElement', LIBXML_NOCDATA);
-
-            if ($xmlObj === false) {
-                $errors = libxml_get_errors();
-                libxml_clear_errors();
-                libxml_use_internal_errors($useInternalErrors);
-
-                if ($this->debug) {
-                    Log::debug('XMLParser: SimpleXML load failed', [
-                        'errors' => array_map(function ($error) {
-                            return $error->message;
-                        }, $errors),
-                    ]);
-                }
-
-                return false;
-            }
-
-            // 원래 에러 처리 설정 복원
-            libxml_use_internal_errors($useInternalErrors);
-
-            // 파싱 시작
-            $itemCount = 0;
-
-            // <item> 요소 순회
-            foreach ($xmlObj->item as $item) {
-                $key = (string) $item->key;
-                $trx = (string) $item->trx;
-
-                if (empty($key) || empty($trx)) {
-                    continue;
-                }
-
-                // 이미 처리된 키인지 확인
-                $keyExists = false;
-                if (isset($this->parsedData['key'])) {
-                    foreach ($this->parsedData['key'] as $existingKeyData) {
-                        if ($existingKeyData['content'] === $key) {
-                            $keyExists = true;
-                            break;
-                        }
-                    }
-                }
-
-                if ($keyExists) {
-                    continue;
-                }
-
-                // 파싱된 데이터에 추가
-                if (! isset($this->parsedData['key'])) {
-                    $this->parsedData['key'] = [];
-                }
-                if (! isset($this->parsedData['trx'])) {
-                    $this->parsedData['trx'] = [];
-                }
-
-                $this->parsedData['key'][] = ['content' => $key];
-                $this->parsedData['trx'][] = ['content' => $trx];
-                $itemCount++;
-
-                if ($this->debug) {
-                    Log::debug('XMLParser: Parsed item with SimpleXML', [
-                        'key' => $key,
-                        'trx_length' => strlen($trx),
-                        'trx_preview' => substr($trx, 0, 50),
-                    ]);
-                }
-            }
-
-            return $itemCount > 0;
-
-        } catch (\Exception $e) {
-            if ($this->debug) {
-                Log::debug('XMLParser: XML parsing error', [
-                    'error' => $e->getMessage(),
+                Log::debug('XMLParser: Processed item', [
+                    'key' => $key,
+                    'trx_length' => strlen($trx),
+                    'trx_preview' => mb_substr($trx, 0, 30)
                 ]);
             }
-
-            return false;
         }
     }
 
@@ -234,13 +146,13 @@ class XMLParser
         $xml = $this->unescapeSpecialChars($xml);
 
         // 루트 태그 누락 시 추가
-        if (! preg_match('/^\s*<\?xml|^\s*<translations/i', $xml)) {
-            $xml = '<translations>'.$xml.'</translations>';
+        if (!preg_match('/^\s*<\?xml|^\s*<translations/i', $xml)) {
+            $xml = '<translations>' . $xml . '</translations>';
         }
 
         // XML 선언 추가 (없는 경우)
         if (strpos($xml, '<?xml') === false) {
-            $xml = '<?xml version="1.0" encoding="UTF-8"?>'.$xml;
+            $xml = '<?xml version="1.0" encoding="UTF-8"?>' . $xml;
         }
 
         return $xml;
@@ -310,10 +222,10 @@ class XMLParser
                     $trxProcessed = $this->processTrxContent($trxContent);
 
                     // 파싱된 데이터에 추가
-                    if (! isset($this->parsedData['key'])) {
+                    if (!isset($this->parsedData['key'])) {
                         $this->parsedData['key'] = [];
                     }
-                    if (! isset($this->parsedData['trx'])) {
+                    if (!isset($this->parsedData['trx'])) {
                         $this->parsedData['trx'] = [];
                     }
 
@@ -361,10 +273,10 @@ class XMLParser
                 }
 
                 // 파싱된 데이터에 추가
-                if (! isset($this->parsedData['key'])) {
+                if (!isset($this->parsedData['key'])) {
                     $this->parsedData['key'] = [];
                 }
-                if (! isset($this->parsedData['trx'])) {
+                if (!isset($this->parsedData['trx'])) {
                     $this->parsedData['trx'] = [];
                 }
 
@@ -475,7 +387,7 @@ class XMLParser
      */
     private function notifyAllProcessedItems(): void
     {
-        if (! $this->nodeCompleteCallback) {
+        if (!$this->nodeCompleteCallback) {
             return;
         }
 
@@ -483,8 +395,10 @@ class XMLParser
         if (preg_match_all('/<item>(.*?)<\/item>/s', $this->fullResponse, $itemMatches)) {
             foreach ($itemMatches[1] as $itemContent) {
                 // 각 <item> 내부의 <key>와 <trx> 추출
-                if (preg_match('/<key>(.*?)<\/key>/s', $itemContent, $keyMatch) &&
-                    preg_match('/<trx>(.*?)<\/trx>/s', $itemContent, $trxMatch)) {
+                if (
+                    preg_match('/<key>(.*?)<\/key>/s', $itemContent, $keyMatch) &&
+                    preg_match('/<trx>(.*?)<\/trx>/s', $itemContent, $trxMatch)
+                ) {
 
                     $key = $this->cleanContent($keyMatch[1]);
                     $trxContent = $this->processTrxContent($trxMatch[1]);
@@ -496,14 +410,14 @@ class XMLParser
         }
 
         // <key> 태그가 존재하는 경우 처리
-        if (! empty($this->parsedData['key'])) {
+        if (!empty($this->parsedData['key'])) {
             foreach ($this->parsedData['key'] as $keyData) {
                 call_user_func($this->nodeCompleteCallback, 'key', $keyData['content'], []);
             }
         }
 
         // <trx> 태그가 존재하는 경우 처리
-        if (! empty($this->parsedData['trx'])) {
+        if (!empty($this->parsedData['trx'])) {
             foreach ($this->parsedData['trx'] as $trxData) {
                 call_user_func($this->nodeCompleteCallback, 'trx', $trxData['content'], []);
             }

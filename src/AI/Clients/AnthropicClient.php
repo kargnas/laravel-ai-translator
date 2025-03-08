@@ -44,7 +44,9 @@ class AnthropicClient
                 ])->$method("{$this->baseUrl}/{$endpoint}", $data);
 
         if (!$response->successful()) {
-            throw new \Exception("Anthropic API error: {$response->body()}");
+            $statusCode = $response->status();
+            $errorBody = $response->body();
+            throw new \Exception("Anthropic API error: HTTP {$statusCode}, Response: {$errorBody}");
         }
 
         return $response->json();
@@ -60,9 +62,6 @@ class AnthropicClient
      */
     public function createMessageStream(array $data, callable $onChunk): array
     {
-        // Set up streaming request
-        $data['stream'] = true;
-
         // Final response data
         $finalResponse = [
             'content' => [],
@@ -78,110 +77,119 @@ class AnthropicClient
             'thinking' => ''
         ];
 
+        $data['stream'] = true;
+
         // Current content block index being processed
         $currentBlockIndex = null;
         $contentBlocks = [];
 
-        // Execute streaming request
-        $this->requestStream('post', 'messages', $data, function ($rawChunk, $parsedData) use ($onChunk, &$finalResponse, &$currentBlockIndex, &$contentBlocks) {
-            // Skip if parsedData is null or not an array
-            if (!is_array($parsedData)) {
-                return;
-            }
+        try {
+            // Execute streaming request
+            $this->requestStream('post', 'messages', $data, function ($rawChunk, $parsedData) use ($onChunk, &$finalResponse, &$currentBlockIndex, &$contentBlocks) {
+                // Skip if parsedData is null or not an array
+                if (!is_array($parsedData)) {
+                    return;
+                }
 
-            // Event type check
-            $eventType = $parsedData['type'] ?? '';
+                // Event type check
+                $eventType = $parsedData['type'] ?? '';
 
-            // Handle message_start event
-            if ($eventType === 'message_start' && isset($parsedData['message'])) {
-                $message = $parsedData['message'];
-                if (isset($message['id'])) {
-                    $finalResponse['id'] = $message['id'];
+                // Handle message_start event
+                if ($eventType === 'message_start' && isset($parsedData['message'])) {
+                    $message = $parsedData['message'];
+                    if (isset($message['id'])) {
+                        $finalResponse['id'] = $message['id'];
+                    }
+                    if (isset($message['model'])) {
+                        $finalResponse['model'] = $message['model'];
+                    }
+                    if (isset($message['role'])) {
+                        $finalResponse['role'] = $message['role'];
+                    }
+                    if (isset($message['usage'])) {
+                        $finalResponse['usage'] = $message['usage'];
+                    }
                 }
-                if (isset($message['model'])) {
-                    $finalResponse['model'] = $message['model'];
-                }
-                if (isset($message['role'])) {
-                    $finalResponse['role'] = $message['role'];
-                }
-                if (isset($message['usage'])) {
-                    $finalResponse['usage'] = $message['usage'];
-                }
-            }
-            // Handle content_block_start event
-            else if ($eventType === 'content_block_start') {
-                if (isset($parsedData['index']) && isset($parsedData['content_block'])) {
-                    $currentBlockIndex = $parsedData['index'];
-                    $contentBlocks[$currentBlockIndex] = $parsedData['content_block'];
+                // Handle content_block_start event
+                else if ($eventType === 'content_block_start') {
+                    if (isset($parsedData['index']) && isset($parsedData['content_block'])) {
+                        $currentBlockIndex = $parsedData['index'];
+                        $contentBlocks[$currentBlockIndex] = $parsedData['content_block'];
 
-                    // Initialize thinking block
-                    if (isset($parsedData['content_block']['type']) && $parsedData['content_block']['type'] === 'thinking') {
-                        if (!isset($contentBlocks[$currentBlockIndex]['thinking'])) {
-                            $contentBlocks[$currentBlockIndex]['thinking'] = '';
+                        // Initialize thinking block
+                        if (isset($parsedData['content_block']['type']) && $parsedData['content_block']['type'] === 'thinking') {
+                            if (!isset($contentBlocks[$currentBlockIndex]['thinking'])) {
+                                $contentBlocks[$currentBlockIndex]['thinking'] = '';
+                            }
                         }
-                    }
-                    // Initialize text block
-                    else if (isset($parsedData['content_block']['type']) && $parsedData['content_block']['type'] === 'text') {
-                        if (!isset($contentBlocks[$currentBlockIndex]['text'])) {
-                            $contentBlocks[$currentBlockIndex]['text'] = '';
-                        }
-                    }
-                }
-            }
-            // Handle content_block_delta event
-            else if ($eventType === 'content_block_delta' && isset($parsedData['index']) && isset($parsedData['delta'])) {
-                $index = $parsedData['index'];
-                $deltaType = $parsedData['delta']['type'] ?? '';
-
-                // Process thinking_delta
-                if ($deltaType === 'thinking_delta' && isset($parsedData['delta']['thinking'])) {
-                    $finalResponse['thinking'] .= $parsedData['delta']['thinking'];
-
-                    if (isset($contentBlocks[$index]) && isset($contentBlocks[$index]['type']) && $contentBlocks[$index]['type'] === 'thinking') {
-                        $contentBlocks[$index]['thinking'] .= $parsedData['delta']['thinking'];
-                    }
-                }
-                // Process text_delta
-                else if ($deltaType === 'text_delta' && isset($parsedData['delta']['text'])) {
-                    if (isset($contentBlocks[$index]) && isset($contentBlocks[$index]['type']) && $contentBlocks[$index]['type'] === 'text') {
-                        $contentBlocks[$index]['text'] .= $parsedData['delta']['text'];
-                    }
-                }
-            }
-            // Handle content_block_stop event
-            else if ($eventType === 'content_block_stop' && isset($parsedData['index'])) {
-                $index = $parsedData['index'];
-                if (isset($contentBlocks[$index])) {
-                    $block = $contentBlocks[$index];
-
-                    // Add content block to final response
-                    if (isset($block['type'])) {
-                        if ($block['type'] === 'text' && isset($block['text'])) {
-                            $finalResponse['content'][] = [
-                                'type' => 'text',
-                                'text' => $block['text']
-                            ];
-                        } else if ($block['type'] === 'thinking' && isset($block['thinking'])) {
-                            // thinking is stored separately
+                        // Initialize text block
+                        else if (isset($parsedData['content_block']['type']) && $parsedData['content_block']['type'] === 'text') {
+                            if (!isset($contentBlocks[$currentBlockIndex]['text'])) {
+                                $contentBlocks[$currentBlockIndex]['text'] = '';
+                            }
                         }
                     }
                 }
-            }
-            // Handle message_delta event
-            else if ($eventType === 'message_delta') {
-                if (isset($parsedData['delta'])) {
-                    if (isset($parsedData['delta']['stop_reason'])) {
-                        $finalResponse['stop_reason'] = $parsedData['delta']['stop_reason'];
+                // Handle content_block_delta event
+                else if ($eventType === 'content_block_delta' && isset($parsedData['index']) && isset($parsedData['delta'])) {
+                    $index = $parsedData['index'];
+                    $deltaType = $parsedData['delta']['type'] ?? '';
+
+                    // Process thinking_delta
+                    if ($deltaType === 'thinking_delta' && isset($parsedData['delta']['thinking'])) {
+                        $finalResponse['thinking'] .= $parsedData['delta']['thinking'];
+
+                        if (isset($contentBlocks[$index]) && isset($contentBlocks[$index]['type']) && $contentBlocks[$index]['type'] === 'thinking') {
+                            $contentBlocks[$index]['thinking'] .= $parsedData['delta']['thinking'];
+                        }
+                    }
+                    // Process text_delta
+                    else if ($deltaType === 'text_delta' && isset($parsedData['delta']['text'])) {
+                        if (isset($contentBlocks[$index]) && isset($contentBlocks[$index]['type']) && $contentBlocks[$index]['type'] === 'text') {
+                            $contentBlocks[$index]['text'] .= $parsedData['delta']['text'];
+                        }
                     }
                 }
-                if (isset($parsedData['usage'])) {
-                    $finalResponse['usage'] = $parsedData['usage'];
-                }
-            }
+                // Handle content_block_stop event
+                else if ($eventType === 'content_block_stop' && isset($parsedData['index'])) {
+                    $index = $parsedData['index'];
+                    if (isset($contentBlocks[$index])) {
+                        $block = $contentBlocks[$index];
 
-            // Call callback with parsed data
-            $onChunk($rawChunk, $parsedData);
-        });
+                        // Add content block to final response
+                        if (isset($block['type'])) {
+                            if ($block['type'] === 'text' && isset($block['text'])) {
+                                $finalResponse['content'][] = [
+                                    'type' => 'text',
+                                    'text' => $block['text']
+                                ];
+                            } else if ($block['type'] === 'thinking' && isset($block['thinking'])) {
+                                // thinking is stored separately
+                            }
+                        }
+                    }
+                }
+                // Handle message_delta event
+                else if ($eventType === 'message_delta') {
+                    if (isset($parsedData['delta'])) {
+                        if (isset($parsedData['delta']['stop_reason'])) {
+                            $finalResponse['stop_reason'] = $parsedData['delta']['stop_reason'];
+                        }
+                    }
+                    if (isset($parsedData['usage'])) {
+                        $finalResponse['usage'] = $parsedData['usage'];
+                    }
+                }
+
+                // Call callback with parsed data
+                $onChunk($rawChunk, $parsedData);
+            });
+        } catch (\Exception $e) {
+            if (str_contains($e->getMessage(), 'HTTP 4')) {
+                throw new \Exception("{$e->getMessage()}\n\nTIP: To get more detailed error messages, try setting 'disable_stream' => true in config/ai-translator.php");
+            }
+            throw $e;
+        }
 
         return $finalResponse;
     }
@@ -212,7 +220,7 @@ class AnthropicClient
 
         // Set cURL options
         curl_setopt($ch, CURLOPT_URL, $url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, false);
         curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, strtoupper($method));
 
@@ -265,8 +273,10 @@ class AnthropicClient
         // Check HTTP status code
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         if ($httpCode >= 400) {
+            // Get the error response body
+            $errorBody = curl_exec($ch);
             curl_close($ch);
-            throw new \Exception("Anthropic API streaming error: HTTP {$httpCode}");
+            throw new \Exception("Anthropic API streaming error: HTTP {$httpCode}, Response: {$errorBody}");
         }
 
         // Close cURL

@@ -524,11 +524,6 @@ class TranslateStrings extends Command
                     continue;
                 }
 
-                // 프로그레스바 설정
-                $progressBar = $this->output->createProgressBar(count($sourceStringList));
-                $progressBar->setFormat(' %current%/%max% [%bar%] %percent:3s%% %elapsed:6s%/%estimated:-6s% %memory:6s%');
-                $progressBar->start();
-
                 // Extended Thinking 설정
                 config(['ai-translator.ai.use_extended_thinking' => false]);
 
@@ -582,23 +577,14 @@ class TranslateStrings extends Command
                             additionalRules: static::getAdditionalRules($locale),
                         );
 
-                        // 프로그레스바 업데이트를 위한 이벤트 리스너 설정
-                        \Event::listen('ai-translator.progress', function ($processed) use ($progressBar) {
-                            $progressBar->setProgress($processed);
-                        });
-
                         try {
                             $translatedItems = $translator->translate();
-                            $progressBar->finish();
-                            $this->line('');
 
                             foreach ($translatedItems as $item) {
                                 \Log::debug('Saving: ' . $item->key . ' => ' . $item->translated);
                                 $targetStringTransformer->updateString($item->key, $item->translated);
                             }
                         } catch (\Exception $e) {
-                            $progressBar->finish();
-                            $this->line('');
                             $this->error("Translation failed: " . $e->getMessage());
                         }
                     });

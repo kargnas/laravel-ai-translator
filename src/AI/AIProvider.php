@@ -9,6 +9,7 @@ use Kargnas\LaravelAiTranslator\AI\Language\LanguageConfig;
 use Kargnas\LaravelAiTranslator\AI\Language\LanguageRules;
 use Kargnas\LaravelAiTranslator\AI\Parsers\AIResponseParser;
 use Kargnas\LaravelAiTranslator\Enums\TranslationStatus;
+use Kargnas\LaravelAiTranslator\Enums\PromptType;
 use Kargnas\LaravelAiTranslator\Exceptions\VerifyFailedException;
 use Kargnas\LaravelAiTranslator\Models\LocalizedString;
 
@@ -19,6 +20,8 @@ class AIProvider
     protected string $configModel;
 
     protected int $configRetries;
+
+    protected bool $showPrompt = false;
 
     public Language $sourceLanguageObj;
 
@@ -43,6 +46,7 @@ class AIProvider
     protected $onThinkingStart = null;
     protected $onThinkingEnd = null;
     protected $onTokenUsage = null;
+    protected $onPromptGenerated = null;
 
     public function __construct(
         public string $filename,
@@ -55,6 +59,7 @@ class AIProvider
         $this->configProvider = config('ai-translator.ai.provider');
         $this->configModel = config('ai-translator.ai.model');
         $this->configRetries = config('ai-translator.ai.retries', 1);
+        $this->showPrompt = config('ai-translator.ai.show_prompt', false);
 
         // Add file prefix to all keys
         $prefix = $this->getFilePrefix();
@@ -148,12 +153,21 @@ class AIProvider
         }
     }
 
+    /**
+     * Set whether to show prompts during translation
+     */
+    public function setShowPrompt(bool $show): self
+    {
+        $this->showPrompt = $show;
+        return $this;
+    }
+
     protected function getSystemPrompt($replaces = [])
     {
         $systemPrompt = file_get_contents(__DIR__ . '/prompt-system.txt');
 
-        // 소스 언어 컨텍스트 처리
         $translationContext = '';
+
         if ($this->globalTranslationContext && count($this->globalTranslationContext) > 0) {
             $contextFileCount = count($this->globalTranslationContext);
             $contextItemCount = 0;
@@ -181,11 +195,11 @@ class AIProvider
 
                     // 타겟이 있는 경우 소스와 타겟 모두 표시
                     if ($targetText !== null) {
-                        return "`{$key}`: src=\"{$sourceText}\" tgt=\"{$targetText}\"";
+                        return "`{$key}`: src=\"" . addslashes($sourceText) . "\" target=\"" . addslashes($targetText) . "\"";
                     }
 
                     // 타겟이 없는 경우 소스만 표시
-                    return "`{$key}`: src=\"{$sourceText}\" tgt=null";
+                    return "`{$key}`: src=\"" . addslashes($sourceText) . "\" target=null";
                 })->filter()->implode("\n");
 
                 return empty($translationsText) ? '' : "## `{$rootKey}`\n{$translationsText}";
@@ -201,11 +215,16 @@ class AIProvider
             'sourceLanguage' => $this->sourceLanguageObj->name,
             'targetLanguage' => $this->targetLanguageObj->name,
             'additionalRules' => count($this->additionalRules) > 0 ? "\nSpecial rules for {$this->targetLanguageObj->name}:\n" . implode("\n", $this->additionalRules) : '',
-            'translationContext' => $translationContext,
+            'translationContextInSourceLanguage' => $translationContext,
         ]);
 
         foreach ($replaces as $key => $value) {
             $systemPrompt = str_replace("{{$key}}", $value, $systemPrompt);
+        }
+
+        // 프롬프트 생성 콜백 호출 (모든 치환이 완료된 후)
+        if ($this->onPromptGenerated && $this->showPrompt) {
+            ($this->onPromptGenerated)($systemPrompt, PromptType::SYSTEM);
         }
 
         return $systemPrompt;
@@ -248,6 +267,11 @@ class AIProvider
 
         foreach ($replaces as $key => $value) {
             $userPrompt = str_replace("{{$key}}", $value, $userPrompt);
+        }
+
+        // 프롬프트 생성 콜백 호출 (모든 치환이 완료된 후)
+        if ($this->onPromptGenerated && $this->showPrompt) {
+            ($this->onPromptGenerated)($userPrompt, PromptType::USER);
         }
 
         return $userPrompt;
@@ -304,6 +328,17 @@ class AIProvider
     public function setOnTokenUsage(?callable $callback): self
     {
         $this->onTokenUsage = $callback;
+        return $this;
+    }
+
+    /**
+     * Set the callback to be called when a prompt is generated
+     * 
+     * @param callable $callback Callback function that receives prompt text and PromptType
+     */
+    public function setOnPromptGenerated(?callable $callback): self
+    {
+        $this->onPromptGenerated = $callback;
         return $this;
     }
 

@@ -332,11 +332,11 @@ class TokenUsagePrinter
 
         // 모델 가격 정보
         $modelRates = $this->getModelRates();
-        $command->line($this->colors['purple'] . "Model Pricing" . $this->colors['reset'] . ":");
-        $command->line("  Input: $" . number_format($modelRates['input'], 2) . " per million tokens");
-        $command->line("  Output: $" . number_format($modelRates['output'], 2) . " per million tokens");
-        $command->line("  Cache Write: $" . number_format($modelRates['cache_write'], 2) . " per million tokens (25% premium)");
-        $command->line("  Cache Read: $" . number_format($modelRates['cache_read'], 2) . " per million tokens (90% discount)");
+        $command->line($this->colors['gray'] . "Model Pricing:" . $this->colors['reset']);
+        $command->line($this->colors['gray'] . "  Input: $" . number_format($modelRates['input'], 2) . " per million tokens" . $this->colors['reset']);
+        $command->line($this->colors['gray'] . "  Output: $" . number_format($modelRates['output'], 2) . " per million tokens" . $this->colors['reset']);
+        $command->line($this->colors['gray'] . "  Cache Write: $" . number_format($modelRates['cache_write'], 2) . " per million tokens (25% premium)" . $this->colors['reset']);
+        $command->line($this->colors['gray'] . "  Cache Read: $" . number_format($modelRates['cache_read'], 2) . " per million tokens (90% discount)" . $this->colors['reset']);
 
         // 비용 출력
         $command->line("\n" . $this->colors['yellow'] . "Your Cost Breakdown" . $this->colors['reset'] . ":");

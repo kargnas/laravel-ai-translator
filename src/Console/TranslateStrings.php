@@ -264,10 +264,10 @@ class TranslateStrings extends Command
                     }
                 }
 
-                // 레퍼런스 번역 로드 (모든 파일에서)
+                // Load reference translations (from all files)
                 $referenceStringList = $this->loadReferenceTranslations($file, $locale, $sourceStringList);
 
-                // 청크 단위로 번역
+                // Process in chunks
                 $chunkCount = 0;
                 $totalChunks = ceil(count($sourceStringList) / $this->chunkSize);
 
@@ -280,10 +280,10 @@ class TranslateStrings extends Command
                             $this->colors['gray'] . " (" . $chunk->count() . " strings)" .
                             $this->colors['reset']);
 
-                        // 전역 번역 컨텍스트 가져오기
+                        // Get global translation context
                         $globalContext = $this->getGlobalContext($file, $locale, $maxContextItems);
 
-                        // 번역기 설정
+                        // Configure translator
                         $translator = $this->setupTranslator(
                             $file,
                             $chunk,
@@ -293,23 +293,23 @@ class TranslateStrings extends Command
                         );
 
                         try {
-                            // 번역 실행
+                            // Execute translation
                             $translatedItems = $translator->translate();
                             $localeTranslatedCount += count($translatedItems);
                             $totalTranslatedCount += count($translatedItems);
 
-                            // 번역 결과 저장 - 표시는 onTranslated에서 처리하므로 메시지 출력은 제거
+                            // Save translation results - display is handled by onTranslated
                             foreach ($translatedItems as $item) {
                                 $targetStringTransformer->updateString($item->key, $item->translated);
                             }
 
-                            // 몇건 저장 성공했는지
+                            // Display number of saved items
                             $this->info($this->colors['green'] . "  ✓ " . $this->colors['reset'] . "{$localeTranslatedCount} strings saved.");
 
-                            // 비용 계산 및 표시
+                            // Calculate and display cost
                             $this->displayCostEstimation($translator);
 
-                            // 토큰 사용량 누적
+                            // Accumulate token usage
                             $usage = $translator->getTokenUsage();
                             $this->updateTokenUsageTotals($usage);
 
@@ -319,7 +319,7 @@ class TranslateStrings extends Command
                     });
             }
 
-            // 언어별 번역 완료 요약 표시
+            // Display translation summary for each language
             $this->displayTranslationSummary($locale, $localeFileCount, $localeStringCount, $localeTranslatedCount);
         }
 
@@ -393,7 +393,7 @@ class TranslateStrings extends Command
                 $referenceLocaleDir = $this->getOutputDirectoryLocale($referenceLocale);
 
                 if (!is_dir($referenceLocaleDir)) {
-                    $this->line($this->colors['gray'] . "    ℹ 레퍼런스 디렉토리 없음: {$referenceLocale}" . $this->colors['reset']);
+                    $this->line($this->colors['gray'] . "    ℹ Reference directory not found: {$referenceLocale}" . $this->colors['reset']);
                     return null;
                 }
 
@@ -401,12 +401,12 @@ class TranslateStrings extends Command
                 $referenceFiles = glob("{$referenceLocaleDir}/*.php");
 
                 if (empty($referenceFiles)) {
-                    $this->line($this->colors['gray'] . "    ℹ 레퍼런스 파일 없음: {$referenceLocale}" . $this->colors['reset']);
+                    $this->line($this->colors['gray'] . "    ℹ Reference file not found: {$referenceLocale}" . $this->colors['reset']);
                     return null;
                 }
 
-                $this->line($this->colors['blue'] . "    ℹ 레퍼런스 로드: " .
-                    $this->colors['reset'] . "{$referenceLocale} - " . count($referenceFiles) . " 파일");
+                $this->line($this->colors['blue'] . "    ℹ Loading reference: " .
+                    $this->colors['reset'] . "{$referenceLocale} - " . count($referenceFiles) . " files");
 
                 // 유사한 이름의 파일을 먼저 처리하여 컨텍스트 관련성 향상
                 usort($referenceFiles, function ($a, $b) use ($currentFileName) {
@@ -435,7 +435,7 @@ class TranslateStrings extends Command
                         $allReferenceStrings = array_merge($allReferenceStrings, $referenceStringList);
                         $processedFiles++;
                     } catch (\Exception $e) {
-                        $this->line($this->colors['gray'] . "    ⚠ 레퍼런스 파일 로드 실패: " . basename($referenceFile) . $this->colors['reset']);
+                        $this->line($this->colors['gray'] . "    ⚠ Reference file loading failed: " . basename($referenceFile) . $this->colors['reset']);
                         continue;
                     }
                 }

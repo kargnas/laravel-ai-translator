@@ -131,7 +131,7 @@ class TranslationContextProvider
                 }
 
                 if (!empty($fileContext)) {
-                    // 파일명에서 .php 확장자 제거하고 루트 키로 저장
+                    // Remove .php extension from filename and save as root key
                     $rootKey = pathinfo(basename($sourceFile), PATHINFO_FILENAME);
                     $context[$rootKey] = $fileContext;
                     $totalContextItems += count($fileContext);
@@ -147,33 +147,33 @@ class TranslationContextProvider
     }
 
     /**
-     * 지정된 언어에 대한 디렉토리 경로를 결정합니다.
+     * Determines the directory path for a specified language.
      * 
-     * @param string $langDirectory 언어 파일 기본 디렉토리 경로
-     * @param string $locale 언어 로케일 코드
-     * @return string 언어별 디렉토리 경로
+     * @param string $langDirectory Base directory path for language files
+     * @param string $locale Language locale code
+     * @return string Language-specific directory path
      */
     protected function getLanguageDirectory(string $langDirectory, string $locale): string
     {
-        // 슬래시로 끝나는 경우 제거
+        // Remove trailing slash if exists
         $langDirectory = rtrim($langDirectory, '/');
 
-        // 1. /locale 패턴이 이미 포함된 경우 (예: /lang/en)
+        // 1. If /locale pattern is already included (e.g. /lang/en)
         if (preg_match('#/[a-z]{2}(_[A-Z]{2})?$#', $langDirectory)) {
             return preg_replace('#/[a-z]{2}(_[A-Z]{2})?$#', "/{$locale}", $langDirectory);
         }
 
-        // 2. 기본 경로에 언어 코드 추가
+        // 2. Add language code to base path
         return "{$langDirectory}/{$locale}";
     }
 
     /**
-     * 소스 및 타겟 문자열에서 우선순위가 높은 항목을 선택합니다.
+     * Selects high-priority items from source and target strings.
      * 
-     * @param array $sourceStrings 소스 문자열 배열
-     * @param array $targetStrings 타겟 문자열 배열
-     * @param int $maxItems 최대 항목 수
-     * @return array 우선순위가 높은 소스 및 타겟 문자열
+     * @param array $sourceStrings Source string array
+     * @param array $targetStrings Target string array
+     * @param int $maxItems Maximum number of items
+     * @return array High-priority source and target strings
      */
     protected function getPrioritizedStrings(array $sourceStrings, array $targetStrings, int $maxItems): array
     {
@@ -181,7 +181,7 @@ class TranslationContextProvider
         $prioritizedTarget = [];
         $commonKeys = array_intersect(array_keys($sourceStrings), array_keys($targetStrings));
 
-        // 1. 짧은 문자열 우선 (UI 요소, 버튼 등)
+        // 1. Short strings first (UI elements, buttons, etc.)
         foreach ($commonKeys as $key) {
             if (strlen($sourceStrings[$key]) < 50 && count($prioritizedSource) < $maxItems * 0.7) {
                 $prioritizedSource[$key] = $sourceStrings[$key];
@@ -189,7 +189,7 @@ class TranslationContextProvider
             }
         }
 
-        // 2. 나머지 항목 추가
+        // 2. Add remaining items
         foreach ($commonKeys as $key) {
             if (!isset($prioritizedSource[$key]) && count($prioritizedSource) < $maxItems) {
                 $prioritizedSource[$key] = $sourceStrings[$key];
@@ -214,14 +214,14 @@ class TranslationContextProvider
     {
         $prioritizedSource = [];
 
-        // 1. 짧은 문자열 우선 (UI 요소, 버튼 등)
+        // 1. Short strings first (UI elements, buttons, etc.)
         foreach ($sourceStrings as $key => $value) {
             if (strlen($value) < 50 && count($prioritizedSource) < $maxItems * 0.7) {
                 $prioritizedSource[$key] = $value;
             }
         }
 
-        // 2. 나머지 항목 추가
+        // 2. Add remaining items
         foreach ($sourceStrings as $key => $value) {
             if (!isset($prioritizedSource[$key]) && count($prioritizedSource) < $maxItems) {
                 $prioritizedSource[$key] = $value;

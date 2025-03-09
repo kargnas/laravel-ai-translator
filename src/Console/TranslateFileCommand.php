@@ -188,16 +188,16 @@ class TranslateFileCommand extends Command
                     case TranslationStatus::STARTED:
                         $this->line("\n" . str_repeat('─', 80));
 
-                        $this->line($this->colors['blue_bg'] . $this->colors['white'] . $this->colors['bold'] . " 번역시작 " . count($translatedItems) . "/{$totalItems} " . $this->colors['reset'] . " " . $this->colors['yellow_bg'] . $this->colors['black'] . $this->colors['bold'] . " {$item->key} " . $this->colors['reset']);
-                        $this->line($this->colors['gray'] . "원본:" . $this->colors['reset'] . " " . substr($originalText, 0, 100) .
+                        $this->line($this->colors['blue_bg'] . $this->colors['white'] . $this->colors['bold'] . " Translation Started " . count($translatedItems) . "/{$totalItems} " . $this->colors['reset'] . " " . $this->colors['yellow_bg'] . $this->colors['black'] . $this->colors['bold'] . " {$item->key} " . $this->colors['reset']);
+                        $this->line($this->colors['gray'] . "Source:" . $this->colors['reset'] . " " . substr($originalText, 0, 100) .
                             (strlen($originalText) > 100 ? '...' : ''));
                         break;
 
                     case TranslationStatus::COMPLETED:
-                        $this->line($this->colors['green'] . $this->colors['bold'] . "번역:" . $this->colors['reset'] . " " . $this->colors['bold'] . substr($item->translated, 0, 100) .
+                        $this->line($this->colors['green'] . $this->colors['bold'] . "Translation:" . $this->colors['reset'] . " " . $this->colors['bold'] . substr($item->translated, 0, 100) .
                             (strlen($item->translated) > 100 ? '...' : '') . $this->colors['reset']);
                         if ($item->comment) {
-                            $this->line($this->colors['gray'] . "주석:" . $this->colors['reset'] . " " . $item->comment);
+                            $this->line($this->colors['gray'] . "Comment:" . $this->colors['reset'] . " " . $item->comment);
                         }
                         break;
                 }
@@ -207,7 +207,7 @@ class TranslateFileCommand extends Command
             $onProgress = function ($currentText, $translatedItems) use ($showAiResponse) {
                 if ($showAiResponse) {
                     $responsePreview = preg_replace('/[\n\r]+/', ' ', substr($currentText, -100));
-                    $this->line($this->colors['line_clear'] . $this->colors['purple'] . "AI응답:" . $this->colors['reset'] . " " . $responsePreview);
+                    $this->line($this->colors['line_clear'] . $this->colors['purple'] . "AI Response:" . $this->colors['reset'] . " " . $responsePreview);
                 }
             };
 
@@ -272,21 +272,21 @@ class TranslateFileCommand extends Command
     }
 
     /**
-     * 현재 토큰 사용량을 실시간으로 출력합니다.
+     * Display current token usage in real-time
      * 
-     * @param array $usage 토큰 사용량 정보
+     * @param array $usage Token usage information
      */
     protected function updateTokenUsageDisplay(array $usage): void
     {
-        // 0이면 표시하지 않음
+        // Don't display if zero
         if ($usage['input_tokens'] == 0 && $usage['output_tokens'] == 0) {
             return;
         }
 
-        // 현재 커서 위치 저장 및 이전 라인 지우기
+        // Save cursor position and clear previous line
         $this->output->write("\033[2K\r");
 
-        // 토큰 사용량 표시
+        // Display token usage
         $this->output->write(
             $this->colors['purple'] . "Tokens: " .
             $this->colors['reset'] . "Input: " . $this->colors['green'] . $usage['input_tokens'] .

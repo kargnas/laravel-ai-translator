@@ -105,13 +105,13 @@ class AIProvider
         $extraKeys = $resultKeys->diff($sourceKeys);
         $hasValidTranslations = false;
 
-        // 번역된 항목들 중에서 유효한 번역이 하나라도 있는지 확인
+        // Check if there are any valid translations among the translated items
         foreach ($list as $item) {
             /** @var LocalizedString $item */
             if (!empty($item->key) && isset($item->translated) && $sourceKeys->contains($item->key)) {
                 $hasValidTranslations = true;
 
-                // 코멘트가 있는 경우 경고 로그 출력
+                // Output warning log if there is a comment
                 if (!empty($item->comment)) {
                     \Log::warning("Translation comment for key '{$item->key}': {$item->comment}");
                 }
@@ -120,17 +120,17 @@ class AIProvider
             }
         }
 
-        // 유효한 번역이 하나도 없는 경우에만 예외 발생
+        // Throw exception only if there are no valid translations
         if (!$hasValidTranslations) {
             throw new VerifyFailedException('No valid translations found in the response.');
         }
 
-        // 누락된 키가 있는 경우 경고
+        // Warning for missing keys
         if ($missingKeys->count() > 0) {
             \Log::warning("Some keys were not translated: {$missingKeys->implode(', ')}");
         }
 
-        // 추가로 생성된 키가 있는 경우 경고
+        // Warning for extra keys
         if ($extraKeys->count() > 0) {
             \Log::warning("Found unexpected translation keys: {$extraKeys->implode(', ')}");
         }
@@ -159,14 +159,14 @@ class AIProvider
                 $contextItemCount += count($items);
             }
 
-            \Log::debug("AIProvider: 번역 컨텍스트 사용 - {$contextFileCount}개 파일, {$contextItemCount}개 항목");
+            \Log::debug("AIProvider: Using translation context - {$contextFileCount} files, {$contextItemCount} items");
 
             $translationContext = collect($this->globalTranslationContext)->map(function ($translations, $file) {
-                // 파일명에서 .php 확장자 제거
+                // Remove .php extension from filename
                 $rootKey = pathinfo($file, PATHINFO_FILENAME);
                 $itemCount = count($translations);
 
-                \Log::debug("AIProvider: 컨텍스트 파일 포함 - {$rootKey}: {$itemCount}개 항목");
+                \Log::debug("AIProvider: Including context file - {$rootKey}: {$itemCount} items");
 
                 $translationsText = collect($translations)->map(function ($item, $key) use ($rootKey) {
                     $sourceText = $item['source'] ?? '';
@@ -177,7 +177,7 @@ class AIProvider
 
                     $text = "`{$rootKey}.{$key}`: src=\"\"\"{$sourceText}\"\"\"";
 
-                    // 레퍼런스 정보 확인
+                    // Check reference information
                     $referenceKey = $key;
                     foreach ($this->references as $locale => $strings) {
                         if (isset($strings[$referenceKey]) && !empty($strings[$referenceKey])) {
@@ -192,9 +192,9 @@ class AIProvider
             })->filter()->implode("\n\n");
 
             $contextLength = strlen($translationContext);
-            \Log::debug("AIProvider: 생성된 컨텍스트 크기 - {$contextLength} 바이트");
+            \Log::debug("AIProvider: Generated context size - {$contextLength} bytes");
         } else {
-            \Log::debug("AIProvider: 번역 컨텍스트가 없거나 비어 있음");
+            \Log::debug("AIProvider: No translation context available or empty");
         }
 
         $replaces = array_merge($replaces, [
@@ -347,7 +347,7 @@ class AIProvider
             } catch (VerifyFailedException $e) {
                 \Log::error($e->getMessage());
             } catch (\Exception $e) {
-                \Log::critical("AIProvider: 번역 중 오류 발생", [
+                \Log::critical("AIProvider: Error during translation", [
                     'message' => $e->getMessage(),
                     'file' => $e->getFile(),
                     'line' => $e->getLine(),

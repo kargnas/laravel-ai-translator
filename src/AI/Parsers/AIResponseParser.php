@@ -7,39 +7,39 @@ use Kargnas\LaravelAiTranslator\Enums\TranslationStatus;
 use Kargnas\LaravelAiTranslator\Models\LocalizedString;
 
 /**
- * 완전히 새로 작성된 AI 응답 파서 클래스
- * - CDATA 직접 추출 및 처리
- * - 모든 특수 문자와 HTML 태그 보존
- * - 안정적인 XML 파싱
+ * AI Response Parser Class - Complete Rewrite
+ * - Direct CDATA extraction and processing
+ * - Preserves all special characters and HTML tags
+ * - Stable XML parsing
  */
 class AIResponseParser
 {
-    // XML 파서
+    // XML Parser
     private XMLParser $xmlParser;
 
-    // 번역된 항목 저장
+    // Store translated items
     private array $translatedItems = [];
 
-    // 처리된 키 추적
+    // Track processed keys
     private array $processedKeys = [];
 
-    // 디버그 모드
+    // Debug mode
     private bool $debug = false;
 
-    // 번역 완료 콜백
+    // Translation completion callback
     private $translatedCallback = null;
 
-    // 전체 응답 저장
+    // Store full response
     private string $fullResponse = '';
 
-    // 새로운 번역 시작 항목 찾기 (아직 시작되지 않은 키)
+    // Track started keys (not yet started)
     private array $startedKeys = [];
 
     /**
-     * 생성자
+     * Constructor
      *
-     * @param  callable|null  $translatedCallback  번역 항목 완료시 호출할 콜백
-     * @param  bool  $debug  디버그 모드 활성화 여부
+     * @param  callable|null  $translatedCallback  Callback to be called when translation item is completed
+     * @param  bool  $debug  Enable debug mode
      */
     public function __construct(?callable $translatedCallback = null, bool $debug = false)
     {

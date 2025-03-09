@@ -110,7 +110,7 @@ class TranslateStrings extends Command
         // 청크 사이즈 설정
         $this->chunkSize = (int) $this->ask(
             $this->colors['yellow'] . "Enter the chunk size for translation. Translate strings in a batch. The higher, the cheaper." . $this->colors['reset'],
-            50
+            100
         );
 
         // 컨텍스트 항목 수 설정

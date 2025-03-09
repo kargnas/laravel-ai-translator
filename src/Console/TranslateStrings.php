@@ -542,6 +542,18 @@ class TranslateStrings extends Command
             $globalContext
         );
 
+        $translator->setOnThinking(function ($thinking) {
+            $this->line($this->colors['gray'] . "    " . $thinking . $this->colors['reset']);
+        });
+
+        $translator->setOnThinkingStart(function () {
+            $this->line($this->colors['gray'] . "    " . "🧠 AI Thinking..." . $this->colors['reset']);
+        });
+
+        $translator->setOnThinkingEnd(function () {
+            $this->line($this->colors['gray'] . "    " . "Thinking completed." . $this->colors['reset']);
+        });
+
         // 번역 진행 상황 표시를 위한 콜백 설정
         $translator->setOnTranslated(function ($item, $status, $translatedItems) use ($chunk) {
             if ($status === TranslationStatus::COMPLETED) {

@@ -229,8 +229,8 @@ class TranslationService
                 'is_hidden' => $sourceString->isHidden()
             ];
 
-            if (!$sourceString->getIdentifier() || $sourceString->isHidden()) {
-                $debug['reason'] = !$sourceString->getIdentifier() ? 'no_identifier' : 'hidden';
+            if ($sourceString->isHidden()) {
+                $debug['reason'] = 'hidden';
                 \Log::info("String filtered out", $debug);
                 return false;
             }
@@ -265,7 +265,12 @@ class TranslationService
         ]);
 
         return $filteredStrings->map(function (SourceString $sourceString) {
-            return $sourceString->getData();
+            $data = $sourceString->getData();
+            // HTML 파일의 경우 text를 identifier로 사용
+            if (empty($data['identifier'])) {
+                $data['identifier'] = $data['text'];
+            }
+            return $data;
         });
     }
 

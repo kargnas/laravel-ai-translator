@@ -21,8 +21,6 @@ class AIProvider
 
     protected int $configRetries;
 
-    protected bool $showPrompt = false;
-
     public Language $sourceLanguageObj;
 
     public Language $targetLanguageObj;
@@ -35,8 +33,6 @@ class AIProvider
      */
     protected int $inputTokens = 0;
     protected int $outputTokens = 0;
-    protected int $cacheCreationInputTokens = 0;
-    protected int $cacheReadInputTokens = 0;
     protected int $totalTokens = 0;
 
     // Callback properties
@@ -48,18 +44,21 @@ class AIProvider
     protected $onTokenUsage = null;
     protected $onPromptGenerated = null;
 
+    /**
+     * AIProvider 생성자
+     */
     public function __construct(
         public string $filename,
         public array $strings,
         public string $sourceLanguage,
         public string $targetLanguage,
+        public array $references = [],
         public array $additionalRules = [],
         public ?array $globalTranslationContext = null,
     ) {
         $this->configProvider = config('ai-translator.ai.provider');
         $this->configModel = config('ai-translator.ai.model');
         $this->configRetries = config('ai-translator.ai.retries', 1);
-        $this->showPrompt = config('ai-translator.ai.show_prompt', false);
 
         // Add file prefix to all keys
         $prefix = $this->getFilePrefix();
@@ -68,15 +67,20 @@ class AIProvider
             return [$newKey => $value];
         })->toArray();
 
-        // Create Language objects
-        $this->sourceLanguageObj = Language::fromCode($this->sourceLanguage);
-        $this->targetLanguageObj = Language::fromCode($this->targetLanguage);
+        // 언어 객체 생성
+        $this->sourceLanguageObj = Language::fromCode($sourceLanguage);
+        $this->targetLanguageObj = Language::fromCode($targetLanguage);
 
         // Get additional rules from LanguageRules
         $this->additionalRules = array_merge(
             $this->additionalRules,
             LanguageRules::getAdditionalRules($this->targetLanguageObj)
         );
+
+        // 토큰 초기화
+        $this->inputTokens = 0;
+        $this->outputTokens = 0;
+        $this->totalTokens = 0;
 
         \Log::info("AIProvider initiated: Source language = {$this->sourceLanguageObj->name} ({$this->sourceLanguageObj->code}), Target language = {$this->targetLanguageObj->name} ({$this->targetLanguageObj->code})");
         \Log::info("AIProvider additional rules: " . json_encode($this->additionalRules));
@@ -89,22 +93,6 @@ class AIProvider
 
     protected function verify(array $list): void
     {
-        // For test-translate command with a single string, we'll be more lenient
-        // as this is for testing only rather than production translation
-        if (count($this->strings) === 1 && count($list) === 1) {
-            $item = $list[0];
-            /** @var LocalizedString $item */
-            if (empty($item->key)) {
-                throw new VerifyFailedException('Failed to translate the string. The key is empty.');
-            }
-            if (!isset($item->translated)) {
-                throw new VerifyFailedException("Failed to translate the string. The translation is not set for key: {$item->key}.");
-            }
-
-            // Allow any key for a single test translation for simplified testing
-            return;
-        }
-
         // Standard verification for production translations
         $sourceKeys = collect($this->strings)->keys()->unique()->sort()->values();
         $resultKeys = collect($list)->pluck('key')->unique()->sort()->values();
@@ -153,15 +141,6 @@ class AIProvider
         }
     }
 
-    /**
-     * Set whether to show prompts during translation
-     */
-    public function setShowPrompt(bool $show): self
-    {
-        $this->showPrompt = $show;
-        return $this;
-    }
-
     protected function getSystemPrompt($replaces = [])
     {
         $systemPrompt = file_get_contents(__DIR__ . '/prompt-system.txt');
@@ -185,21 +164,24 @@ class AIProvider
 
                 \Log::debug("AIProvider: 컨텍스트 파일 포함 - {$rootKey}: {$itemCount}개 항목");
 
-                $translationsText = collect($translations)->map(function ($item, $key) {
+                $translationsText = collect($translations)->map(function ($item, $key) use ($rootKey) {
                     $sourceText = $item['source'] ?? '';
-                    $targetText = $item['target'] ?? null;
 
                     if (empty($sourceText)) {
                         return null;
                     }
 
-                    // 타겟이 있는 경우 소스와 타겟 모두 표시
-                    if ($targetText !== null) {
-                        return "`{$key}`: src=\"" . addslashes($sourceText) . "\" target=\"" . addslashes($targetText) . "\"";
+                    $text = "`{$rootKey}.{$key}`: src=\"\"\"{$sourceText}\"\"\"";
+
+                    // 레퍼런스 정보 확인
+                    $referenceKey = $key;
+                    foreach ($this->references as $locale => $strings) {
+                        if (isset($strings[$referenceKey]) && !empty($strings[$referenceKey])) {
+                            $text .= "\n    {$locale}=\"\"\"{$strings[$referenceKey]}\"\"\"";
+                        }
                     }
 
-                    // 타겟이 없는 경우 소스만 표시
-                    return "`{$key}`: src=\"" . addslashes($sourceText) . "\" target=null";
+                    return $text;
                 })->filter()->implode("\n");
 
                 return empty($translationsText) ? '' : "## `{$rootKey}`\n{$translationsText}";
@@ -223,7 +205,7 @@ class AIProvider
         }
 
         // 프롬프트 생성 콜백 호출 (모든 치환이 완료된 후)
-        if ($this->onPromptGenerated && $this->showPrompt) {
+        if ($this->onPromptGenerated) {
             ($this->onPromptGenerated)($systemPrompt, PromptType::SYSTEM);
         }
 
@@ -252,17 +234,9 @@ class AIProvider
                     if (isset($string['context'])) {
                         $text .= "\n    - Context: \"\"\"{$string['context']}\"\"\"";
                     }
-                    if (isset($string['references']) && count($string['references']) > 0) {
-                        $text .= "\n    - References:";
-                        foreach ($string['references'] as $locale => $items) {
-                            $text .= "\n      - {$locale}: \"\"\"" . $items . '"""';
-                        }
-                    }
-
                     return $text;
                 }
             })->implode("\n"),
-            'translationContext' => '', // 컨텍스트는 시스템 프롬프트로 이동
         ]);
 
         foreach ($replaces as $key => $value) {
@@ -270,7 +244,7 @@ class AIProvider
         }
 
         // 프롬프트 생성 콜백 호출 (모든 치환이 완료된 후)
-        if ($this->onPromptGenerated && $this->showPrompt) {
+        if ($this->onPromptGenerated) {
             ($this->onPromptGenerated)($userPrompt, PromptType::USER);
         }
 
@@ -278,7 +252,7 @@ class AIProvider
     }
 
     /**
-     * Set the callback to be called when an item is translated
+     * 번역 완료 콜백 설정
      */
     public function setOnTranslated(?callable $callback): self
     {
@@ -342,6 +316,9 @@ class AIProvider
         return $this;
     }
 
+    /**
+     * 문자열 번역
+     */
     public function translate(): array
     {
         $tried = 1;
@@ -351,8 +328,8 @@ class AIProvider
                     \Log::warning("[{$tried}/{$this->configRetries}] Retrying translation into {$this->targetLanguageObj->name} using {$this->configProvider} with {$this->configModel} model...");
                 }
 
-                $items = $this->getTranslatedObjects();
-                $this->verify($items);
+                $translatedObjects = $this->getTranslatedObjects();
+                $this->verify($translatedObjects);
 
                 // 번역이 완료된 후 최종 토큰 사용량 전달
                 if ($this->onTokenUsage) {
@@ -362,11 +339,16 @@ class AIProvider
                     ($this->onTokenUsage)($tokenUsage);
                 }
 
-                return $items;
+                return $translatedObjects;
             } catch (VerifyFailedException $e) {
                 \Log::error($e->getMessage());
             } catch (\Exception $e) {
-                \Log::critical($e->getMessage());
+                \Log::critical("AIProvider: 번역 중 오류 발생", [
+                    'message' => $e->getMessage(),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'trace' => $e->getTraceAsString(),
+                ]);
             }
         } while (++$tried <= $this->configRetries);
 
@@ -467,8 +449,6 @@ class AIProvider
         // 토큰 사용량 초기화
         $this->inputTokens = 0;
         $this->outputTokens = 0;
-        $this->cacheCreationInputTokens = 0;
-        $this->cacheReadInputTokens = 0;
         $this->totalTokens = 0;
 
         // Initialize response parser with debug mode enabled in development
@@ -686,21 +666,11 @@ class AIProvider
                 $this->totalTokens = $this->inputTokens + $this->outputTokens;
             }
 
-            if (isset($response['cache_creation_input_tokens'])) {
-                $this->cacheCreationInputTokens = (int) $response['cache_creation_input_tokens'];
-            }
-
-            if (isset($response['cache_read_input_tokens'])) {
-                $this->cacheReadInputTokens = (int) $response['cache_read_input_tokens'];
-            }
-
             // 디버깅: 최종 응답 구조 로깅
             if ($debugMode) {
                 \Log::debug("Final response structure", [
                     'has_usage' => isset($response['usage']),
                     'usage' => $response['usage'] ?? null,
-                    'cache_creation' => $response['cache_creation_input_tokens'] ?? null,
-                    'cache_read' => $response['cache_read_input_tokens'] ?? null,
                 ]);
             }
 
@@ -718,14 +688,6 @@ class AIProvider
                     $this->outputTokens = $response['usage']['output_tokens'];
                 }
                 $this->totalTokens = $this->inputTokens + $this->outputTokens;
-            }
-
-            // 캐시 관련 토큰 추적
-            if (isset($response['cache_creation_input_tokens'])) {
-                $this->cacheCreationInputTokens = $response['cache_creation_input_tokens'];
-            }
-            if (isset($response['cache_read_input_tokens'])) {
-                $this->cacheReadInputTokens = $response['cache_read_input_tokens'];
             }
 
             $responseText = $response['content'][0]['text'];
@@ -797,8 +759,8 @@ class AIProvider
         return [
             'input_tokens' => $this->inputTokens,
             'output_tokens' => $this->outputTokens,
-            'cache_creation_input_tokens' => $this->cacheCreationInputTokens,
-            'cache_read_input_tokens' => $this->cacheReadInputTokens,
+            'cache_creation_input_tokens' => null,
+            'cache_read_input_tokens' => null,
             'total_tokens' => $this->totalTokens
         ];
     }
@@ -812,9 +774,9 @@ class AIProvider
 
         \Log::info('AIProvider: 토큰 사용량 정보', [
             'input_tokens' => $tokenInfo['input_tokens'],
+            'output_tokens' => $tokenInfo['output_tokens'],
             'cache_creation_input_tokens' => $tokenInfo['cache_creation_input_tokens'],
             'cache_read_input_tokens' => $tokenInfo['cache_read_input_tokens'],
-            'output_tokens' => $tokenInfo['output_tokens'],
             'total_tokens' => $tokenInfo['total_tokens'],
         ]);
     }
@@ -878,14 +840,6 @@ class AIProvider
                 $tokenUsage['final'] = false; // 중간 업데이트임을 표시
                 ($this->onTokenUsage)($tokenUsage);
             }
-        }
-
-        // 캐싱 관련 토큰 정보 추출
-        if (isset($data['cache_creation_input_tokens'])) {
-            $this->cacheCreationInputTokens = $data['cache_creation_input_tokens'];
-        }
-        if (isset($data['cache_read_input_tokens'])) {
-            $this->cacheReadInputTokens = $data['cache_read_input_tokens'];
         }
     }
 

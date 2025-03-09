@@ -7,6 +7,7 @@ use Kargnas\LaravelAiTranslator\AI\AIProvider;
 use Kargnas\LaravelAiTranslator\AI\Language\LanguageConfig;
 use Kargnas\LaravelAiTranslator\AI\Printer\TokenUsagePrinter;
 use Kargnas\LaravelAiTranslator\AI\TranslationContextProvider;
+use Kargnas\LaravelAiTranslator\Enums\TranslationStatus;
 use Kargnas\LaravelAiTranslator\Transformers\PHPLangTransformer;
 use Kargnas\LaravelAiTranslator\Utility;
 use Kargnas\LaravelAiTranslator\Enums\PromptType;
@@ -36,8 +37,6 @@ class TranslateStrings extends Command
     protected array $tokenUsage = [
         'input_tokens' => 0,
         'output_tokens' => 0,
-        'cache_creation_input_tokens' => 0,
-        'cache_read_input_tokens' => 0,
         'total_tokens' => 0
     ];
 
@@ -265,7 +264,7 @@ class TranslateStrings extends Command
                     }
                 }
 
-                // 레퍼런스 언어 번역 로드
+                // 레퍼런스 번역 로드 (모든 파일에서)
                 $referenceStringList = $this->loadReferenceTranslations($file, $locale, $sourceStringList);
 
                 // Extended Thinking 설정
@@ -306,6 +305,9 @@ class TranslateStrings extends Command
                             foreach ($translatedItems as $item) {
                                 $targetStringTransformer->updateString($item->key, $item->translated);
                             }
+
+                            // 몇건 저장 성공했는지
+                            $this->info($this->colors['green'] . "  ✓ " . $this->colors['reset'] . "{$localeTranslatedCount} strings saved.");
 
                             // 비용 계산 및 표시
                             $this->displayCostEstimation($translator);
@@ -374,35 +376,113 @@ class TranslateStrings extends Command
             $this->line("\n" . $this->colors['blue_bg'] . $this->colors['white'] . $this->colors['bold'] . " Total Token Usage " . $this->colors['reset']);
             $this->line($this->colors['yellow'] . "Input Tokens: " . $this->colors['reset'] . $this->colors['green'] . $this->tokenUsage['input_tokens'] . $this->colors['reset']);
             $this->line($this->colors['yellow'] . "Output Tokens: " . $this->colors['reset'] . $this->colors['green'] . $this->tokenUsage['output_tokens'] . $this->colors['reset']);
-            $this->line($this->colors['yellow'] . "Cache Created: " . $this->colors['reset'] . $this->colors['blue'] . $this->tokenUsage['cache_creation_input_tokens'] . $this->colors['reset']);
-            $this->line($this->colors['yellow'] . "Cache Read: " . $this->colors['reset'] . $this->colors['blue'] . $this->tokenUsage['cache_read_input_tokens'] . $this->colors['reset']);
             $this->line($this->colors['yellow'] . "Total Tokens: " . $this->colors['reset'] . $this->colors['bold'] . $this->colors['purple'] . $this->tokenUsage['total_tokens'] . $this->colors['reset']);
         }
     }
 
     /**
-     * 레퍼런스 번역 로드
+     * 레퍼런스 번역 로드 (모든 파일에서)
      */
     protected function loadReferenceTranslations(string $file, string $targetLocale, array $sourceStringList): array
     {
-        return collect($this->referenceLocales)
-            ->filter(fn($referenceLocale) => !in_array($referenceLocale, [$targetLocale, $this->sourceLocale]))
-            ->map(function ($referenceLocale) use ($file, $sourceStringList) {
-                $referenceFile = $this->getOutputDirectoryLocale($referenceLocale) . '/' . basename($file);
-                if (!file_exists($referenceFile)) {
+        // 타겟 언어와 레퍼런스 언어들을 모두 포함
+        $allReferenceLocales = array_merge([$targetLocale], $this->referenceLocales);
+        $langDirectory = config('ai-translator.source_directory');
+        $currentFileName = basename($file);
+
+        return collect($allReferenceLocales)
+            ->filter(fn($referenceLocale) => $referenceLocale !== $this->sourceLocale)
+            ->map(function ($referenceLocale) use ($langDirectory, $file, $currentFileName) {
+                $referenceLocaleDir = $this->getOutputDirectoryLocale($referenceLocale);
+
+                if (!is_dir($referenceLocaleDir)) {
+                    $this->line($this->colors['gray'] . "    ℹ 레퍼런스 디렉토리 없음: {$referenceLocale}" . $this->colors['reset']);
                     return null;
                 }
 
-                $referenceTransformer = new PHPLangTransformer($referenceFile);
-                $referenceStringList = $referenceTransformer->flatten();
+                // 해당 로케일 디렉토리의 모든 PHP 파일 가져오기
+                $referenceFiles = glob("{$referenceLocaleDir}/*.php");
+
+                if (empty($referenceFiles)) {
+                    $this->line($this->colors['gray'] . "    ℹ 레퍼런스 파일 없음: {$referenceLocale}" . $this->colors['reset']);
+                    return null;
+                }
+
+                $this->line($this->colors['blue'] . "    ℹ 레퍼런스 로드: " .
+                    $this->colors['reset'] . "{$referenceLocale} - " . count($referenceFiles) . " 파일");
+
+                // 유사한 이름의 파일을 먼저 처리하여 컨텍스트 관련성 향상
+                usort($referenceFiles, function ($a, $b) use ($currentFileName) {
+                    $similarityA = similar_text($currentFileName, basename($a));
+                    $similarityB = similar_text($currentFileName, basename($b));
+                    return $similarityB <=> $similarityA;
+                });
+
+                $allReferenceStrings = [];
+                $processedFiles = 0;
+
+                foreach ($referenceFiles as $referenceFile) {
+                    try {
+                        $referenceTransformer = new PHPLangTransformer($referenceFile);
+                        $referenceStringList = $referenceTransformer->flatten();
+
+                        if (empty($referenceStringList)) {
+                            continue;
+                        }
+
+                        // 우선순위 적용 (필요한 경우)
+                        if (count($referenceStringList) > 50) {
+                            $referenceStringList = $this->getPrioritizedReferenceStrings($referenceStringList, 50);
+                        }
+
+                        $allReferenceStrings = array_merge($allReferenceStrings, $referenceStringList);
+                        $processedFiles++;
+                    } catch (\Exception $e) {
+                        $this->line($this->colors['gray'] . "    ⚠ 레퍼런스 파일 로드 실패: " . basename($referenceFile) . $this->colors['reset']);
+                        continue;
+                    }
+                }
+
+                if (empty($allReferenceStrings)) {
+                    return null;
+                }
 
                 return [
                     'locale' => $referenceLocale,
-                    'strings' => $referenceStringList,
+                    'strings' => $allReferenceStrings,
                 ];
             })
             ->filter()
+            ->values()
             ->toArray();
+    }
+
+    /**
+     * 레퍼런스 문자열에 우선순위 적용
+     */
+    protected function getPrioritizedReferenceStrings(array $strings, int $maxItems): array
+    {
+        $prioritized = [];
+
+        // 1. 짧은 문자열 우선 (UI 요소, 버튼 등)
+        foreach ($strings as $key => $value) {
+            if (strlen($value) < 50 && count($prioritized) < $maxItems * 0.7) {
+                $prioritized[$key] = $value;
+            }
+        }
+
+        // 2. 나머지 항목 추가
+        foreach ($strings as $key => $value) {
+            if (!isset($prioritized[$key]) && count($prioritized) < $maxItems) {
+                $prioritized[$key] = $value;
+            }
+
+            if (count($prioritized) >= $maxItems) {
+                break;
+            }
+        }
+
+        return $prioritized;
     }
 
     /**
@@ -442,44 +522,32 @@ class TranslateStrings extends Command
         string $locale,
         array $globalContext
     ): AIProvider {
-        // 번역 진행 중인 언어와 파일 정보 헤더 표시
-        $this->line("\n" . $this->colors['blue_bg'] . $this->colors['white'] . $this->colors['bold'] .
-            " Translating: " . basename($file) . " → " . $locale . " " . $this->colors['reset']);
+        // 파일 정보 표시
+        $outputFile = $this->getOutputDirectoryLocale($locale) . '/' . basename($file);
+        $this->displayFileInfo($file, $locale, $outputFile);
 
+        // 레퍼런스 정보를 적절한 형식으로 변환
+        $references = [];
+        foreach ($referenceStringList as $reference) {
+            $referenceLocale = $reference['locale'];
+            $referenceStrings = $reference['strings'];
+            $references[$referenceLocale] = $referenceStrings;
+        }
+
+        // AIProvider 인스턴스 생성
         $translator = new AIProvider(
-            filename: $file,
-            strings: $chunk->mapWithKeys(function ($item, $key) use ($referenceStringList) {
-                // 각 소스 문자열에 대한 레퍼런스 번역 수집
-                $references = [];
-                foreach ($referenceStringList as $reference) {
-                    $referenceLocale = $reference['locale'];
-                    $referenceString = $reference['strings'][$key] ?? "";
-
-                    // 레퍼런스 번역이 존재하는 경우에만 추가
-                    if (!empty($referenceString)) {
-                        $references[$referenceLocale] = $referenceString;
-                    }
-                }
-
-                return [
-                    $key => [
-                        'text' => $item,
-                        'references' => $references,
-                    ],
-                ];
-            })->toArray(),
-            sourceLanguage: $this->sourceLocale,
-            targetLanguage: $locale,
-            additionalRules: [],
-            globalTranslationContext: $globalContext
+            $file,
+            $chunk->toArray(),
+            $this->sourceLocale,
+            $locale,
+            $references,
+            [],
+            $globalContext
         );
 
-        // 프롬프트 표시 설정
-        $translator->setShowPrompt($this->option('show-prompt'));
-
-        // 번역 진행 콜백 설정
+        // 번역 진행 상황 표시를 위한 콜백 설정
         $translator->setOnTranslated(function ($item, $status, $translatedItems) use ($chunk) {
-            if ($status === 'completed') {
+            if ($status === TranslationStatus::COMPLETED) {
                 $totalCount = $chunk->count();
                 $completedCount = count($translatedItems);
 
@@ -498,29 +566,27 @@ class TranslateStrings extends Command
             $inputTokens = $usage['input_tokens'] ?? 0;
             $outputTokens = $usage['output_tokens'] ?? 0;
             $totalTokens = $usage['total_tokens'] ?? 0;
-            $cacheCreation = $usage['cache_creation_input_tokens'] ?? 0;
-            $cacheRead = $usage['cache_read_input_tokens'] ?? 0;
 
             // 실시간 토큰 사용량 표시
             $this->line($this->colors['gray'] . "    Tokens: " .
                 "Input=" . $this->colors['green'] . $inputTokens . $this->colors['gray'] . ", " .
                 "Output=" . $this->colors['green'] . $outputTokens . $this->colors['gray'] . ", " .
                 "Total=" . $this->colors['purple'] . $totalTokens . $this->colors['gray'] .
-                ($cacheCreation > 0 ? ", Cache Created=" . $this->colors['blue'] . $cacheCreation : "") .
-                ($cacheRead > 0 ? ", Cache Read=" . $this->colors['blue'] . $cacheRead : "") .
                 $this->colors['reset']);
         });
 
         // 프롬프트 로깅 콜백 설정
-        $translator->setOnPromptGenerated(function ($prompt, PromptType $type) {
-            $typeText = match ($type) {
-                PromptType::SYSTEM => '🤖 System Prompt',
-                PromptType::USER => '👤 User Prompt',
-            };
+        if ($this->option('show-prompt')) {
+            $translator->setOnPromptGenerated(function ($prompt, PromptType $type) {
+                $typeText = match ($type) {
+                    PromptType::SYSTEM => '🤖 System Prompt',
+                    PromptType::USER => '👤 User Prompt',
+                };
 
-            print ("\n    {$typeText}:\n");
-            print ($this->colors['gray'] . "    " . str_replace("\n", $this->colors['reset'] . "\n    " . $this->colors['gray'], $prompt) . $this->colors['reset'] . "\n");
-        });
+                print ("\n    {$typeText}:\n");
+                print ($this->colors['gray'] . "    " . str_replace("\n", $this->colors['reset'] . "\n    " . $this->colors['gray'], $prompt) . $this->colors['reset'] . "\n");
+            });
+        }
 
         return $translator;
     }
@@ -532,8 +598,6 @@ class TranslateStrings extends Command
     {
         $this->tokenUsage['input_tokens'] += ($usage['input_tokens'] ?? 0);
         $this->tokenUsage['output_tokens'] += ($usage['output_tokens'] ?? 0);
-        $this->tokenUsage['cache_creation_input_tokens'] += ($usage['cache_creation_input_tokens'] ?? 0);
-        $this->tokenUsage['cache_read_input_tokens'] += ($usage['cache_read_input_tokens'] ?? 0);
         $this->tokenUsage['total_tokens'] =
             $this->tokenUsage['input_tokens'] +
             $this->tokenUsage['output_tokens'];

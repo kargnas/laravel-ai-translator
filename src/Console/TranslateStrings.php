@@ -543,7 +543,7 @@ class TranslateStrings extends Command
         );
 
         $translator->setOnThinking(function ($thinking) {
-            $this->line($this->colors['gray'] . "    " . $thinking . $this->colors['reset']);
+            echo $this->colors['gray'] . $thinking . $this->colors['reset'];
         });
 
         $translator->setOnThinkingStart(function () {

@@ -267,9 +267,6 @@ class TranslateStrings extends Command
                 // 레퍼런스 번역 로드 (모든 파일에서)
                 $referenceStringList = $this->loadReferenceTranslations($file, $locale, $sourceStringList);
 
-                // Extended Thinking 설정
-                config(['ai-translator.ai.use_extended_thinking' => false]);
-
                 // 청크 단위로 번역
                 $chunkCount = 0;
                 $totalChunks = ceil(count($sourceStringList) / $this->chunkSize);

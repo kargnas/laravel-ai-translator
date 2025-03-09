@@ -7,6 +7,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Collection;
 use Kargnas\LaravelAiTranslator\AI\AIProvider;
 use Kargnas\LaravelAiTranslator\AI\TranslationContextProvider;
+use Kargnas\LaravelAiTranslator\Enums\PromptType;
 use CrowdinApiClient\Model\File;
 use CrowdinApiClient\Model\SourceString;
 use CrowdinApiClient\Model\LanguageTranslation;
@@ -325,8 +326,9 @@ class TranslationService
         if ($this->showPrompt) {
             $translator->setOnPromptGenerated(function ($prompt, $type) {
                 $typeText = match ($type) {
-                    'system' => '🤖 System Prompt',
-                    'user' => '👤 User Prompt',
+                    PromptType::SYSTEM => '🤖 System Prompt',
+                    PromptType::USER => '👤 User Prompt',
+                    default => '❓ Unknown Prompt'
                 };
 
                 print ("\n    {$typeText}:\n");

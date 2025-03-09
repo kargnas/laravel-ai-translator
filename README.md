@@ -2,6 +2,24 @@
 
 AI-powered translation tool for Laravel language files
 
+## 🔄 Recent Updates (March 10, 2025)
+
+- **AI Enhancement**: Added support for Claude 3.7's Extended Thinking capabilities
+  - Extended context window up to 200K tokens, output tokens up to 64K tokens
+  - Enhanced reasoning for complex translations
+  - Improved context understanding with extended thinking mode
+- **Visual Logging Improvements**: Completely redesigned logging system
+  - 🎨 Beautiful color-coded console output
+  - 📊 Real-time progress indicators
+  - 🔍 Detailed token usage tracking with visual stats
+  - 💫 Animated status indicators for long-running processes
+- **Performance Improvements**: Enhanced translation processing efficiency and reduced API calls
+- **Better Error Handling**: Improved error handling and recovery mechanisms
+- **Code Refactoring**: Major code restructuring for better maintainability
+  - Separated services into dedicated classes
+  - Improved token usage tracking and reporting
+  - Enhanced console output formatting
+
 ## 💡 New Feature: Custom Language Styles
 
 We've expanded our capabilities with support for custom language styles, allowing for unique and creative translations. [Learn more about Custom Language Styles](#custom-language-styles)

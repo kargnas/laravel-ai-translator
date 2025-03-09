@@ -14,6 +14,10 @@ use Illuminate\Support\Collection;
 use Kargnas\LaravelAiTranslator\AI\AIProvider;
 use Kargnas\LaravelAiTranslator\AI\Printer\TokenUsagePrinter;
 use Kargnas\LaravelAiTranslator\AI\TranslationContextProvider;
+use CrowdinApiClient\Model\File;
+use CrowdinApiClient\Model\Directory;
+use Kargnas\LaravelAiTranslator\AI\Enums\TranslationStatus;
+use Kargnas\LaravelAiTranslator\AI\Enums\PromptType;
 
 /**
  * Command to translate strings in Crowdin using AI technology
@@ -50,7 +54,7 @@ class TranslateCrowdin extends Command
      * Project and language information
      */
     protected array $selectedProject;
-    protected array $selectedTargetLanguages = [];
+    protected array $targetLanguages = [];
     protected array $referenceLanguages = [];
     protected string $sourceLocale;
 
@@ -225,22 +229,44 @@ class TranslateCrowdin extends Command
 
         // Select project
         if (!empty($projectId)) {
-            $this->selectedProject = collect($projects)->firstWhere('id', $projectId);
-            if (empty($this->selectedProject)) {
+            $selectedProject = null;
+            foreach ($projects as $project) {
+                if ($project['id'] === (int) $projectId) {
+                    $selectedProject = $project;
+                    break;
+                }
+            }
+
+            if (empty($selectedProject)) {
                 $this->error("Project with ID {$projectId} not found.");
                 return false;
             }
+            $this->selectedProject = $selectedProject;
         } else {
-            $projectChoices = collect($projects)->mapWithKeys(function ($project) {
-                return [$project['id'] => "{$project['name']} ({$project['id']})"];
-            })->toArray();
+            $projectChoices = [];
+            foreach ($projects as $project) {
+                $projectChoices[$project['id']] = "{$project['name']} ({$project['id']})";
+            }
 
-            $selectedProjectId = array_search($this->choice(
+            $selectedChoice = $this->choice(
                 $this->colors['yellow'] . 'Select a project' . $this->colors['reset'],
                 $projectChoices
-            ), $projectChoices);
+            );
 
-            $this->selectedProject = collect($projects)->where('id', $selectedProjectId)->first();
+            if (preg_match('/\((\d+)\)$/', $selectedChoice, $matches)) {
+                $selectedProjectId = (int) $matches[1];
+                foreach ($projects as $project) {
+                    if ($project['id'] === $selectedProjectId) {
+                        $this->selectedProject = $project;
+                        break;
+                    }
+                }
+            }
+
+            if (empty($this->selectedProject)) {
+                $this->error("Failed to find selected project.");
+                return false;
+            }
         }
 
         $this->info($this->colors['green'] . "✓ Selected project: " .
@@ -261,8 +287,12 @@ class TranslateCrowdin extends Command
     {
         // Select source language
         if (!empty($sourceLanguage)) {
-            $this->selectedProject['sourceLanguage'] = collect($this->selectedProject['targetLanguages'])
-                ->firstWhere('name', $sourceLanguage);
+            foreach ($this->selectedProject['targetLanguages'] as $lang) {
+                if ($lang['name'] === $sourceLanguage) {
+                    $this->selectedProject['sourceLanguage'] = $lang;
+                    break;
+                }
+            }
 
             if (empty($this->selectedProject['sourceLanguage'])) {
                 $this->error("Source language {$sourceLanguage} not found in project.");
@@ -277,25 +307,27 @@ class TranslateCrowdin extends Command
 
         // Select target languages
         if (!empty($targetLanguage)) {
-            $this->selectedTargetLanguages = [
-                collect($this->selectedProject['targetLanguages'])
-                    ->firstWhere('name', $targetLanguage)
-            ];
+            $targetLang = null;
+            foreach ($this->selectedProject['targetLanguages'] as $lang) {
+                if ($lang['id'] === $targetLanguage || $lang['name'] === $targetLanguage) {
+                    $targetLang = $lang;
+                    break;
+                }
+            }
 
-            if (empty($this->selectedTargetLanguages[0])) {
+            if ($targetLang) {
+                $this->targetLanguages = [$targetLang];
+            } else {
                 $this->error("Target language {$targetLanguage} not found in project.");
                 return false;
             }
         } else {
-            // Keep existing logic
-            $targetLanguageChoices = collect($this->selectedProject['targetLanguages'])
-                ->filter(function ($language) {
-                    return $language['id'] !== $this->selectedProject['sourceLanguage']['id'];
-                })
-                ->mapWithKeys(function ($language) {
-                    return [$language['id'] => "{$language['name']} ({$language['id']})"];
-                })
-                ->toArray();
+            $targetLanguageChoices = [];
+            foreach ($this->selectedProject['targetLanguages'] as $lang) {
+                if ($lang['id'] !== $this->selectedProject['sourceLanguage']['id']) {
+                    $targetLanguageChoices[$lang['id']] = "{$lang['name']} ({$lang['id']})";
+                }
+            }
 
             $selectedTargetLanguageIds = $this->choice(
                 $this->colors['yellow'] . 'Select target languages (comma-separated)' . $this->colors['reset'],
@@ -305,15 +337,16 @@ class TranslateCrowdin extends Command
                 true
             );
 
-            $this->selectedTargetLanguages = collect($this->selectedProject['targetLanguages'])
-                ->filter(function ($language) use ($selectedTargetLanguageIds) {
-                    return in_array($language['id'], $selectedTargetLanguageIds);
-                })
-                ->toArray();
+            $this->targetLanguages = [];
+            foreach ($this->selectedProject['targetLanguages'] as $lang) {
+                if (in_array($lang['id'], $selectedTargetLanguageIds)) {
+                    $this->targetLanguages[] = $lang;
+                }
+            }
         }
 
         // Selected languages output
-        foreach ($this->selectedTargetLanguages as $language) {
+        foreach ($this->targetLanguages as $language) {
             $this->info($this->colors['green'] . "✓ Target language: " .
                 $this->colors['reset'] . $this->colors['bold'] . "{$language['name']}" .
                 $this->colors['reset'] . " ({$language['id']})");
@@ -327,24 +360,8 @@ class TranslateCrowdin extends Command
      */
     protected function selectReferenceLanguages(): void
     {
-        if ($this->ask($this->colors['yellow'] . 'Do you want to choose reference languages? (y/n)' . $this->colors['reset'], 'n') === 'y') {
-            $this->referenceLanguages = $this->choiceLanguages(
-                $this->colors['yellow'] . "Choose reference languages for translation guidance. Select languages with high-quality translations. Multiple selections with comma separator (e.g. '1,2')" . $this->colors['reset'],
-                true
-            );
-
-            // Selected reference languages output
-            if (!empty($this->referenceLanguages)) {
-                $refLanguageNames = collect($this->selectedProject['targetLanguages'])
-                    ->whereIn('id', $this->referenceLanguages)
-                    ->pluck('name')
-                    ->toArray();
-
-                $this->info($this->colors['green'] . "✓ Reference languages: " .
-                    $this->colors['reset'] . $this->colors['bold'] . implode(", ", $refLanguageNames) .
-                    $this->colors['reset']);
-            }
-        }
+        // Skip reference language selection
+        $this->referenceLanguages = [];
     }
 
     /**
@@ -377,84 +394,54 @@ class TranslateCrowdin extends Command
      */
     public function translate(): void
     {
-        foreach ($this->selectedTargetLanguages as $targetLanguage) {
-            $this->line("\n" . $this->colors['blue_bg'] . $this->colors['white'] . $this->colors['bold'] . " Translating to {$targetLanguage['name']} " . $this->colors['reset']);
-            $this->line($this->colors['gray'] . "Locale: {$targetLanguage['locale']}" . $this->colors['reset']);
+        foreach ($this->targetLanguages as $targetLanguage) {
+            $this->newLine();
+            $this->info($this->colors['bold'] . "\n Translating to {$targetLanguage['name']} " . $this->colors['reset']);
+            $this->line("Locale: {$targetLanguage['locale']}");
 
-            // Variable for progress display
             $directoryCount = 0;
             $fileCount = 0;
             $stringCount = 0;
             $translatedCount = 0;
 
-            // Get directory list
-            $directories = $this->getAllDirectories($this->selectedProject['id']);
+            try {
+                // First try to get directories
+                $this->line("Fetching directories...");
+                $directories = $this->getAllDirectories($this->selectedProject['id']);
+                $this->line($this->colors['gray'] . "Found " . count($directories) . " directories" . $this->colors['reset']);
 
-            foreach ($directories as $directory) {
-                $directoryCount++;
-                $directory = $directory->getData();
+                if (empty($directories)) {
+                    // If no directories found, try to get files from root
+                    $this->line($this->colors['gray'] . "No directories found, searching for files in root..." . $this->colors['reset']);
+                    $files = collect($this->getAllFiles($this->selectedProject['id'], 0));
 
-                // Get file list
-                $files = collect($this->getAllFiles($this->selectedProject['id'], $directory['id']))->map(function ($file) {
-                    return $file->getData();
-                });
+                    if ($files->isNotEmpty()) {
+                        $this->line($this->colors['gray'] . "Found " . $files->count() . " files in root" . $this->colors['reset']);
+                        $this->processFiles($files, $targetLanguage, $fileCount, $stringCount, $translatedCount);
+                    } else {
+                        $this->warn("No files found in the project.");
+                    }
+                } else {
+                    foreach ($directories as $directory) {
+                        $directoryCount++;
 
-                if ($files->count() === 0) {
-                    continue;
+                        // Get file list
+                        $files = collect($this->getAllFiles($this->selectedProject['id'], $directory->getId()));
+
+                        if ($files->isEmpty()) {
+                            continue;
+                        }
+
+                        $this->displayDirectoryInfo($directory, $files->count(), $directoryCount, count($directories));
+                        $this->processFiles($files, $targetLanguage, $fileCount, $stringCount, $translatedCount);
+                    }
                 }
-
-                $this->displayDirectoryInfo($directory, $files->count(), $directoryCount, count($directories));
-
-                foreach ($files as $file) {
-                    $fileCount++;
-                    $this->displayFileInfo($file, $fileCount);
-
-                    // Get string and translation information
-                    $allStrings = $this->getAllSourceString($this->selectedProject['id'], $file['id']);
-                    $allTranslations = $this->getAllLanguageTranslations($this->selectedProject['id'], $file['id'], $targetLanguage['id']);
-                    $approvals = $this->getApprovals($this->selectedProject['id'], $file['id'], $targetLanguage['id']);
-
-                    // Get reference language translations
-                    $referenceApprovals = $this->getReferenceApprovals($file, $allStrings);
-
-                    // Filter untranslated strings
-                    $untranslatedStrings = $this->filterUntranslatedStrings($allStrings, $approvals, $allTranslations);
-                    $stringCount += $untranslatedStrings->count();
-
-                    $this->info($this->colors['yellow'] . "➤ Untranslated: " .
-                        $this->colors['reset'] . $this->colors['bold'] . "{$untranslatedStrings->count()}" .
-                        $this->colors['reset'] . " strings");
-
-                    // Translate in chunks
-                    $untranslatedStrings
-                        ->chunk($this->chunkSize)
-                        ->each(function ($chunk, $chunkIndex) use ($file, $targetLanguage, $untranslatedStrings, $referenceApprovals, &$translatedCount) {
-                            $chunkSize = $chunk->count();
-                            $this->info($this->colors['cyan'] . "✎ Translating chunk " .
-                                ($chunkIndex + 1) . "/" . ceil($untranslatedStrings->count() / $this->chunkSize) .
-                                " ({$chunkSize} strings)" . $this->colors['reset']);
-
-                            // Get global translation context
-                            $globalContext = $this->getGlobalContext($file, $targetLanguage, (int) $this->option('max-context-items') ?: 100);
-
-                            // AIProvider setup
-                            $translator = $this->createTranslator($file, $chunk, $referenceApprovals, $targetLanguage, $globalContext);
-
-                            try {
-                                // Translate
-                                $translated = $translator->translate();
-                                $translatedCount += count($translated);
-
-                                // Process translation results
-                                $this->processTranslationResults($translated, $untranslatedStrings, $targetLanguage);
-
-                                // Cost calculation and display
-                                $this->displayCostEstimation($translator);
-                            } catch (\Exception $e) {
-                                $this->error("Translation failed: " . $e->getMessage());
-                            }
-                        });
+            } catch (\Exception $e) {
+                $this->error("Error during translation process: " . $e->getMessage());
+                if (config('app.debug')) {
+                    $this->line($this->colors['gray'] . $e->getTraceAsString() . $this->colors['reset']);
                 }
+                continue;
             }
 
             // Translation complete summary
@@ -463,29 +450,87 @@ class TranslateCrowdin extends Command
     }
 
     /**
+     * Process files for translation
+     */
+    protected function processFiles(Collection $files, array $targetLanguage, int &$fileCount = 0, int &$stringCount = 0, int &$translatedCount = 0): void
+    {
+        foreach ($files as $file) {
+            $fileCount++;
+            $this->displayFileInfo($file, $fileCount);
+
+            // Get string and translation information
+            $allStrings = $this->getAllSourceString($this->selectedProject['id'], $file->getId());
+            $allTranslations = $this->getAllLanguageTranslations($this->selectedProject['id'], $file->getId(), $targetLanguage['id']);
+            $approvals = $this->getApprovals($this->selectedProject['id'], $file->getId(), $targetLanguage['id']);
+
+            // Get reference language translations
+            $referenceApprovals = $this->getReferenceApprovals($file, $allStrings);
+
+            // Filter untranslated strings
+            $untranslatedStrings = $this->filterUntranslatedStrings($allStrings, $approvals, $allTranslations);
+            $stringCount += $untranslatedStrings->count();
+
+            $this->info($this->colors['yellow'] . "➤ Untranslated: " .
+                $this->colors['reset'] . $this->colors['bold'] . "{$untranslatedStrings->count()}" .
+                $this->colors['reset'] . " strings");
+
+            // Translate in chunks
+            $untranslatedStrings
+                ->chunk($this->chunkSize)
+                ->each(function ($chunk, $chunkIndex) use ($file, $targetLanguage, $untranslatedStrings, $referenceApprovals, &$translatedCount) {
+                    $chunkSize = $chunk->count();
+                    $this->info($this->colors['cyan'] . "✎ Translating chunk " .
+                        ($chunkIndex + 1) . "/" . ceil($untranslatedStrings->count() / $this->chunkSize) .
+                        " ({$chunkSize} strings)" . $this->colors['reset']);
+
+                    // Get global translation context
+                    $globalContext = $this->getGlobalContext($file, $targetLanguage, (int) $this->option('max-context-items') ?: 100);
+
+                    // AIProvider setup
+                    $translator = $this->createTranslator($file, $chunk, $referenceApprovals, $targetLanguage, $globalContext);
+
+                    try {
+                        // Translate
+                        $translated = $translator->translate();
+                        $translatedCount += count($translated);
+
+                        // Process translation results
+                        $this->processTranslationResults($translated, $untranslatedStrings, $targetLanguage);
+
+                        // Cost calculation and display
+                        $this->displayCostEstimation($translator);
+                    } catch (\Exception $e) {
+                        $this->error("Translation failed: " . $e->getMessage());
+                    }
+                });
+        }
+    }
+
+    /**
      * Display directory information
      */
-    protected function displayDirectoryInfo(array $directory, int $fileCount, int $current, int $total): void
+    protected function displayDirectoryInfo(Directory $directory, int $fileCount, int $directoryCount, int $totalDirectories): void
     {
-        $this->line("\n" . $this->colors['blue'] . "📂 Directory [{$current}/{$total}]: " .
-            $this->colors['reset'] . $this->colors['bold'] . "{$directory['path']}" .
-            $this->colors['reset'] . " ({$fileCount} files)");
+        $this->line($this->colors['purple'] . "\n📁 Directory: " .
+            $this->colors['reset'] . $this->colors['bold'] . "{$directory->getName()}" .
+            $this->colors['reset'] . " ({$directory->getId()})");
+        $this->line($this->colors['gray'] . "    {$fileCount} files found" . $this->colors['reset']);
     }
 
     /**
      * Display file information
      */
-    protected function displayFileInfo(array $file, int $fileCount): void
+    protected function displayFileInfo(File $file, int $fileCount): void
     {
         $this->line($this->colors['purple'] . "  📄 File: " .
-            $this->colors['reset'] . $this->colors['bold'] . "{$file['name']}" .
-            $this->colors['reset'] . " ({$file['id']})");
+            $this->colors['reset'] . $this->colors['bold'] . "{$file->getName()}" .
+            $this->colors['reset'] . " ({$file->getId()})");
     }
 
     /**
      * Get reference language approved translations
      */
-    protected function getReferenceApprovals(array $file, Collection $allStrings): Collection
+    protected function getReferenceApprovals(File $file, Collection $allStrings): Collection
     {
         $referenceApprovals = collect([]);
 
@@ -493,8 +538,8 @@ class TranslateCrowdin extends Command
             foreach ($this->referenceLanguages as $refLocale) {
                 $this->line($this->colors['gray'] . "    ↳ Loading reference language: {$refLocale}" . $this->colors['reset']);
 
-                $approvals = $this->getApprovals($this->selectedProject['id'], $file['id'], $refLocale);
-                $refTranslations = $this->getAllLanguageTranslations($this->selectedProject['id'], $file['id'], $refLocale);
+                $approvals = $this->getApprovals($this->selectedProject['id'], $file->getId(), $refLocale);
+                $refTranslations = $this->getAllLanguageTranslations($this->selectedProject['id'], $file->getId(), $refLocale);
 
                 $referenceApprovals[$refLocale] = $allStrings->mapWithKeys(function (SourceString $sourceString) use ($approvals, $refTranslations) {
                     $approved = $approvals->map(fn(StringTranslationApproval $ap) => $ap->getData())
@@ -554,7 +599,7 @@ class TranslateCrowdin extends Command
     /**
      * Get global translation context
      */
-    protected function getGlobalContext(array $file, array $targetLanguage, int $maxContextItems): array
+    protected function getGlobalContext(File $file, array $targetLanguage, int $maxContextItems): array
     {
         if ($maxContextItems <= 0) {
             return [];
@@ -564,7 +609,7 @@ class TranslateCrowdin extends Command
         $globalContext = $contextProvider->getGlobalTranslationContext(
             $this->selectedProject['sourceLanguage']['name'],
             $targetLanguage['name'],
-            basename($file['name']),
+            $file->getName(),
             $maxContextItems
         );
 
@@ -581,10 +626,10 @@ class TranslateCrowdin extends Command
     /**
      * AIProvider setup
      */
-    protected function createTranslator(array $file, Collection $chunk, Collection $referenceApprovals, array $targetLanguage, array $globalContext): AIProvider
+    protected function createTranslator(File $file, Collection $chunk, Collection $referenceApprovals, array $targetLanguage, array $globalContext): AIProvider
     {
         $translator = new AIProvider(
-            filename: basename($file['name']),
+            filename: $file->getName(),
             strings: $chunk->mapWithKeys(function ($string) use ($referenceApprovals) {
                 $context = $string['context'] ?? null;
                 $context = preg_replace("/[\.\s\->]/", "", $context);
@@ -629,7 +674,7 @@ class TranslateCrowdin extends Command
 
         // Set up translation progress callback
         $translator->setOnTranslated(function ($item, $status, $translatedItems) use ($chunk) {
-            if ($status === TranslationStatus::COMPLETED) {
+            if ($status === 'completed') {
                 $totalCount = $chunk->count();
                 $completedCount = count($translatedItems);
 
@@ -648,6 +693,19 @@ class TranslateCrowdin extends Command
             $inputTokens = $usage['input_tokens'] ?? 0;
             $outputTokens = $usage['output_tokens'] ?? 0;
             $totalTokens = $usage['total_tokens'] ?? 0;
+            $cacheCreationTokens = $usage['cache_creation_input_tokens'] ?? 0;
+            $cacheReadTokens = $usage['cache_read_input_tokens'] ?? 0;
+
+            // Update total token usage
+            $this->tokenUsage['input_tokens'] += $inputTokens;
+            $this->tokenUsage['output_tokens'] += $outputTokens;
+            $this->tokenUsage['cache_creation_input_tokens'] += $cacheCreationTokens;
+            $this->tokenUsage['cache_read_input_tokens'] += $cacheReadTokens;
+            $this->tokenUsage['total_tokens'] =
+                $this->tokenUsage['input_tokens'] +
+                $this->tokenUsage['output_tokens'] +
+                $this->tokenUsage['cache_creation_input_tokens'] +
+                $this->tokenUsage['cache_read_input_tokens'];
 
             // Display real-time token usage
             $this->line($this->colors['gray'] . "    Tokens: " .
@@ -770,19 +828,33 @@ class TranslateCrowdin extends Command
      */
     protected function getAllDirectories(int $projectId): array
     {
-        $directories = collect([]);
-        $page = 1;
+        try {
+            $this->line($this->colors['gray'] . "Fetching directories..." . $this->colors['reset']);
 
-        do {
-            $response = $this->crowdin->directory->list($projectId, [
-                'limit' => 100,
-                'offset' => ($page - 1) * 100,
-            ]);
-            $directories = $directories->merge(collect($response));
-            $page++;
-        } while (!$response->isEmpty());
+            $directories = collect([]);
+            $page = 1;
+            $limit = 100;
 
-        return $directories->toArray();
+            do {
+                $response = $this->crowdin->directory->list($projectId, [
+                    'limit' => $limit,
+                    'offset' => ($page - 1) * $limit,
+                ]);
+
+                if (empty($response)) {
+                    break;
+                }
+
+                $directories = $directories->merge(collect($response));
+                $page++;
+            } while (count($response) === $limit);
+
+            $this->line($this->colors['gray'] . "Found " . $directories->count() . " directories" . $this->colors['reset']);
+            return $directories->toArray();
+        } catch (\Exception $e) {
+            $this->warn("No directories found or error occurred: " . $e->getMessage());
+            return [];
+        }
     }
 
     /**
@@ -790,20 +862,34 @@ class TranslateCrowdin extends Command
      */
     protected function getAllFiles(int $projectId, int $directoryId): array
     {
-        $files = collect([]);
-        $page = 1;
+        try {
+            $this->line($this->colors['gray'] . "    Fetching files in directory {$directoryId}..." . $this->colors['reset']);
 
-        do {
-            $response = $this->crowdin->file->list($projectId, [
-                'directoryId' => $directoryId,
-                'limit' => 100,
-                'offset' => ($page - 1) * 100,
-            ]);
-            $files = $files->merge(collect($response));
-            $page++;
-        } while (!$response->isEmpty());
+            $files = collect([]);
+            $page = 1;
+            $limit = 100;
 
-        return $files->toArray();
+            do {
+                $response = $this->crowdin->file->list($projectId, [
+                    'directoryId' => $directoryId,
+                    'limit' => $limit,
+                    'offset' => ($page - 1) * $limit,
+                ]);
+
+                if (empty($response)) {
+                    break;
+                }
+
+                $files = $files->merge(collect($response));
+                $page++;
+            } while (count($response) === $limit);
+
+            $this->line($this->colors['gray'] . "    Found " . $files->count() . " files" . $this->colors['reset']);
+            return $files->toArray();
+        } catch (\Exception $e) {
+            $this->warn("    No files found or error occurred: " . $e->getMessage());
+            return [];
+        }
     }
 
     /**
@@ -811,20 +897,34 @@ class TranslateCrowdin extends Command
      */
     protected function getAllLanguageTranslations(int $projectId, int $fileId, string $languageId): Collection
     {
-        $translations = collect([]);
-        $page = 1;
+        try {
+            $this->line($this->colors['gray'] . "      Fetching translations for file {$fileId} in language {$languageId}..." . $this->colors['reset']);
 
-        do {
-            $response = $this->crowdin->stringTranslation->listLanguageTranslations($projectId, $languageId, [
-                'fileId' => $fileId,
-                'limit' => 100,
-                'offset' => ($page - 1) * 100,
-            ]);
-            $translations = $translations->merge(collect($response));
-            $page++;
-        } while (!$response->isEmpty());
+            $translations = collect([]);
+            $page = 1;
+            $limit = 100;
 
-        return $translations;
+            do {
+                $response = $this->crowdin->stringTranslation->listLanguageTranslations($projectId, $languageId, [
+                    'fileId' => $fileId,
+                    'limit' => $limit,
+                    'offset' => ($page - 1) * $limit,
+                ]);
+
+                if (empty($response)) {
+                    break;
+                }
+
+                $translations = $translations->merge(collect($response));
+                $page++;
+            } while (count($response) === $limit);
+
+            $this->line($this->colors['gray'] . "      Found " . $translations->count() . " translations" . $this->colors['reset']);
+            return $translations;
+        } catch (\Exception $e) {
+            $this->warn("      No translations found or error occurred: " . $e->getMessage());
+            return collect([]);
+        }
     }
 
     /**
@@ -832,20 +932,34 @@ class TranslateCrowdin extends Command
      */
     protected function getAllSourceString(int $projectId, int $fileId): Collection
     {
-        $sourceStrings = collect([]);
-        $page = 1;
+        try {
+            $this->line($this->colors['gray'] . "      Fetching source strings for file {$fileId}..." . $this->colors['reset']);
 
-        do {
-            $response = $this->crowdin->sourceString->list($projectId, [
-                'fileId' => $fileId,
-                'limit' => 100,
-                'offset' => ($page - 1) * 100,
-            ]);
-            $sourceStrings = $sourceStrings->merge(collect($response));
-            $page++;
-        } while (!$response->isEmpty());
+            $sourceStrings = collect([]);
+            $page = 1;
+            $limit = 100;
 
-        return $sourceStrings;
+            do {
+                $response = $this->crowdin->sourceString->list($projectId, [
+                    'fileId' => $fileId,
+                    'limit' => $limit,
+                    'offset' => ($page - 1) * $limit,
+                ]);
+
+                if (empty($response)) {
+                    break;
+                }
+
+                $sourceStrings = $sourceStrings->merge(collect($response));
+                $page++;
+            } while (count($response) === $limit);
+
+            $this->line($this->colors['gray'] . "      Found " . $sourceStrings->count() . " source strings" . $this->colors['reset']);
+            return $sourceStrings;
+        } catch (\Exception $e) {
+            $this->warn("      No source strings found or error occurred: " . $e->getMessage());
+            return collect([]);
+        }
     }
 
     /**
@@ -887,7 +1001,13 @@ class TranslateCrowdin extends Command
      */
     protected function delTranslation(int $projectId, int $translationId): bool
     {
-        return $this->crowdin->stringTranslation->delete($projectId, $translationId);
+        try {
+            $result = $this->crowdin->stringTranslation->delete($projectId, $translationId);
+            return $result === null ? true : $result;
+        } catch (\Exception $e) {
+            $this->warn("Failed to delete translation {$translationId}: " . $e->getMessage());
+            return false;
+        }
     }
 
     /**

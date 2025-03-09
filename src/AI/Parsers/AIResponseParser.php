@@ -50,20 +50,20 @@ class AIResponseParser
     }
 
     /**
-     * 청크 파싱 - 모든 청크를 누적
+     * Parse chunks - accumulate all chunks
      *
-     * @param  string  $chunk  XML 청크
-     * @return array 현재까지 파싱된 번역 항목
+     * @param  string  $chunk  XML chunk
+     * @return array Currently parsed translation items
      */
     public function parseChunk(string $chunk): array
     {
-        // 전체 응답에 청크 추가
+        // Add chunk to full response
         $this->fullResponse .= $chunk;
 
-        // 완성된 <item> 태그 찾기
+        // Find completed <item> tags
         if (preg_match_all('/<item>(.*?)<\/item>/s', $this->fullResponse, $matches)) {
             foreach ($matches[0] as $index => $fullItem) {
-                // 각 <item> 내부의 <key>와 <trx> 추출
+                // Extract <key> and <trx> from each <item>
                 if (
                     preg_match('/<key>(.*?)<\/key>/s', $fullItem, $keyMatch) &&
                     preg_match('/<trx><!\[CDATA\[(.*?)\]\]><\/trx>/s', $fullItem, $trxMatch)
@@ -71,17 +71,17 @@ class AIResponseParser
                     $key = $this->cleanContent($keyMatch[1]);
                     $translatedText = $this->cleanContent($trxMatch[1]);
 
-                    // 이미 처리된 키인지 확인
+                    // Check if key is already processed
                     if (in_array($key, $this->processedKeys)) {
                         continue;
                     }
 
-                    // 새 번역 항목 생성
+                    // Create new translation item
                     $localizedString = new LocalizedString;
                     $localizedString->key = $key;
                     $localizedString->translated = $translatedText;
 
-                    // comment 태그가 있는 경우 처리
+                    // Process comment tag if exists
                     if (preg_match('/<comment>(.*?)<\/comment>/s', $fullItem, $commentMatch)) {
                         $localizedString->comment = $this->cleanContent($commentMatch[1]);
                     }
@@ -97,13 +97,13 @@ class AIResponseParser
                         ]);
                     }
 
-                    // 처리된 항목 제거
+                    // Remove processed item
                     $this->fullResponse = str_replace($fullItem, '', $this->fullResponse);
                 }
             }
         }
 
-        // 새로운 번역 시작 항목 찾기 (아직 시작되지 않은 키)
+        // Find new translation start items (not yet started keys)
         if (preg_match('/<item>(?:(?!<\/item>).)*$/s', $this->fullResponse, $inProgressMatch)) {
             if (
                 preg_match('/<key>(.*?)<\/key>/s', $inProgressMatch[0], $keyMatch) &&
@@ -111,18 +111,18 @@ class AIResponseParser
             ) {
                 $startedKey = $this->cleanContent($keyMatch[1]);
 
-                // 이미 started 이벤트가 발생했는지 확인하기 위한 배열
+                // Array to check if started event has occurred
                 if (!isset($this->startedKeys)) {
                     $this->startedKeys = [];
                 }
 
-                // 아직 started 이벤트가 발생하지 않은 키에 대해서만 처리
+                // Process only for keys that haven't had started event
                 if (!in_array($startedKey, $this->startedKeys)) {
                     $startedString = new LocalizedString;
                     $startedString->key = $startedKey;
                     $startedString->translated = '';
 
-                    // started 상태로 콜백 호출
+                    // Call callback with started status
                     if ($this->translatedCallback) {
                         call_user_func($this->translatedCallback, $startedString, TranslationStatus::STARTED, $this->translatedItems);
                     }
@@ -133,7 +133,7 @@ class AIResponseParser
                         ]);
                     }
 
-                    // started 이벤트가 발생한 키 기록
+                    // Record key that had started event
                     $this->startedKeys[] = $startedKey;
                 }
             }
@@ -143,7 +143,7 @@ class AIResponseParser
     }
 
     /**
-     * 특수 문자 처리
+     * Handle special characters
      */
     private function cleanContent(string $content): string
     {
@@ -151,10 +151,10 @@ class AIResponseParser
     }
 
     /**
-     * 전체 응답 파싱
+     * Parse full response
      *
-     * @param  string  $response  전체 응답
-     * @return array 파싱된 번역 항목
+     * @param  string  $response  Full response
+     * @return array Parsed translation items
      */
     public function parse(string $response): array
     {
@@ -166,17 +166,17 @@ class AIResponseParser
             ]);
         }
 
-        // 전체 응답 저장
+        // Store full response
         $this->fullResponse = $response;
 
-        // 방법 1: 직접 CDATA 추출 시도 (가장 신뢰성 높음)
+        // Method 1: Try direct CDATA extraction (most reliable)
         $cdataExtracted = $this->extractCdataFromResponse($response);
 
-        // 방법 2: 표준 XML 파서 사용
+        // Method 2: Use standard XML parser
         $cleanedResponse = $this->cleanAndNormalizeXml($response);
         $this->xmlParser->parse($cleanedResponse);
 
-        // 방법 3: 부분 응답 처리 시도 (불완전한 응답에서도 최대한 데이터 추출)
+        // Method 3: Try partial response processing (extract data from incomplete responses)
         if (empty($this->translatedItems)) {
             $this->extractPartialTranslations($response);
         }
@@ -195,14 +195,14 @@ class AIResponseParser
     }
 
     /**
-     * 부분 응답에서 번역 추출 시도 (응답이 불완전할 때)
+     * Try to extract translations from partial response (when response is incomplete)
      *
-     * @param  string  $response  응답 텍스트
-     * @return bool 추출 성공 여부
+     * @param  string  $response  Response text
+     * @return bool Extraction success
      */
     private function extractPartialTranslations(string $response): bool
     {
-        // 개별 CDATA 블록 추출
+        // Extract individual CDATA blocks
         $cdataPattern = '/<!\[CDATA\[(.*?)\]\]>/s';
         if (preg_match_all($cdataPattern, $response, $cdataMatches)) {
             $cdataContents = $cdataMatches[1];
@@ -213,12 +213,12 @@ class AIResponseParser
                 ]);
             }
 
-            // key 태그 추출
+            // Extract key tags
             $keyPattern = '/<key>(.*?)<\/key>/s';
             if (preg_match_all($keyPattern, $response, $keyMatches)) {
                 $keys = array_map([$this, 'cleanupSpecialChars'], $keyMatches[1]);
 
-                // 키와 CDATA 내용이 같은 수인 경우에만 처리
+                // Process only if number of keys matches number of CDATA contents
                 if (count($keys) === count($cdataContents) && count($keys) > 0) {
                     foreach ($keys as $i => $key) {
                         if (empty($key) || in_array($key, $this->processedKeys)) {
@@ -245,14 +245,14 @@ class AIResponseParser
     }
 
     /**
-     * 원본 응답에서 CDATA 직접 추출 시도
+     * Try to extract CDATA directly from original response
      *
-     * @param  string  $response  전체 응답
-     * @return bool 추출 성공 여부
+     * @param  string  $response  Full response
+     * @return bool Extraction success
      */
     private function extractCdataFromResponse(string $response): bool
     {
-        // 다중 항목 처리: <item> 태그에서 키와 번역 추출
+        // Process multiple items: extract key and translation from <item> tags
         $itemPattern = '/<item>\s*<key>(.*?)<\/key>\s*<trx><!\[CDATA\[(.*?)\]\]><\/trx>\s*<\/item>/s';
         if (preg_match_all($itemPattern, $response, $matches, PREG_SET_ORDER)) {
             foreach ($matches as $i => $match) {
@@ -260,7 +260,7 @@ class AIResponseParser
                     $key = trim($match[1]);
                     $translatedText = $this->cleanupSpecialChars($match[2]);
 
-                    // 이미 처리된 키인지 확인
+                    // Check if key is already processed
                     if (in_array($key, $this->processedKeys)) {
                         continue;
                     }
@@ -281,7 +281,7 @@ class AIResponseParser
                 }
             }
 
-            // 진행 중인 항목 찾기
+            // Find in-progress items
             if (preg_match('/<item>(?:(?!<\/item>).)*$/s', $response, $inProgressMatch)) {
                 if (
                     preg_match('/<key>(.*?)<\/key>/s', $inProgressMatch[0], $keyMatch) &&
@@ -305,14 +305,14 @@ class AIResponseParser
     }
 
     /**
-     * 특수 문자 처리
+     * Handle special characters
      *
-     * @param  string  $content  처리할 내용
-     * @return string 처리된 내용
+     * @param  string  $content  Content to process
+     * @return string Processed content
      */
     private function cleanupSpecialChars(string $content): string
     {
-        // 이스케이프된 따옴표와 백슬래시 복원
+        // Restore escaped quotes and backslashes
         return str_replace(
             ['\\"', "\\'", '\\\\'],
             ['"', "'", '\\'],
@@ -321,34 +321,34 @@ class AIResponseParser
     }
 
     /**
-     * XML 정리 및 정규화
+     * Clean and normalize XML
      *
-     * @param  string  $xml  정리할 XML
-     * @return string 정리된 XML
+     * @param  string  $xml  XML to clean
+     * @return string Cleaned XML
      */
     private function cleanAndNormalizeXml(string $xml): string
     {
-        // 실제 XML 태그 시작 이전의 내용 제거
+        // Remove content before actual XML tags start
         $firstTagPos = strpos($xml, '<');
         if ($firstTagPos > 0) {
             $xml = substr($xml, $firstTagPos);
         }
 
-        // 마지막 XML 태그 이후의 내용 제거
+        // Remove content after last XML tag
         $lastTagPos = strrpos($xml, '>');
         if ($lastTagPos !== false && $lastTagPos < strlen($xml) - 1) {
             $xml = substr($xml, 0, $lastTagPos + 1);
         }
 
-        // 특수 문자 처리
+        // Handle special characters
         $xml = $this->cleanupSpecialChars($xml);
 
-        // 루트 태그 누락 시 추가
+        // Add root tag if missing
         if (!preg_match('/^\s*<\?xml|^\s*<translations/i', $xml)) {
             $xml = '<translations>' . $xml . '</translations>';
         }
 
-        // CDATA 누락된 경우 추가
+        // Add CDATA if missing
         if (preg_match('/<trx>(.*?)<\/trx>/s', $xml, $matches) && !strpos($matches[0], 'CDATA')) {
             $xml = str_replace(
                 $matches[0],
@@ -361,17 +361,17 @@ class AIResponseParser
     }
 
     /**
-     * 노드 완료 처리 콜백
+     * Node completion callback handler
      *
-     * @param  string  $tagName  태그 이름
-     * @param  string  $content  태그 내용
-     * @param  array  $attributes  태그 속성
+     * @param  string  $tagName  Tag name
+     * @param  string  $content  Tag content
+     * @param  array  $attributes  Tag attributes
      */
     public function handleNodeComplete(string $tagName, string $content, array $attributes): void
     {
-        // <trx> 태그 처리 (단일 항목 경우)
+        // Process <trx> tag (single item case)
         if ($tagName === 'trx' && !isset($this->processedKeys[0])) {
-            // CDATA 캐시 참조 (전체 내용 있을 경우)
+            // Reference CDATA cache (if full content exists)
             $cdataCache = $this->xmlParser->getCdataCache();
             if (!empty($cdataCache)) {
                 $content = $cdataCache;
@@ -379,23 +379,23 @@ class AIResponseParser
 
             $this->createTranslationItem('test', $content);
         }
-        // <item> 태그 처리 (다중 항목 경우)
+        // Process <item> tag (multiple items case)
         elseif ($tagName === 'item') {
             $parsedData = $this->xmlParser->getParsedData();
 
-            // 모든 키와 번역 항목이 있는지 확인
+            // Check if all keys and translation items exist
             if (
                 isset($parsedData['key']) && !empty($parsedData['key']) &&
                 isset($parsedData['trx']) && !empty($parsedData['trx']) &&
                 count($parsedData['key']) === count($parsedData['trx'])
             ) {
-                // 파싱된 모든 키와 번역 항목 처리
+                // Process all parsed keys and translation items
                 foreach ($parsedData['key'] as $i => $keyData) {
                     if (isset($parsedData['trx'][$i])) {
                         $key = $keyData['content'];
                         $translated = $parsedData['trx'][$i]['content'];
 
-                        // 키가 비어있지 않고 중복되지 않은 경우에만 처리
+                        // Process only if key is not empty and not duplicate
                         if (!empty($key) && !empty($translated) && !in_array($key, $this->processedKeys)) {
                             $this->createTranslationItem($key, $translated);
 
@@ -414,10 +414,11 @@ class AIResponseParser
     }
 
     /**
-     * 번역 항목 생성
+     * Create translation item
      *
-     * @param  string  $key  키
-     * @param  string  $translated  번역된 내용
+     * @param  string  $key  Key
+     * @param  string  $translated  Translated content
+     * @param  string|null  $comment  Optional comment
      */
     private function createTranslationItem(string $key, string $translated, ?string $comment = null): void
     {
@@ -443,9 +444,9 @@ class AIResponseParser
     }
 
     /**
-     * 번역된 항목 반환
+     * Get translated items
      *
-     * @return array 번역된 항목 배열
+     * @return array Array of translated items
      */
     public function getTranslatedItems(): array
     {
@@ -453,7 +454,7 @@ class AIResponseParser
     }
 
     /**
-     * 파서 초기화
+     * Reset parser
      */
     public function reset(): self
     {

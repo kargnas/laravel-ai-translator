@@ -13,7 +13,7 @@ use Kargnas\LaravelAiTranslator\Utility;
 use Kargnas\LaravelAiTranslator\Enums\PromptType;
 
 /**
- * PHP 언어 파일을 AI를 이용해 번역하는 커맨드
+ * Command to translate PHP language files using AI technology
  */
 class TranslateStrings extends Command
 {
@@ -226,22 +226,22 @@ class TranslateStrings extends Command
                 $localeFileCount++;
                 $fileCount++;
 
-                // 소스 문자열 로드
+                // Load source strings
                 $transformer = new PHPLangTransformer($file);
                 $sourceStringList = $transformer->flatten();
 
-                // 타겟 문자열 로드 (또는 생성)
+                // Load target strings (or create)
                 $targetStringTransformer = new PHPLangTransformer($outputFile);
 
-                // 미번역 문자열만 필터링
+                // Filter untranslated strings only
                 $sourceStringList = collect($sourceStringList)
                     ->filter(function ($value, $key) use ($targetStringTransformer) {
-                        // 이미 번역된 것은 건너뜀
+                        // Skip already translated ones
                         return !$targetStringTransformer->isTranslated($key);
                     })
                     ->toArray();
 
-                // 번역할 항목이 없으면 건너뜀
+                // Skip if no items to translate
                 if (count($sourceStringList) === 0) {
                     $this->info($this->colors['green'] . "  ✓ " . $this->colors['reset'] . "All strings are already translated. Skipping.");
                     continue;
@@ -368,7 +368,7 @@ class TranslateStrings extends Command
         $this->line($this->colors['yellow'] . "Strings found: " . $this->colors['reset'] . $stringCount);
         $this->line($this->colors['yellow'] . "Strings translated: " . $this->colors['reset'] . $translatedCount);
 
-        // 누적 토큰 사용량 출력
+        // Display accumulated token usage
         if ($this->tokenUsage['total_tokens'] > 0) {
             $this->line("\n" . $this->colors['blue_bg'] . $this->colors['white'] . $this->colors['bold'] . " Total Token Usage " . $this->colors['reset']);
             $this->line($this->colors['yellow'] . "Input Tokens: " . $this->colors['reset'] . $this->colors['green'] . $this->tokenUsage['input_tokens'] . $this->colors['reset']);

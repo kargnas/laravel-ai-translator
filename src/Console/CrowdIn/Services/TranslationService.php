@@ -376,7 +376,7 @@ class TranslationService
                 $response = json_decode($result['value']->getBody(), true);
                 $existingTranslations = collect($response['data'] ?? []);
 
-                // 중복 체크 (trim 적용)
+                // Check for duplicates (with trim applied)
                 $duplicate = $existingTranslations->first(function ($t) use ($item) {
                     return trim($t['data']['text']) === trim($item->translated);
                 });
@@ -520,7 +520,7 @@ class TranslationService
         $this->command->info("🔄 Processing translations...");
 
         try {
-            // 1. 중복 체크
+            // 1. Check for duplicates
             $this->command->line("    Checking for duplicates...");
             $checkResult = $this->checkDuplicateTranslations($translated, $targetLanguage);
             $duplicateCount = count($checkResult['duplicates']);
@@ -530,16 +530,16 @@ class TranslationService
                 return;
             }
 
-            // 2. 기존 번역 삭제
+            // 2. Remove existing translations
             $this->command->line("    Removing existing translations...");
             $this->deleteExistingTranslations($checkResult['nonDuplicates'], $targetLanguage, $checkResult['stringMap']);
 
-            // 3. 새 번역 추가
+            // 3. Add new translations
             $this->command->line("    Adding new translations...");
             $addResults = $this->addNewTranslations($checkResult['nonDuplicates'], $targetLanguage, $checkResult['stringMap']);
             $successCount = count(array_filter($addResults));
 
-            // 4. 결과 요약
+            // 4. Summary of results
             $this->command->newLine();
             $this->command->info("✓ Translation Summary:");
             $this->command->line("    - Total processed: " . count($translated));

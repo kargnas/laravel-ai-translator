@@ -68,7 +68,7 @@ class AIProvider
         })->toArray();
 
         try {
-            // 언어 객체 생성
+            // Create language objects
             $this->sourceLanguageObj = Language::fromCode($sourceLanguage);
             $this->targetLanguageObj = Language::fromCode($targetLanguage);
         } catch (\InvalidArgumentException $e) {
@@ -81,7 +81,7 @@ class AIProvider
             LanguageRules::getAdditionalRules($this->targetLanguageObj)
         );
 
-        // 토큰 초기화
+        // Initialize tokens
         $this->inputTokens = 0;
         $this->outputTokens = 0;
         $this->totalTokens = 0;
@@ -135,7 +135,7 @@ class AIProvider
             \Log::warning("Found unexpected translation keys: {$extraKeys->implode(', ')}");
         }
 
-        // 검증이 완료된 후 원래 키로 복원
+        // After verification is complete, restore original keys
         $prefix = $this->getFilePrefix();
         foreach ($list as $item) {
             /** @var LocalizedString $item */
@@ -592,7 +592,7 @@ class AIProvider
     
                             // 새 번역 항목 각각에 대해 콜백 호출
                             foreach ($newItems as $index => $newItem) {
-                                // 이미 처리된 키는 건너뛰기
+                                // Skip already processed keys
                                 if (isset($processedKeys[$newItem->key])) {
                                     continue;
                                 }
@@ -601,7 +601,7 @@ class AIProvider
                                 $translatedCount = count($processedKeys);
 
                                 if ($this->onTranslated) {
-                                    // 번역이 완료된 항목에 대해서만 'completed' 상태로 호출
+                                    // Only call with 'completed' status for completed translations
                                     if ($newItem->translated) {
                                         ($this->onTranslated)($newItem, TranslationStatus::COMPLETED, $translatedItems);
                                     }
@@ -633,7 +633,7 @@ class AIProvider
                                 $text = $content['text'];
                                 $responseText .= $text;
 
-                                // 디버그 모드에서 XML 조각 수집 (로그 출력 없이)
+                                // Collect XML fragments in debug mode (without logging)
                                 if (
                                     $debugMode && (
                                         strpos($text, '<translations') !== false ||
@@ -734,14 +734,14 @@ class AIProvider
             $responseParser->parse($responseText);
             $finalItems = $responseParser->getTranslatedItems();
 
-            // 마지막으로 파싱된 항목들에 대해 콜백 호출
+            // Process last parsed items with callback
             if (!empty($finalItems) && $this->onTranslated) {
                 foreach ($finalItems as $item) {
                     if (!isset($processedKeys[$item->key])) {
                         $processedKeys[$item->key] = true;
                         $translatedCount = count($processedKeys);
 
-                        // 마지막 파싱에서는 completed 상태를 호출하지 않음
+                        // Don't call completed status in final parsing
                         if ($translatedCount === 1) {
                             ($this->onTranslated)($item, TranslationStatus::STARTED, $finalItems);
                         }
@@ -776,7 +776,7 @@ class AIProvider
     {
         $tokenInfo = $this->getTokenUsage();
 
-        \Log::info('AIProvider: 토큰 사용량 정보', [
+        \Log::info('AIProvider: Token Usage Information', [
             'input_tokens' => $tokenInfo['input_tokens'],
             'output_tokens' => $tokenInfo['output_tokens'],
             'cache_creation_input_tokens' => $tokenInfo['cache_creation_input_tokens'],

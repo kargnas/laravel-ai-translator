@@ -257,7 +257,7 @@ class XMLParser
                 $key = $this->cleanContent($match[1]);
                 $cdata = $match[2];
 
-                // 이미 처리된 키인지 확인
+                // Check if key already exists
                 $keyExists = false;
                 if (isset($this->parsedData['key'])) {
                     foreach ($this->parsedData['key'] as $existingKeyData) {
@@ -269,10 +269,10 @@ class XMLParser
                 }
 
                 if ($keyExists) {
-                    continue; // 이미 처리된 키 스킵
+                    continue; // Skip already processed key
                 }
 
-                // 파싱된 데이터에 추가
+                // Add to parsed data
                 if (!isset($this->parsedData['key'])) {
                     $this->parsedData['key'] = [];
                 }
@@ -294,7 +294,7 @@ class XMLParser
     }
 
     /**
-     * 전체 XML에서 <key> 태그 추출
+     * Extract <key> tags from full XML
      */
     private function extractKeyItems(): void
     {
@@ -304,8 +304,6 @@ class XMLParser
             foreach ($matches[1] as $keyContent) {
                 $content = $this->cleanContent($keyContent);
                 $this->parsedData['key'][] = ['content' => $content];
-
-                // 디버그 로그 제거
             }
         }
     }

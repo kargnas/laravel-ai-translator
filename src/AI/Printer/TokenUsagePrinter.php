@@ -173,10 +173,10 @@ class TokenUsagePrinter
                     $score += 0.2;
                 }
 
-                // 버전 번호 일치 시 가산점 (3, 3.5, 3.7 등)
+                // Add a bonus for exact version matches
                 if (
-                    preg_match('/claude-(\d+(?:\.\d+)?)/', $simplifiedName, $inputMatches) &&
-                    preg_match('/claude-(\d+(?:\.\d+)?)/', $simplifiedAvailableModel, $availableMatches)
+                    preg_match('/claude-(\d+(?:\-\d+)?)/', $simplifiedName, $inputMatches) &&
+                    preg_match('/claude-(\d+(?:\-\d+)?)/', $simplifiedAvailableModel, $availableMatches)
                 ) {
                     if ($inputMatches[1] === $availableMatches[1]) {
                         $score += 0.3;

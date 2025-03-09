@@ -1,0 +1,25 @@
+{
+    "mcpServers": {
+        "git": {
+            "command": "uvx",
+            "args": [
+                "mcp-server-git",
+                "--repository",
+                "path/to/git/repo"
+            ]
+        },
+        "mcpServers": {
+            "@smithery-ai-server-sequential-thinking": {
+                "command": "npx",
+                "args": [
+                    "-y",
+                    "@smithery/cli@latest",
+                    "run",
+                    "@smithery-ai/server-sequential-thinking",
+                    "--config",
+                    "{}"
+                ]
+            }
+        }
+    }
+}

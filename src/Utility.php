@@ -2,6 +2,8 @@
 
 namespace Kargnas\LaravelAiTranslator;
 
+use Kargnas\LaravelAiTranslator\AI\Language\Language;
+
 
 class Utility
 {
@@ -16,7 +18,8 @@ class Utility
      * @param int $number
      * @return int
      */
-    public static function getPluralForms($locale): ?int {
+    public static function getPluralForms($locale): ?int
+    {
         $compare = function ($locale) {
             switch ($locale) {
                 case 'az':
@@ -319,7 +322,7 @@ class Utility
             }
         };
 
-        $locale = strtolower($locale);
+        $locale = Language::normalizeCode($locale);
 
         if ($result = $compare($locale)) {
             return $result;

@@ -2,466 +2,148 @@
 
 namespace Kargnas\LaravelAiTranslator\Console;
 
-
 use Illuminate\Console\Command;
 use Kargnas\LaravelAiTranslator\AI\AIProvider;
+use Kargnas\LaravelAiTranslator\AI\Language\LanguageConfig;
+use Kargnas\LaravelAiTranslator\AI\Printer\TokenUsagePrinter;
+use Kargnas\LaravelAiTranslator\AI\TranslationContextProvider;
+use Kargnas\LaravelAiTranslator\Enums\TranslationStatus;
 use Kargnas\LaravelAiTranslator\Transformers\PHPLangTransformer;
 use Kargnas\LaravelAiTranslator\Utility;
+use Kargnas\LaravelAiTranslator\Enums\PromptType;
 
+/**
+ * Command to translate PHP language files using AI technology
+ */
 class TranslateStrings extends Command
 {
-    // en_us (all capital, underscore)
-    protected static $additionalRules = [
-        'zh' => [
-            "- CRITICAL: For ALL Chinese translations, ALWAYS use exactly THREE parts if there is '|': 一 + measure word + noun|两 + measure word + noun|:count + measure word + noun. This is MANDATORY, even if the original only has two parts. NO SPACES in Chinese text except right after numbers in curly braces and square brackets.",
-            "- Example structure (DO NOT COPY WORDS, only structure): {1} 一X词Y|{2} 两X词Y|[3,*] :countX词Y. Replace X with correct measure word, Y with noun. Ensure NO SPACE between :count and the measure word. If any incorrect spaces are found, remove them and flag for review.",
-        ],
-        'ko' => [
-            // 1개, 2개 할 때 '1 개', '2 개' 이런식으로 써지는 것 방지
-            "- Don't add a space between the number and the measure word with variables. Example: {1} 한 개|{2} 두 개|[3,*] :count개",
-        ],
-        // For fun -- North Korean style
-        'ko_kp' => [
-            "# 조선어(문화어) 변환 규칙",
-            "## 1. 자모 및 철자 규칙",
-            "- **자모 순서 차이**",
-            "  - 초성: ㄱ → ㄴ → ㄷ → ㄹ → … 순서, 쌍자음은 ‘쌍기역’ 대신 ‘된기윽’ 등으로 명명",
-            "  - 중성: ㅏ → ㅑ → ㅓ → ㅕ … (배열 차이 존재)",
-            "- **두음 법칙 배제**",
-            "  - 한국어에서 ‘이, 여, 요’처럼 변하는 단어를 그대로 ㄴ/ㄹ 표기로 유지",
-            "  - 예) *이승만* → **리승만**, *양력* → **량력**, *노인* → **로인**",
-            "**(참고: 한자어 시작에 ㄴ/ㄹ 그대로 쓰는 관습 유지)**",
-            "## 2. 받침 및 된소리 활용",
-            "- **된소리 표기**",
-            "  - 한국어 ‘색깔’ → 조선어 ‘색갈’, ‘밟다’ → ‘밟다’(표기는 동일하나 발음은 [밥따])",
-            "- **합성어 받침**",
-            "  - 합성 시 원형 유지, 발음에서만 된소리화 허용",
-            "  - 예) *손뼉* → **손벽**, 실제 발음 [손뼉/손뼉] 가능",
-            "- **부정 표기된 자음**",
-            "  - ㅅ, ㅆ, ㄷ, ㅈ 등은 받침 뒤 결합 시 된소리로 취급",
-            "  - 예) *웃으며* → [우드며/웃으며] (표기는 그대로)",
-            "## 3. 띄여쓰기(띄어쓰기) 상세",
-            "1. **의존 명사(단위 포함)는 앞말에 붙임**",
-            "   - 예) *5 개월 동안* → **5개월동안**",
-            "2. **합성 동사·보조 동사**",
-            "   - 독립 의미가 약하면 붙여 씀",
-            "   - 예) *안아 주다* → **안아주다**, *먹어 보다* → **먹어보다**",
-            "3. **고유명사 결합**",
-            "   - 예) *조선로동당 중앙위원회 평양시위원회* → **조선로동당 중앙위원회 평양시위원회** (단위마다 띄우기)",
-            "> **주의**: 한국어보다 전반적 ‘붙여쓰기’ 경향이 강함",
-            "## 4. 어간·어미 차이",
-            "- **‘-어, -었’ vs ‘-여, -였’**",
-            "  - ㅣ·ㅐ·ㅔ 등 뒤는 ‘-여, -였’으로 적는 경우 많음",
-            "  - 예) *되어*→**되여**, *고쳐*→**고치여**(발음 [고치여/고쳐])",
-            "- **형용사·동사 활용**",
-            "  - 한국어와 기본 유사하나, 두음법칙 관련 용언 변형에서 ‘ㄹ/ㄴ’ 유지",
-            "  - 예) *날라가다* → **날라가다** (표기 동일, 발음도 같거나 [날라가다])",
-            "## 5. 부정 표현, 높임·경어",
-            "- **부정 표현**",
-            "  - ‘일없다’ = ‘괜찮다’, 그 외 *아니하다*·*못하다*도 그대로 씀",
-            "  - 예) *괜찮아?* → **일없니?**",
-            "- **경어체**",
-            "  - ‘-오, -소, -요’ 등을 자주 씀",
-            "  - 예) “배고프오?” / “그렇소.” / “일없어요.”",
-            "- **하오체, 하십시오체, 해요체** 모두 존재",
-            "## 6. 외래어·한자어 표기",
-            "1. **영어·러시아어 등 외래어**",
-            "   - 영어: *computer* → **콤퓨터**, *apartment* → **아빠트**",
-            "   - 일제강점기 유래 외래어도 일부 잔존(‘삐라’, ‘빠다’, ‘뽀오성(볼링)’ 등)",
-            "2. **한자어**",
-            "   - 두음 ㄹ·ㄴ을 탈락시키지 않음",
-            "   - 예) *녹두* → **록두**, *예외* → **례외**",
-            "3. **고유어로 대체**",
-            "   - *채소*→**남새**, *설탕*→**사탕가루**, 허나 혼용 가능",
-            "4. **국제적 용어**",
-            "   - ‘텐트, 택시, 토마토’ 등 굳어진 외래어는 그대로 쓰기도 함",
-            "## 7. 추가 세부 규칙",
-            "- **합성명사 원형 보존**",
-            "  - 예) *가을걷이* → **가을걷이**, *별빛* → **별빛** (큰 변화 없음이나 받침 표기 유의)",
-            "- **고유명사 표기**",
-            "  - 외국 지명: 대체로 현지음 번역 (프랑스→뻐랑스 등), 일부 러시아·독일식 그대로 (독일→도이췰란드)",
-            "- **사이시옷**",
-            "  - 거의 쓰이지 않음. *뱃사공*→**배사공**, *댓잎*→**대잎**",
-            "- **문장부호법**",
-            "  - 한국어와 유사하나, 《 》 인용부 많이 사용",
-            "  - 예) “안녕?” → **《안녕?》** (보도·문헌체에서)",
-            "## 8. 예문 3가지 (3열=특이사항/한자)",
-            "| **한국어**             | **조선어**                | **특이참고사항**                      |",
-            "|------------------------|---------------------------|---------------------------------------|",
-            "| 1) “이사 갈 건데, 괜찮아?”    | “리사 갈건데, 일없니?”         | ‘이사(移徙)’→‘리사’ (두음ㄹ 유지)       |",
-            "| 2) “채소를 좀 사 왔어.”       | “남새를 좀 사왔소.”            | ‘채소’→‘남새’ / 붙여쓰기(사왔소)         |",
-            "| 3) “그 사람이 영리하긴 하지만, 잘난 척 좀 해.” | “그 사람이 령리하긴 하나, 잘난체 좀 하오.” | ‘영리(英利)’→‘령리’ (두음법칙X), 경어 ‘하오’ |",
-            "## 9. 변환시 유의사항 정리",
-            "1. **두음법칙** 완전 배제 → ㄹ·ㄴ 어두 유지",
-            "2. **자주 사용**: ‘일없다(괜찮다)’, ‘남새(채소)’, ‘아빠트(아파트)’ 등",
-            "3. **띄여쓰기**는 의미 단위로 확장, 의존명사는 앞말에 붙이기",
-            "4. **발음상 된소리** 가능하나 표기는 본형 유지 (색갈, 첫날 등)",
-            "5. **고유한 발음·표기**: 《 》 인용, -소·-오·-니 등 종결 어미 활용",
-            "6. **외래어·한자어 처리**: 굳어진 말(‘텔레비죤’, ‘전투’) 그대로",
-            "# 추가 특별 규칙들",
-            "- 혁명적이고 전투적인 말투로 설명하세요. '혁명적인'이라는 표현을 자주 쓰면 조선어처럼 보입니다.",
-            "- 과거시제 표현 변경: '-었-'을 '-였-'으로 대체하라. 이는 모음 조화와 관계없이 적용한다. 예: 되었다 → 되였다, 갔었다 → 갔였다, 먹었다 → 먹였다, 찾았다 → 찾았다(변경 없음)",
-            "- 사이시옷 제거: 합성어에서 사이시옷을 사용하지 말라. 예: 핏줄 → 피줄, 곳간 → 고간, 잇몸 → 이몸, 깃발 → 기발, 햇살 → 해살",
-            "- 북한식 호칭 사용: '동무', '동지' 등의 호칭을 상황에 맞게 사용하라. 직함과 함께 쓸 때는 이름 뒤에 붙인다. 예: 김철수동무, 박영희동지, 리철호선생, 김민국로동자동지",
-            "- 정치적 표현 사용: 김일성, 김정일, 김정은 언급 시 '위대한 수령', '경애하는 최고령도자' 등의 표현을 사용하라. 예: 김정은 → 경애하는 최고령도자 김정은동지, 김일성 → 위대한 수령 김일성동지, 김정일 → 위대한 령도자 김정일동지",
-            "- 한자어 '적(的)' 사용: '~적' 표현을 가능한 많이 사용하라. 예: 과학적, 혁명적 (예: 혁명적인 성과), 전략적, 창조적, 주체적",
-            "- IT 용어 예시, 괄호로 한국어 설명을 참고로 제공한다: 찰칵(클릭), 주체년도, 우리 식, 예/아니(버튼), 통과암호, 짧은 이름(닉네임), 망(네트워크), 콤퓨터, 봉사기(서버), 날자(날짜), X분 정도(약 X분), ~적으로(~으로), 웃부분(윗부분), 프로그람(프로그램), 차림표(메뉴), 동태(현황), 오유(오류), 페지(페이지), 소프트웨어(쏘프트웨어), 례외(예외), 등록가입(가입), 알고리듬, 자료가지(데이터베이스), 체계(시스템), 조종(제어)",
-        ],
-    ];
+    protected $signature = 'ai-translator:translate 
+        {--l|locale=* : Specific locales to translate (e.g. --locale=ko,ja). If not provided, will ask interactively}
+        {--show-prompt : Show AI prompts during translation}';
 
-    protected static $localeNames = [
-        'aa' => 'Afar',
-        'ab' => 'Abkhazian',
-        'af' => 'Afrikaans',
-        'am' => 'Amharic',
-        'ar' => 'Arabic',
-        'ar_ae' => 'Arabic (U.A.E.)',
-        'ar_bh' => 'Arabic (Bahrain)',
-        'ar_dz' => 'Arabic (Algeria)',
-        'ar_eg' => 'Arabic (Egypt)',
-        'ar_iq' => 'Arabic (Iraq)',
-        'ar_jo' => 'Arabic (Jordan)',
-        'ar_kw' => 'Arabic (Kuwait)',
-        'ar_lb' => 'Arabic (Lebanon)',
-        'ar_ly' => 'Arabic (Libya)',
-        'ar_ma' => 'Arabic (Morocco)',
-        'ar_om' => 'Arabic (Oman)',
-        'ar_qa' => 'Arabic (Qatar)',
-        'ar_sa' => 'Arabic (Saudi Arabia)',
-        'ar_sy' => 'Arabic (Syria)',
-        'ar_tn' => 'Arabic (Tunisia)',
-        'ar_ye' => 'Arabic (Yemen)',
-        'as' => 'Assamese',
-        'ay' => 'Aymara',
-        'az' => 'Azerí',
-        'ba' => 'Bashkir',
-        'be' => 'Belarusian',
-        'bg' => 'Bulgarian',
-        'bh' => 'Bihari',
-        'bi' => 'Bislama',
-        'bn' => 'Bengali',
-        'bo' => 'Tibetan',
-        'br' => 'Breton',
-        'ca' => 'Catalan',
-        'co' => 'Corsican',
-        'cs' => 'Czech',
-        'cy' => 'Welsh',
-        'da' => 'Danish',
-        'de' => 'German',
-        'de_at' => 'German (Austria)',
-        'de_ch' => 'German (Switzerland)',
-        'de_li' => 'German (Liechtenstein)',
-        'de_lu' => 'German (Luxembourg)',
-        'div' => 'Divehi',
-        'dz' => 'Bhutani',
-        'el' => 'Greek',
-        'en' => 'English',
-        'en_au' => 'English (Australia)',
-        'en_bz' => 'English (Belize)',
-        'en_ca' => 'English (Canada)',
-        'en_gb' => 'English (United Kingdom)',
-        'en_ie' => 'English (Ireland)',
-        'en_jm' => 'English (Jamaica)',
-        'en_nz' => 'English (New Zealand)',
-        'en_ph' => 'English (Philippines)',
-        'en_tt' => 'English (Trinidad)',
-        'en_us' => 'English (United States)',
-        'en_za' => 'English (South Africa)',
-        'en_zw' => 'English (Zimbabwe)',
-        'eo' => 'Esperanto',
-        'es' => 'Spanish',
-        'es_ar' => 'Spanish (Argentina)',
-        'es_bo' => 'Spanish (Bolivia)',
-        'es_cl' => 'Spanish (Chile)',
-        'es_co' => 'Spanish (Colombia)',
-        'es_cr' => 'Spanish (Costa Rica)',
-        'es_do' => 'Spanish (Dominican Republic)',
-        'es_ec' => 'Spanish (Ecuador)',
-        'es_es' => 'Spanish (España)',
-        'es_gt' => 'Spanish (Guatemala)',
-        'es_hn' => 'Spanish (Honduras)',
-        'es_mx' => 'Spanish (Mexico)',
-        'es_ni' => 'Spanish (Nicaragua)',
-        'es_pa' => 'Spanish (Panama)',
-        'es_pe' => 'Spanish (Peru)',
-        'es_pr' => 'Spanish (Puerto Rico)',
-        'es_py' => 'Spanish (Paraguay)',
-        'es_sv' => 'Spanish (El Salvador)',
-        'es_us' => 'Spanish (United States)',
-        'es_uy' => 'Spanish (Uruguay)',
-        'es_ve' => 'Spanish (Venezuela)',
-        'et' => 'Estonian',
-        'eu' => 'Basque',
-        'fa' => 'Farsi',
-        'fi' => 'Finnish',
-        'fj' => 'Fiji',
-        'fo' => 'Faeroese',
-        'fr' => 'French',
-        'fr_be' => 'French (Belgium)',
-        'fr_ca' => 'French (Canada)',
-        'fr_ch' => 'French (Switzerland)',
-        'fr_lu' => 'French (Luxembourg)',
-        'fr_mc' => 'French (Monaco)',
-        'fy' => 'Frisian',
-        'ga' => 'Irish',
-        'gd' => 'Gaelic',
-        'gl' => 'Galician',
-        'gn' => 'Guarani',
-        'gu' => 'Gujarati',
-        'ha' => 'Hausa',
-        'he' => 'Hebrew',
-        'hi' => 'Hindi',
-        'hr' => 'Croatian',
-        'hu' => 'Hungarian',
-        'hy' => 'Armenian',
-        'ia' => 'Interlingua',
-        'id' => 'Indonesian',
-        'ie' => 'Interlingue',
-        'ik' => 'Inupiak',
-        'in' => 'Indonesian',
-        'is' => 'Icelandic',
-        'it' => 'Italian',
-        'it_ch' => 'Italian (Switzerland)',
-        'iw' => 'Hebrew',
-        'ja' => 'Japanese',
-        'ji' => 'Yiddish',
-        'jw' => 'Javanese',
-        'ka' => 'Georgian',
-        'kk' => 'Kazakh',
-        'kl' => 'Greenlandic',
-        'km' => 'Cambodian',
-        'kn' => 'Kannada',
-        'ko' => 'Korean',
-        'ko_kr' => 'Korean (South Korea)',
-        'ko_kp' => 'Korean (North Korea)',
-        'kok' => 'Konkani',
-        'ks' => 'Kashmiri',
-        'ku' => 'Kurdish',
-        'ky' => 'Kirghiz',
-        'kz' => 'Kyrgyz',
-        'la' => 'Latin',
-        'ln' => 'Lingala',
-        'lo' => 'Laothian',
-        'ls' => 'Slovenian',
-        'lt' => 'Lithuanian',
-        'lv' => 'Latvian',
-        'mg' => 'Malagasy',
-        'mi' => 'Maori',
-        'mk' => 'FYRO Macedonian',
-        'ml' => 'Malayalam',
-        'mn' => 'Mongolian',
-        'mo' => 'Moldavian',
-        'mr' => 'Marathi',
-        'ms' => 'Malay',
-        'mt' => 'Maltese',
-        'my' => 'Burmese',
-        'na' => 'Nauru',
-        'nb_no' => 'Norwegian (Bokmal)',
-        'ne' => 'Nepali (India)',
-        'nl' => 'Dutch',
-        'nl_be' => 'Dutch (Belgium)',
-        'nn_no' => 'Norwegian',
-        'no' => 'Norwegian (Bokmal)',
-        'oc' => 'Occitan',
-        'om' => '(Afan)/Oromoor/Oriya',
-        'or' => 'Oriya',
-        'pa' => 'Punjabi',
-        'pl' => 'Polish',
-        'ps' => 'Pashto/Pushto',
-        'pt' => 'Portuguese',
-        'pt_br' => 'Portuguese (Brazil)',
-        'qu' => 'Quechua',
-        'rm' => 'Rhaeto_Romanic',
-        'rn' => 'Kirundi',
-        'ro' => 'Romanian',
-        'ro_md' => 'Romanian (Moldova)',
-        'ru' => 'Russian',
-        'ru_md' => 'Russian (Moldova)',
-        'rw' => 'Kinyarwanda',
-        'sa' => 'Sanskrit',
-        'sb' => 'Sorbian',
-        'sd' => 'Sindhi',
-        'sg' => 'Sangro',
-        'sh' => 'Serbo_Croatian',
-        'si' => 'Singhalese',
-        'sk' => 'Slovak',
-        'sl' => 'Slovenian',
-        'sm' => 'Samoan',
-        'sn' => 'Shona',
-        'so' => 'Somali',
-        'sq' => 'Albanian',
-        'sr' => 'Serbian',
-        'ss' => 'Siswati',
-        'st' => 'Sesotho',
-        'su' => 'Sundanese',
-        'sv' => 'Swedish',
-        'sv_fi' => 'Swedish (Finland)',
-        'sw' => 'Swahili',
-        'sx' => 'Sutu',
-        'syr' => 'Syriac',
-        'ta' => 'Tamil',
-        'te' => 'Telugu',
-        'tg' => 'Tajik',
-        'th' => 'Thai',
-        'ti' => 'Tigrinya',
-        'tk' => 'Turkmen',
-        'tl' => 'Tagalog',
-        'tn' => 'Tswana',
-        'to' => 'Tonga',
-        'tr' => 'Turkish',
-        'ts' => 'Tsonga',
-        'tt' => 'Tatar',
-        'tw' => 'Twi',
-        'uk' => 'Ukrainian',
-        'ur' => 'Urdu',
-        'us' => 'English',
-        'uz' => 'Uzbek',
-        'vi' => 'Vietnamese',
-        'vo' => 'Volapuk',
-        'wo' => 'Wolof',
-        'xh' => 'Xhosa',
-        'yi' => 'Yiddish',
-        'yo' => 'Yoruba',
-        'zh' => 'Chinese',
-        'zh_cn' => 'Chinese (China Mainland)',
-        'zh_hk' => 'Chinese (Hong Kong SAR)',
-        'zh_mo' => 'Chinese (Macau SAR)',
-        'zh_sg' => 'Chinese (Singapore)',
-        'zh_tw' => 'Chinese (Taiwan)',
-        'zu' => 'Zulu',
-    ];
+    protected $description = 'Translates PHP language files using AI technology';
 
-    protected $signature = 'ai-translator:translate';
-
-    protected $sourceLocale;
-    protected $sourceDirectory;
-    protected $chunkSize;
+    /**
+     * 번역 관련 설정
+     */
+    protected string $sourceLocale;
+    protected string $sourceDirectory;
+    protected int $chunkSize;
     protected array $referenceLocales = [];
 
+    /**
+     * 토큰 사용량 추적
+     */
+    protected array $tokenUsage = [
+        'input_tokens' => 0,
+        'output_tokens' => 0,
+        'total_tokens' => 0
+    ];
+
+    /**
+     * 컬러 코드
+     */
+    protected array $colors = [
+        'reset' => "\033[0m",
+        'red' => "\033[31m",
+        'green' => "\033[32m",
+        'yellow' => "\033[33m",
+        'blue' => "\033[34m",
+        'purple' => "\033[35m",
+        'cyan' => "\033[36m",
+        'white' => "\033[37m",
+        'gray' => "\033[90m",
+        'bold' => "\033[1m",
+        'underline' => "\033[4m",
+        'red_bg' => "\033[41m",
+        'green_bg' => "\033[42m",
+        'yellow_bg' => "\033[43m",
+        'blue_bg' => "\033[44m",
+        'purple_bg' => "\033[45m",
+        'cyan_bg' => "\033[46m",
+        'white_bg' => "\033[47m"
+    ];
+
+    /**
+     * 생성자
+     */
     public function __construct()
     {
         parent::__construct();
+
+        $sourceDirectory = config('ai-translator.source_directory');
+        $sourceLocale = config('ai-translator.source_locale');
+
         $this->setDescription(
-            "Translates all PHP language files in this directory: " . config('ai-translator.source_directory') .
-            "\n  Source Locale: " . config('ai-translator.source_locale'),
+            "Translates PHP language files using AI technology\n" .
+            "  Source Directory: {$sourceDirectory}\n" .
+            "  Default Source Locale: {$sourceLocale}"
         );
     }
 
+    /**
+     * 커맨드 실행 메인 메서드
+     */
     public function handle()
     {
+        // 헤더 출력
+        $this->displayHeader();
+
+        // 소스 디렉토리 설정
         $this->sourceDirectory = config('ai-translator.source_directory');
 
-        $this->sourceLocale = $this->choiceLanguages("Choose a source language to translate from", false, 'en');
+        // 소스 언어 선택
+        $this->sourceLocale = $this->choiceLanguages(
+            $this->colors['yellow'] . "Choose a source language to translate from" . $this->colors['reset'],
+            false,
+            'en'
+        );
 
-        if ($this->ask('Do you want to add reference languages? (y/n)', 'n') === 'y') {
-            $this->referenceLocales = $this->choiceLanguages("Choose a language to reference when translating, preferably one that has already been vetted and translated to a high quality. You can select multiple languages via ',' (e.g. '1, 2')", true);
+        // 레퍼런스 언어 선택
+        if ($this->ask($this->colors['yellow'] . 'Do you want to add reference languages? (y/n)' . $this->colors['reset'], 'n') === 'y') {
+            $this->referenceLocales = $this->choiceLanguages(
+                $this->colors['yellow'] . "Choose reference languages for translation guidance. Select languages with high-quality translations. Multiple selections with comma separator (e.g. '1,2')" . $this->colors['reset'],
+                true
+            );
         }
 
-        $this->chunkSize = $this->ask("Enter the chunk size for translation. Translate strings in a batch. The higher, the cheaper. (default: 30)", 30);
-        $this->translate();
+        // 청크 사이즈 설정
+        $this->chunkSize = (int) $this->ask(
+            $this->colors['yellow'] . "Enter the chunk size for translation. Translate strings in a batch. The higher, the cheaper." . $this->colors['reset'],
+            50
+        );
+
+        // 컨텍스트 항목 수 설정
+        $maxContextItems = (int) $this->ask(
+            $this->colors['yellow'] . "Maximum number of context items to include for consistency (set 0 to disable)" . $this->colors['reset'],
+            1000
+        );
+
+        // 번역 실행
+        $this->translate($maxContextItems);
+
+        return 0;
     }
 
-    protected static function getLanguageName($originalLocale): ?string
+    /**
+     * 헤더 출력
+     */
+    protected function displayHeader(): void
     {
-        $list = array_merge(self::$localeNames, config('ai-translator.locale_names'));
-
-        $locale = strtolower(str_replace('-', '_', $originalLocale));
-
-        if (key_exists($originalLocale, $list)) {
-            return $list[$originalLocale];
-        } else if (key_exists($locale, $list)) {
-            return $list[$locale];
-        } else if (key_exists(substr($locale, 0, 2), $list)) {
-            return $list[substr($locale, 0, 2)];
-        } else {
-            \Log::warning("Language name not found for locale: {$locale}. Please add it to the config file.");
-            return null;
-        }
+        $this->line("\n" . $this->colors['blue_bg'] . $this->colors['white'] . $this->colors['bold'] . " Laravel AI Translator " . $this->colors['reset']);
+        $this->line($this->colors['gray'] . "Translating PHP language files using AI technology" . $this->colors['reset']);
+        $this->line(str_repeat('─', 80) . "\n");
     }
 
-    private static function getAdditionalRulesFromConfig($originalLocale): array
-    {
-        $list = config('ai-translator.additional_rules');
-        $locale = strtolower(str_replace('-', '_', $originalLocale));
-
-        if (key_exists($originalLocale, $list)) {
-            return $list[$originalLocale];
-        } else if (key_exists($locale, $list)) {
-            return $list[$locale];
-        } else if (key_exists(substr($locale, 0, 2), $list)) {
-            return $list[substr($locale, 0, 2)];
-        } else {
-            return $list['default'] ?? [];
-        }
-    }
-
-    private static function getAdditionalRulesDefault($locale): array
-    {
-        $list = static::$additionalRules;
-        $locale = strtolower(str_replace('-', '_', $locale));
-
-        if (key_exists($locale, $list)) {
-            return $list[$locale];
-        } else if (key_exists(substr($locale, 0, 2), $list)) {
-            return $list[substr($locale, 0, 2)];
-        } else {
-            return $list['default'] ?? [];
-        }
-    }
-
-    private static function getAdditionalRulesPlural($locale)
-    {
-        $plural = Utility::getPluralForms($locale);
-        if (!$plural)
-            return [];
-
-        return match ($plural) {
-            1 => [
-                "- Pluralization Rules",
-                "  - Never follow these plural rules if the original does not have multiple forms without '|'. (e.g. `:count items` -> `:count items`)",
-                "  - For plurals, always use the format: {1} singular|[2,*] plural.",
-                "  - Example structure (DO NOT COPY WORDS, only structure): {1} singular|[2,*] plural",
-                "  - Consider language-specific features like gender, case, and measure words when applicable.",
-            ],
-            2 => [
-                "- Pluralization Rules",
-                "  - Never follow these plural rules if the original does not have multiple forms without '|'. (e.g. `:count items` -> `:count items`)",
-                "  - Research and apply the correct plural forms for each specific noun in target language and preserve case of letters for each.",
-            ],
-            3 => [
-                "- Pluralization Rules",
-                "  - Never follow these plural rules if the original does not have multiple forms without '|'. (e.g. `:count items` -> `:count items`)",
-                "  - Always expand all plural forms into multiple forms, regardless of the source format or word type. Don't specify a range.",
-                "    - Always use: singular|few|many",
-                "    - Apply this to ALL nouns, regular or irregular",
-                "  - Research and apply the correct plural forms for each specific noun in target language and preserve case of letters for each.",
-            ],
-            4 => [
-                "- Pluralization Rules",
-                "  - Never follow these plural rules if the original does not have multiple forms without '|'. (e.g. `:count items` -> `:count items`)",
-                "  - Always expand all plural forms into multiple forms, regardless of the source format or word type. Don't specify a range.",
-                "    - Always use: singular|dual|few|many",
-                "    - Apply this to ALL nouns, regardless of their original plural formation",
-                "  - Research and apply the correct plural forms for each specific noun in target language and preserve case of letters for each.",
-            ],
-            6 => [
-                "- Pluralization Rules",
-                "  - Never follow these plural rules if the original does not have multiple forms without '|'. (e.g. `:count items` -> `:count items`)",
-                "  - Always expand all plural forms into multiple forms, regardless of the source format or word type. Don't specify a range.",
-                "    - Always use: zero|one|two|few|many|other",
-                "    - Apply this to ALL nouns, regardless of their original plural formation",
-                "  - Research and apply the correct plural forms for each specific noun in target language and preserve case of letters for each.",
-            ],
-            default => [],
-        };
-    }
-
-    protected static function getAdditionalRules($locale): array
-    {
-        return array_merge(static::getAdditionalRulesFromConfig($locale), static::getAdditionalRulesDefault($locale), static::getAdditionalRulesPlural($locale));
-    }
-
-    public function choiceLanguages($question, $multiple, $default = null)
+    /**
+     * 언어 선택 헬퍼 메서드
+     *
+     * @param string $question 질문
+     * @param bool $multiple 다중 선택 여부
+     * @param string|null $default 기본값
+     * @return array|string 선택된 언어(들)
+     */
+    public function choiceLanguages(string $question, bool $multiple, ?string $default = null): array|string
     {
         $locales = $this->getExistingLocales();
 
@@ -474,136 +156,525 @@ class TranslateStrings extends Command
         );
 
         if (is_array($selectedLocales)) {
-            $this->info("Selected locales: " . implode(', ', $selectedLocales));
+            $this->info($this->colors['green'] . "✓ Selected locales: " .
+                $this->colors['reset'] . $this->colors['bold'] . implode(', ', $selectedLocales) .
+                $this->colors['reset']);
         } else {
-            $this->info("Selected locale: " . $selectedLocales);
+            $this->info($this->colors['green'] . "✓ Selected locale: " .
+                $this->colors['reset'] . $this->colors['bold'] . $selectedLocales .
+                $this->colors['reset']);
         }
 
         return $selectedLocales;
     }
 
-    public function translate()
+    /**
+     * 번역 실행
+     *
+     * @param int $maxContextItems 최대 컨텍스트 항목 수
+     */
+    public function translate(int $maxContextItems = 100): void
     {
-        $locales = $this->getExistingLocales();
+        // 커맨드라인에서 지정된 로케일 가져오기
+        $specifiedLocales = $this->option('locale');
+
+        // 사용 가능한 모든 로케일 가져오기
+        $availableLocales = $this->getExistingLocales();
+
+        // 지정된 로케일이 있으면 검증하고 사용, 없으면 모든 로케일 사용
+        $locales = !empty($specifiedLocales)
+            ? $this->validateAndFilterLocales($specifiedLocales, $availableLocales)
+            : $availableLocales;
+
+        if (empty($locales)) {
+            $this->error("No valid locales specified or found for translation.");
+            return;
+        }
+
+        $fileCount = 0;
+        $totalStringCount = 0;
+        $totalTranslatedCount = 0;
+
         foreach ($locales as $locale) {
-            if ($locale === $this->sourceLocale) {
+            // 소스 언어와 같거나 스킵 목록에 있는 언어는 건너뜀
+            if ($locale === $this->sourceLocale || in_array($locale, config('ai-translator.skip_locales', []))) {
                 continue;
             }
 
-            if (in_array($locale, config('ai-translator.skip_locales', []))) {
+            $targetLanguageName = LanguageConfig::getLanguageName($locale);
+
+            if (!$targetLanguageName) {
+                $this->error("Language name not found for locale: {$locale}. Please add it to the config file.");
                 continue;
             }
 
-            $targetLanguageName = static::getLanguageName($locale);
+            $this->line(str_repeat('─', 80));
+            $this->line(str_repeat('─', 80));
+            $this->line("\n" . $this->colors['blue_bg'] . $this->colors['white'] . $this->colors['bold'] . " Starting {$targetLanguageName} ({$locale}) " . $this->colors['reset']);
 
-            if ($targetLanguageName) {
-                $this->info("Starting {$targetLanguageName} ({$locale})");
-            } else {
-                throw new \Exception("Language name not found for locale: {$locale}. Please add it to the config file.");
-            }
+            $localeFileCount = 0;
+            $localeStringCount = 0;
+            $localeTranslatedCount = 0;
 
+            // 소스 파일 목록 가져오기
             $files = $this->getStringFilePaths($this->sourceLocale);
+
             foreach ($files as $file) {
                 $outputFile = $this->getOutputDirectoryLocale($locale) . '/' . basename($file);
-                $this->info("> Translating {$file} to {$locale} => {$outputFile}");
+                $this->displayFileInfo($file, $locale, $outputFile);
+
+                $localeFileCount++;
+                $fileCount++;
+
+                // Load source strings
                 $transformer = new PHPLangTransformer($file);
                 $sourceStringList = $transformer->flatten();
+
+                // Load target strings (or create)
                 $targetStringTransformer = new PHPLangTransformer($outputFile);
 
-                // Filter for untranslated strings
+                // Filter untranslated strings only
                 $sourceStringList = collect($sourceStringList)
                     ->filter(function ($value, $key) use ($targetStringTransformer) {
-                        // Skip if already translated
+                        // Skip already translated ones
                         return !$targetStringTransformer->isTranslated($key);
                     })
                     ->toArray();
 
-                $referenceStringList = collect($this->referenceLocales)
-                    ->filter(fn($referenceLocale) => !in_array($referenceLocale, [$locale, $this->sourceLocale]))
-                    ->mapWithKeys(function ($referenceLocale) use ($file, $targetStringTransformer) {
-                        $referenceFile = $this->getOutputDirectoryLocale($referenceLocale) . '/' . basename($file);
-                        $referenceTransformer = new PHPLangTransformer($referenceFile);
-                        return [
-                            $referenceLocale => $referenceTransformer->flatten(),
-                        ];
-                    })
-                    ->toArray();
+                // Skip if no items to translate
+                if (count($sourceStringList) === 0) {
+                    $this->info($this->colors['green'] . "  ✓ " . $this->colors['reset'] . "All strings are already translated. Skipping.");
+                    continue;
+                }
 
-                if (sizeof($sourceStringList) > 100) {
-                    if (!$this->confirm("{$outputFile}, Strings: " . sizeof($sourceStringList) . " -> Many strings to translate. Could be expensive. Continue?")) {
-                        $this->warn("Stopped translating!");
-                        exit;
+                $localeStringCount += count($sourceStringList);
+                $totalStringCount += count($sourceStringList);
+
+                // 많은 문자열이 있을 경우 확인
+                if (count($sourceStringList) > 500) {
+                    if (
+                        !$this->confirm(
+                            $this->colors['yellow'] . "⚠️ Warning: " . $this->colors['reset'] .
+                            "File has " . count($sourceStringList) . " strings to translate. This could be expensive. Continue?",
+                            true
+                        )
+                    ) {
+                        $this->warn("Translation stopped by user.");
+                        return;
                     }
                 }
 
-                // Chunk the strings because of the pricing
-                // But also this will increase the speed of the translation, and quality of continuous translation
+                // Load reference translations (from all files)
+                $referenceStringList = $this->loadReferenceTranslations($file, $locale, $sourceStringList);
+
+                // Process in chunks
+                $chunkCount = 0;
+                $totalChunks = ceil(count($sourceStringList) / $this->chunkSize);
+
                 collect($sourceStringList)
                     ->chunk($this->chunkSize)
-                    ->each(function ($chunk) use ($locale, $file, $targetStringTransformer, $referenceStringList) {
-                        $translator = new AIProvider(
-                            filename: $file,
-                            strings: $chunk->mapWithKeys(function ($item, $key) use ($referenceStringList) {
-                                return [
-                                    $key => [
-                                        'text' => $item,
-                                        'references' => collect($referenceStringList)->map(function ($items) use ($key) {
-                                            return $items[$key] ?? "";
-                                        })->filter(function ($value) {
-                                            return strlen($value) > 0;
-                                        }),
-                                    ],
-                                ];
-                            })->toArray(),
-                            sourceLanguage: static::getLanguageName($this->sourceLocale) ?? $this->sourceLocale,
-                            targetLanguage: static::getLanguageName($locale) ?? $locale,
-                            additionalRules: static::getAdditionalRules($locale),
+                    ->each(function ($chunk) use ($locale, $file, $targetStringTransformer, $referenceStringList, $maxContextItems, &$localeTranslatedCount, &$totalTranslatedCount, &$chunkCount, $totalChunks) {
+                        $chunkCount++;
+                        $this->info($this->colors['yellow'] . "  ⏺ Processing chunk " .
+                            $this->colors['reset'] . "{$chunkCount}/{$totalChunks}" .
+                            $this->colors['gray'] . " (" . $chunk->count() . " strings)" .
+                            $this->colors['reset']);
+
+                        // Get global translation context
+                        $globalContext = $this->getGlobalContext($file, $locale, $maxContextItems);
+
+                        // Configure translator
+                        $translator = $this->setupTranslator(
+                            $file,
+                            $chunk,
+                            $referenceStringList,
+                            $locale,
+                            $globalContext
                         );
 
-                        $items = $translator->translate();
+                        try {
+                            // Execute translation
+                            $translatedItems = $translator->translate();
+                            $localeTranslatedCount += count($translatedItems);
+                            $totalTranslatedCount += count($translatedItems);
 
-                        foreach ($items as $item) {
-                            \Log::debug('Saving: ' . $item->key . ' => ' . $item->translated);
-                            $targetStringTransformer->updateString($item->key, $item->translated);
+                            // Save translation results - display is handled by onTranslated
+                            foreach ($translatedItems as $item) {
+                                $targetStringTransformer->updateString($item->key, $item->translated);
+                            }
+
+                            // Display number of saved items
+                            $this->info($this->colors['green'] . "  ✓ " . $this->colors['reset'] . "{$localeTranslatedCount} strings saved.");
+
+                            // Calculate and display cost
+                            $this->displayCostEstimation($translator);
+
+                            // Accumulate token usage
+                            $usage = $translator->getTokenUsage();
+                            $this->updateTokenUsageTotals($usage);
+
+                        } catch (\Exception $e) {
+                            $this->error("Translation failed: " . $e->getMessage());
                         }
                     });
             }
 
-            $this->info("Finished translating $locale");
+            // Display translation summary for each language
+            $this->displayTranslationSummary($locale, $localeFileCount, $localeStringCount, $localeTranslatedCount);
+        }
+
+        // 전체 번역 완료 메시지
+        $this->line("\n" . $this->colors['green_bg'] . $this->colors['white'] . $this->colors['bold'] . " All translations completed " . $this->colors['reset']);
+        $this->line($this->colors['yellow'] . "Total files processed: " . $this->colors['reset'] . $fileCount);
+        $this->line($this->colors['yellow'] . "Total strings found: " . $this->colors['reset'] . $totalStringCount);
+        $this->line($this->colors['yellow'] . "Total strings translated: " . $this->colors['reset'] . $totalTranslatedCount);
+    }
+
+    /**
+     * 비용 계산 및 표시
+     */
+    protected function displayCostEstimation(AIProvider $translator): void
+    {
+        $usage = $translator->getTokenUsage();
+        $printer = new TokenUsagePrinter($translator->getModel());
+        $printer->printTokenUsageSummary($this, $usage);
+        $printer->printCostEstimation($this, $usage);
+    }
+
+    /**
+     * 파일 정보 표시
+     */
+    protected function displayFileInfo(string $sourceFile, string $locale, string $outputFile): void
+    {
+        $this->line("\n" . $this->colors['purple_bg'] . $this->colors['white'] . $this->colors['bold'] . " File Translation " . $this->colors['reset']);
+        $this->line($this->colors['yellow'] . "  File: " .
+            $this->colors['reset'] . $this->colors['bold'] . basename($sourceFile) .
+            $this->colors['reset']);
+        $this->line($this->colors['yellow'] . "  Language: " .
+            $this->colors['reset'] . $this->colors['bold'] . $locale .
+            $this->colors['reset']);
+        $this->line($this->colors['gray'] . "  Source: " . $sourceFile . $this->colors['reset']);
+        $this->line($this->colors['gray'] . "  Target: " . $outputFile . $this->colors['reset']);
+    }
+
+    /**
+     * 번역 완료 요약 표시
+     */
+    protected function displayTranslationSummary(string $locale, int $fileCount, int $stringCount, int $translatedCount): void
+    {
+        $this->line("\n" . str_repeat('─', 80));
+        $this->line($this->colors['green_bg'] . $this->colors['white'] . $this->colors['bold'] . " Translation Complete: {$locale} " . $this->colors['reset']);
+        $this->line($this->colors['yellow'] . "Files processed: " . $this->colors['reset'] . $fileCount);
+        $this->line($this->colors['yellow'] . "Strings found: " . $this->colors['reset'] . $stringCount);
+        $this->line($this->colors['yellow'] . "Strings translated: " . $this->colors['reset'] . $translatedCount);
+
+        // Display accumulated token usage
+        if ($this->tokenUsage['total_tokens'] > 0) {
+            $this->line("\n" . $this->colors['blue_bg'] . $this->colors['white'] . $this->colors['bold'] . " Total Token Usage " . $this->colors['reset']);
+            $this->line($this->colors['yellow'] . "Input Tokens: " . $this->colors['reset'] . $this->colors['green'] . $this->tokenUsage['input_tokens'] . $this->colors['reset']);
+            $this->line($this->colors['yellow'] . "Output Tokens: " . $this->colors['reset'] . $this->colors['green'] . $this->tokenUsage['output_tokens'] . $this->colors['reset']);
+            $this->line($this->colors['yellow'] . "Total Tokens: " . $this->colors['reset'] . $this->colors['bold'] . $this->colors['purple'] . $this->tokenUsage['total_tokens'] . $this->colors['reset']);
         }
     }
 
     /**
+     * 레퍼런스 번역 로드 (모든 파일에서)
+     */
+    protected function loadReferenceTranslations(string $file, string $targetLocale, array $sourceStringList): array
+    {
+        // 타겟 언어와 레퍼런스 언어들을 모두 포함
+        $allReferenceLocales = array_merge([$targetLocale], $this->referenceLocales);
+        $langDirectory = config('ai-translator.source_directory');
+        $currentFileName = basename($file);
+
+        return collect($allReferenceLocales)
+            ->filter(fn($referenceLocale) => $referenceLocale !== $this->sourceLocale)
+            ->map(function ($referenceLocale) use ($langDirectory, $file, $currentFileName) {
+                $referenceLocaleDir = $this->getOutputDirectoryLocale($referenceLocale);
+
+                if (!is_dir($referenceLocaleDir)) {
+                    $this->line($this->colors['gray'] . "    ℹ Reference directory not found: {$referenceLocale}" . $this->colors['reset']);
+                    return null;
+                }
+
+                // 해당 로케일 디렉토리의 모든 PHP 파일 가져오기
+                $referenceFiles = glob("{$referenceLocaleDir}/*.php");
+
+                if (empty($referenceFiles)) {
+                    $this->line($this->colors['gray'] . "    ℹ Reference file not found: {$referenceLocale}" . $this->colors['reset']);
+                    return null;
+                }
+
+                $this->line($this->colors['blue'] . "    ℹ Loading reference: " .
+                    $this->colors['reset'] . "{$referenceLocale} - " . count($referenceFiles) . " files");
+
+                // 유사한 이름의 파일을 먼저 처리하여 컨텍스트 관련성 향상
+                usort($referenceFiles, function ($a, $b) use ($currentFileName) {
+                    $similarityA = similar_text($currentFileName, basename($a));
+                    $similarityB = similar_text($currentFileName, basename($b));
+                    return $similarityB <=> $similarityA;
+                });
+
+                $allReferenceStrings = [];
+                $processedFiles = 0;
+
+                foreach ($referenceFiles as $referenceFile) {
+                    try {
+                        $referenceTransformer = new PHPLangTransformer($referenceFile);
+                        $referenceStringList = $referenceTransformer->flatten();
+
+                        if (empty($referenceStringList)) {
+                            continue;
+                        }
+
+                        // 우선순위 적용 (필요한 경우)
+                        if (count($referenceStringList) > 50) {
+                            $referenceStringList = $this->getPrioritizedReferenceStrings($referenceStringList, 50);
+                        }
+
+                        $allReferenceStrings = array_merge($allReferenceStrings, $referenceStringList);
+                        $processedFiles++;
+                    } catch (\Exception $e) {
+                        $this->line($this->colors['gray'] . "    ⚠ Reference file loading failed: " . basename($referenceFile) . $this->colors['reset']);
+                        continue;
+                    }
+                }
+
+                if (empty($allReferenceStrings)) {
+                    return null;
+                }
+
+                return [
+                    'locale' => $referenceLocale,
+                    'strings' => $allReferenceStrings,
+                ];
+            })
+            ->filter()
+            ->values()
+            ->toArray();
+    }
+
+    /**
+     * 레퍼런스 문자열에 우선순위 적용
+     */
+    protected function getPrioritizedReferenceStrings(array $strings, int $maxItems): array
+    {
+        $prioritized = [];
+
+        // 1. 짧은 문자열 우선 (UI 요소, 버튼 등)
+        foreach ($strings as $key => $value) {
+            if (strlen($value) < 50 && count($prioritized) < $maxItems * 0.7) {
+                $prioritized[$key] = $value;
+            }
+        }
+
+        // 2. 나머지 항목 추가
+        foreach ($strings as $key => $value) {
+            if (!isset($prioritized[$key]) && count($prioritized) < $maxItems) {
+                $prioritized[$key] = $value;
+            }
+
+            if (count($prioritized) >= $maxItems) {
+                break;
+            }
+        }
+
+        return $prioritized;
+    }
+
+    /**
+     * 전역 번역 컨텍스트 가져오기
+     */
+    protected function getGlobalContext(string $file, string $locale, int $maxContextItems): array
+    {
+        if ($maxContextItems <= 0) {
+            return [];
+        }
+
+        $contextProvider = new TranslationContextProvider();
+        $globalContext = $contextProvider->getGlobalTranslationContext(
+            $this->sourceLocale,
+            $locale,
+            $file,
+            $maxContextItems
+        );
+
+        if (!empty($globalContext)) {
+            $contextItemCount = collect($globalContext)->map(fn($items) => count($items))->sum();
+            $this->info($this->colors['blue'] . "    ℹ Using context: " .
+                $this->colors['reset'] . count($globalContext) . " files, " .
+                $contextItemCount . " items");
+        }
+
+        return $globalContext;
+    }
+
+    /**
+     * 번역기 설정
+     */
+    protected function setupTranslator(
+        string $file,
+        \Illuminate\Support\Collection $chunk,
+        array $referenceStringList,
+        string $locale,
+        array $globalContext
+    ): AIProvider {
+        // 파일 정보 표시
+        $outputFile = $this->getOutputDirectoryLocale($locale) . '/' . basename($file);
+        $this->displayFileInfo($file, $locale, $outputFile);
+
+        // 레퍼런스 정보를 적절한 형식으로 변환
+        $references = [];
+        foreach ($referenceStringList as $reference) {
+            $referenceLocale = $reference['locale'];
+            $referenceStrings = $reference['strings'];
+            $references[$referenceLocale] = $referenceStrings;
+        }
+
+        // AIProvider 인스턴스 생성
+        $translator = new AIProvider(
+            $file,
+            $chunk->toArray(),
+            $this->sourceLocale,
+            $locale,
+            $references,
+            [],
+            $globalContext
+        );
+
+        $translator->setOnThinking(function ($thinking) {
+            echo $this->colors['gray'] . $thinking . $this->colors['reset'];
+        });
+
+        $translator->setOnThinkingStart(function () {
+            $this->line($this->colors['gray'] . "    " . "🧠 AI Thinking..." . $this->colors['reset']);
+        });
+
+        $translator->setOnThinkingEnd(function () {
+            $this->line($this->colors['gray'] . "    " . "Thinking completed." . $this->colors['reset']);
+        });
+
+        // 번역 진행 상황 표시를 위한 콜백 설정
+        $translator->setOnTranslated(function ($item, $status, $translatedItems) use ($chunk) {
+            if ($status === TranslationStatus::COMPLETED) {
+                $totalCount = $chunk->count();
+                $completedCount = count($translatedItems);
+
+                $this->line($this->colors['cyan'] . "  ⟳ " .
+                    $this->colors['reset'] . $item->key .
+                    $this->colors['gray'] . " → " .
+                    $this->colors['reset'] . $item->translated .
+                    $this->colors['gray'] . " ({$completedCount}/{$totalCount})" .
+                    $this->colors['reset']);
+            }
+        });
+
+        // 토큰 사용량 콜백 설정
+        $translator->setOnTokenUsage(function ($usage) {
+            $isFinal = $usage['final'] ?? false;
+            $inputTokens = $usage['input_tokens'] ?? 0;
+            $outputTokens = $usage['output_tokens'] ?? 0;
+            $totalTokens = $usage['total_tokens'] ?? 0;
+
+            // 실시간 토큰 사용량 표시
+            $this->line($this->colors['gray'] . "    Tokens: " .
+                "Input=" . $this->colors['green'] . $inputTokens . $this->colors['gray'] . ", " .
+                "Output=" . $this->colors['green'] . $outputTokens . $this->colors['gray'] . ", " .
+                "Total=" . $this->colors['purple'] . $totalTokens . $this->colors['gray'] .
+                $this->colors['reset']);
+        });
+
+        // 프롬프트 로깅 콜백 설정
+        if ($this->option('show-prompt')) {
+            $translator->setOnPromptGenerated(function ($prompt, PromptType $type) {
+                $typeText = match ($type) {
+                    PromptType::SYSTEM => '🤖 System Prompt',
+                    PromptType::USER => '👤 User Prompt',
+                };
+
+                print ("\n    {$typeText}:\n");
+                print ($this->colors['gray'] . "    " . str_replace("\n", $this->colors['reset'] . "\n    " . $this->colors['gray'], $prompt) . $this->colors['reset'] . "\n");
+            });
+        }
+
+        return $translator;
+    }
+
+    /**
+     * 토큰 사용량 총계 업데이트
+     */
+    protected function updateTokenUsageTotals(array $usage): void
+    {
+        $this->tokenUsage['input_tokens'] += ($usage['input_tokens'] ?? 0);
+        $this->tokenUsage['output_tokens'] += ($usage['output_tokens'] ?? 0);
+        $this->tokenUsage['total_tokens'] =
+            $this->tokenUsage['input_tokens'] +
+            $this->tokenUsage['output_tokens'];
+    }
+
+    /**
+     * 사용 가능한 로케일 목록 가져오기
+     *
      * @return array|string[]
      */
     public function getExistingLocales(): array
     {
         $root = $this->sourceDirectory;
         $directories = array_diff(scandir($root), ['.', '..']);
-        // only directories
+        // 디렉토리만 필터링
         $directories = array_filter($directories, function ($directory) use ($root) {
             return is_dir($root . '/' . $directory);
         });
         return collect($directories)->values()->toArray();
     }
 
-    public function getOutputDirectoryLocale($locale)
+    /**
+     * 출력 디렉토리 경로 가져오기
+     */
+    public function getOutputDirectoryLocale(string $locale): string
     {
         return config('ai-translator.source_directory') . '/' . $locale;
     }
 
-    public function getStringFilePaths($locale)
+    /**
+     * 문자열 파일 경로 목록 가져오기
+     */
+    public function getStringFilePaths(string $locale): array
     {
         $files = [];
         $root = $this->sourceDirectory . '/' . $locale;
         $directories = array_diff(scandir($root), ['.', '..']);
         foreach ($directories as $directory) {
-            // only .php
+            // PHP 파일만 필터링
             if (pathinfo($directory, PATHINFO_EXTENSION) !== 'php') {
                 continue;
             }
             $files[] = $root . '/' . $directory;
         }
         return $files;
+    }
+
+    /**
+     * 지정된 로케일 검증 및 필터링
+     */
+    protected function validateAndFilterLocales(array $specifiedLocales, array $availableLocales): array
+    {
+        $validLocales = [];
+        $invalidLocales = [];
+
+        foreach ($specifiedLocales as $locale) {
+            if (in_array($locale, $availableLocales)) {
+                $validLocales[] = $locale;
+            } else {
+                $invalidLocales[] = $locale;
+            }
+        }
+
+        if (!empty($invalidLocales)) {
+            $this->warn("The following locales are invalid or not available: " . implode(', ', $invalidLocales));
+            $this->info("Available locales: " . implode(', ', $availableLocales));
+        }
+
+        return $validLocales;
     }
 }

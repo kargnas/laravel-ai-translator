@@ -12,4 +12,7 @@ class LocalizedString
 
     #[Prompt('Translated text into the target language from the source language.')]
     public string $translated;
+
+    #[Prompt('Optional comment about translation uncertainty or issues.')]
+    public ?string $comment = null;
 }

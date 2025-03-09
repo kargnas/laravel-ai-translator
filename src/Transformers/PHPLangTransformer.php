@@ -19,12 +19,14 @@ class PHPLangTransformer
     ) {
     }
 
-    public function isTranslated($key) {
+    public function isTranslated($key)
+    {
         $flatten = $this->flatten();
         return array_key_exists($key, $flatten);
     }
 
-    public function flatten(): array {
+    public function flatten(): array
+    {
         if (!file_exists($this->filePath)) {
             return [];
         }
@@ -32,7 +34,8 @@ class PHPLangTransformer
         return $this->flattenArray($content);
     }
 
-    public function flattenArray($content, $prefix = ''): array {
+    public function flattenArray($content, $prefix = ''): array
+    {
         $flattened = [];
         foreach ($content as $key => $value) {
             if (is_array($value)) {
@@ -44,9 +47,10 @@ class PHPLangTransformer
         return $flattened;
     }
 
-    public function updateString(string $key, string $translated) {
+    public function updateString(string $key, string $translated)
+    {
         $list = $this->flatten();
         $list[$key] = $translated;
-        file_put_contents($this->filePath, "<?php" . PHP_EOL . "return ".var_export($list, true).";");
+        file_put_contents($this->filePath, "<?php" . PHP_EOL . "return " . var_export($list, true) . ";");
     }
 }

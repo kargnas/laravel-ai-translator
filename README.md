@@ -2,6 +2,24 @@
 
 AI-powered translation tool for Laravel language files
 
+## 🔄 Recent Updates (March 10, 2025)
+
+- **AI Enhancement**: Added support for Claude 3.7's Extended Thinking capabilities
+  - Extended context window up to 200K tokens, output tokens up to 64K tokens
+  - Enhanced reasoning for complex translations
+  - Improved context understanding with extended thinking mode
+- **Visual Logging Improvements**: Completely redesigned logging system
+  - 🎨 Beautiful color-coded console output
+  - 📊 Real-time progress indicators
+  - 🔍 Detailed token usage tracking with visual stats
+  - 💫 Animated status indicators for long-running processes
+- **Performance Improvements**: Enhanced translation processing efficiency and reduced API calls
+- **Better Error Handling**: Improved error handling and recovery mechanisms
+- **Code Refactoring**: Major code restructuring for better maintainability
+  - Separated services into dedicated classes
+  - Improved token usage tracking and reporting
+  - Enhanced console output formatting
+
 ## 💡 New Feature: Custom Language Styles
 
 We've expanded our capabilities with support for custom language styles, allowing for unique and creative translations. [Learn more about Custom Language Styles](#custom-language-styles)
@@ -116,7 +134,7 @@ These custom styles offer creative ways to customize your translations, adding a
     ```php
     'ai' => [
         'provider' => 'anthropic',
-        'model' => 'claude-3-5-sonnet-20241022',
+        'model' => 'claude-3-7-sonnet-20250219',
         'api_key' => env('ANTHROPIC_API_KEY'),
     ],
     ```
@@ -218,25 +236,59 @@ This will create a `config/ai-translator.php` file where you can modify the foll
 - `ai`: Configure the AI provider and model:
   ```php
   'ai' => [
-      'provider' => 'anthropic', // or 'openai'
-      'model' => 'claude-3-5-sonnet-20241022',
-      'api_key' => env('ANTHROPIC_API_KEY'), // or env('OPENAI_API_KEY')
-      'retries' => 3,
-      'max_tokens' => 4096,
+      'provider' => 'anthropic',
+      'model' => 'claude-3-5-sonnet-latest',
+      'api_key' => env('ANTHROPIC_API_KEY'),
   ],
   ```
+
+  This package supports Anthropic's Claude and OpenAI's GPT models for translations. Here are the tested and verified models:
+
+  | Provider  | Model                     | Extended Thinking | Context Window | Max Tokens |
+  |-----------|---------------------------|------------------|----------------|------------|
+  | `anthropic` | `claude-3-7-sonnet-latest` | ✅               | 200K          | 8K/64K*    |
+  | `anthropic` | `claude-3-5-sonnet-latest` | ❌               | 200K          | 8K         |
+  | `anthropic` | `claude-3-haiku-20240307`  | ❌               | 200K          | 8K         |
+  | `openai`    | `gpt-4o`                   | ❌               | 128K          | 4K         |
+  | `openai`    | `gpt-4o-mini`             | ❌               | 128K          | 4K         |
+
+  \* 8K tokens for normal mode, 64K tokens when extended thinking is enabled
 
   For available models:
   - Anthropic: See [Anthropic Models Documentation](https://docs.anthropic.com/en/docs/about-claude/models)
   - OpenAI: See [OpenAI Models Documentation](https://platform.openai.com/docs/models)
 
-  > **⭐️ Strong Recommendation**: We highly recommend using Anthropic's Claude models, particularly `claude-3-5-sonnet`. Here's why:
+  > **⭐️ Strong Recommendation**: We highly recommend using Anthropic's Claude models, particularly `claude-3-5-sonnet-latest`. Here's why:
   > - More accurate and natural translations
   > - Better understanding of context and nuances
   > - More consistent output quality
   > - More cost-effective for the quality provided
   > 
   > While OpenAI integration is available, we strongly advise against using it for translations. Our extensive testing has shown that Claude models consistently produce superior results for localization tasks.
+
+  ### Provider Setup
+
+  1. Get your API key:
+     - Anthropic: [Console API Keys](https://console.anthropic.com/settings/keys)
+     - OpenAI: [API Keys](https://platform.openai.com/api-keys)
+
+  2. Add to your `.env` file:
+     ```env
+     # For Anthropic
+     ANTHROPIC_API_KEY=your-api-key
+
+     # For OpenAI
+     OPENAI_API_KEY=your-api-key
+     ```
+
+  3. Configure in `config/ai-translator.php`:
+     ```php
+     'ai' => [
+         'provider' => 'anthropic', // or 'openai'
+         'model' => 'claude-3-5-sonnet-latest', // see model list above
+         'api_key' => env('ANTHROPIC_API_KEY'), // or env('OPENAI_API_KEY')
+     ],
+     ```
 
 - `locale_names`: This mapping of locale codes to language names enhances translation quality by providing context to the AI.
 
@@ -253,11 +305,9 @@ return [
     'source_directory' => 'lang',
 
     'ai' => [
-        'provider' => 'openai', // or 'anthropic'
-        'model' => 'gpt-4o', // or 'gpt-4', 'gpt-3.5-turbo', 'claude-3-5-sonnet-20240620'
-        'api_key' => env('OPENAI_API_KEY'), // or env('ANTHROPIC_API_KEY')
-        'retries' => 3,
-        'max_tokens' => 4096,
+        'provider' => 'anthropic',
+        'model' => 'claude-3-5-sonnet-latest',
+        'api_key' => env('ANTHROPIC_API_KEY'),
     ],
 
     'locale_names' => [
@@ -304,10 +354,15 @@ If you're currently using JSON files for your translations, we recommend migrati
 
 ## AI Service
 
-This package supports both OpenAI's GPT models and Anthropic's Claude for translations, each with its own strengths:
+> **Note**: We recommend Anthropic's Claude models for superior translation quality.
 
-- OpenAI
-- Anthropic
+## Recent Updates (March 2025)
+
+We've made significant improvements to the Laravel AI Translator:
+
+- ✅ Enhanced XML and AI response parsing system for more reliable translations
+- ✅ Optimized batch translation capabilities for processing multiple items simultaneously
+- ✅ Added streaming support for real-time translation progress monitoring and feedback
 
 ## TODO List
 
@@ -315,11 +370,13 @@ We're constantly working to improve Laravel AI Translator. Here are some feature
 
 - [ ] Implement strict validation for translations:
     - Verify that variables are correctly preserved in translated strings
-    - Ensure placeholders and Laravel-specific syntax are maintained
+    - Ensure placeholders and Laravel-specific syntax are maintained 
     - Check for consistency in pluralization rules across translations
 - [ ] Write test code to ensure reliability and catch potential issues
 - [ ] Implement functionality to maintain the array structure of strings during translation
 - [ ] Expand support for other LLMs (such as Gemini)
+- [ ] Add context from previous translations:
+    - Use previously translated strings as reference for consistency
 
 If you'd like to contribute to any of these tasks, please feel free to submit a pull request!
 

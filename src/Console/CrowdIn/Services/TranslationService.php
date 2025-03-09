@@ -123,21 +123,6 @@ class TranslationService
             $allTranslations = $this->fileService->getAllLanguageTranslations($file->getId(), $targetLanguage['id']);
             $approvals = $this->fileService->getApprovals($file->getId(), $targetLanguage['id']);
 
-            // 디버깅: 파일 정보 로깅
-            \Log::info("Processing file", [
-                'file_name' => $file->getName(),
-                'file_id' => $file->getId(),
-                'all_strings_count' => $allStrings->count(),
-                'all_translations_count' => $allTranslations->count(),
-                'approvals_count' => $approvals->count(),
-                'strings' => $allStrings->map(fn($s) => [
-                    'id' => $s->getId(),
-                    'identifier' => $s->getIdentifier(),
-                    'text' => $s->getText(),
-                    'is_hidden' => $s->isHidden()
-                ])->toArray()
-            ]);
-
             // Get reference language translations
             $referenceApprovals = $this->getReferenceApprovals($file, $allStrings);
 
@@ -221,48 +206,22 @@ class TranslationService
     protected function filterUntranslatedStrings(Collection $allStrings, Collection $approvals, Collection $allTranslations): Collection
     {
         $filteredStrings = $allStrings->filter(function (SourceString $sourceString) use ($approvals, $allTranslations) {
-            // 디버깅: 각 문자열 필터링 과정 로깅
-            $debug = [
-                'string_id' => $sourceString->getId(),
-                'identifier' => $sourceString->getIdentifier(),
-                'text' => $sourceString->getText(),
-                'is_hidden' => $sourceString->isHidden()
-            ];
-
             if ($sourceString->isHidden()) {
-                $debug['reason'] = 'hidden';
-                \Log::info("String filtered out", $debug);
                 return false;
             }
 
             $approved = $approvals->filter(fn(StringTranslationApproval $ap) => $ap->getStringId() == $sourceString->getId());
-            $debug['has_approval'] = $approved->count() > 0;
 
             if ($approved->count() > 0) {
                 $translation = $allTranslations->filter(fn(LanguageTranslation $t) => $t->getTranslationId() == $approved->first()->getTranslationId())->first();
-                $debug['has_translation'] = $translation !== null;
 
                 if ($translation) {
-                    $debug['reason'] = 'has_approved_translation';
-                    \Log::info("String filtered out", $debug);
                     return false;
                 }
             }
 
-            \Log::info("String needs translation", $debug);
             return true;
         });
-
-        // 디버깅: 최종 필터링 결과 로깅
-        \Log::info("Filtering results", [
-            'total_strings' => $allStrings->count(),
-            'filtered_strings' => $filteredStrings->count(),
-            'filtered_items' => $filteredStrings->map(fn($s) => [
-                'id' => $s->getId(),
-                'identifier' => $s->getIdentifier(),
-                'text' => $s->getText()
-            ])->toArray()
-        ]);
 
         return $filteredStrings->map(function (SourceString $sourceString) {
             $data = $sourceString->getData();
@@ -416,16 +375,6 @@ class TranslationService
             if ($result['state'] === 'fulfilled') {
                 $response = json_decode($result['value']->getBody(), true);
                 $existingTranslations = collect($response['data'] ?? []);
-
-                // 디버깅을 위한 로깅
-                \Log::debug("Checking duplicates for key: {$key}", [
-                    'new_translation' => trim($item->translated),
-                    'existing_translations' => $existingTranslations->map(fn($t) => [
-                        'text' => trim($t['data']['text']),
-                        'user_id' => $t['data']['user']['id'],
-                        'created_at' => $t['data']['createdAt']
-                    ])->toArray()
-                ]);
 
                 // 중복 체크 (trim 적용)
                 $duplicate = $existingTranslations->first(function ($t) use ($item) {

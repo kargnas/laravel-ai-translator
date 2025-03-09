@@ -36,11 +36,8 @@ class TranslationContextProvider
         $sourceLocaleDir = $this->getLanguageDirectory($langDirectory, $sourceLocale);
         $targetLocaleDir = $this->getLanguageDirectory($langDirectory, $targetLocale);
 
-        \Log::debug("TranslationContext: 경로 구성 - 소스: {$sourceLocaleDir}, 타겟: {$targetLocaleDir}");
-
         // 소스 디렉토리가 없으면 빈 배열 반환
         if (!is_dir($sourceLocaleDir)) {
-            \Log::warning("TranslationContext: 소스 디렉토리가 없음: {$sourceLocaleDir}");
             return [];
         }
 
@@ -54,11 +51,8 @@ class TranslationContextProvider
 
         // 파일이 없는 경우 빈 배열 반환
         if (empty($sourceFiles)) {
-            \Log::debug("TranslationContext: 소스 디렉토리에 PHP 파일이 없음: {$sourceLocaleDir}");
             return [];
         }
-
-        \Log::debug("TranslationContext: {$sourceLocaleDir}에서 " . count($sourceFiles) . "개의 PHP 파일 발견");
 
         // 유사한 이름의 파일을 먼저 처리하여 컨텍스트 관련성 향상
         usort($sourceFiles, function ($a, $b) use ($currentFileName) {
@@ -75,7 +69,6 @@ class TranslationContextProvider
 
             // 최대 컨텍스트 항목 수를 초과하면 중단
             if ($totalContextItems >= $maxContextItems) {
-                \Log::debug("TranslationContext: 최대 항목 수({$maxContextItems})에 도달하여 중단");
                 break;
             }
 
@@ -90,7 +83,6 @@ class TranslationContextProvider
 
                 // 소스 파일이 비어있으면 건너뛰기
                 if (empty($sourceStrings)) {
-                    \Log::debug("TranslationContext: 소스 파일이 비어있음: " . basename($sourceFile));
                     continue;
                 }
 
@@ -99,8 +91,6 @@ class TranslationContextProvider
                 if ($hasTargetFile) {
                     $targetTransformer = new PHPLangTransformer($targetFile);
                     $targetStrings = $targetTransformer->flatten();
-                } else {
-                    \Log::debug("TranslationContext: 타겟 파일 없음, 소스만 사용: {$targetFile}");
                 }
 
                 // 파일당 최대 항목 수 제한
@@ -108,7 +98,6 @@ class TranslationContextProvider
 
                 // 긴 파일의 경우 우선순위가 높은 항목만 선택
                 if (count($sourceStrings) > $maxPerFile) {
-                    \Log::debug("TranslationContext: " . basename($sourceFile) . " - 항목 제한 적용: " . count($sourceStrings) . " → {$maxPerFile}");
                     if ($hasTargetFile && !empty($targetStrings)) {
                         // 타겟이 있는 경우 소스와 타겟 모두 우선순위 적용
                         $prioritizedItems = $this->getPrioritizedStrings($sourceStrings, $targetStrings, $maxPerFile);
@@ -147,17 +136,13 @@ class TranslationContextProvider
                     $context[$rootKey] = $fileContext;
                     $totalContextItems += count($fileContext);
                     $processedFiles++;
-
-                    \Log::debug("TranslationContext: 컨텍스트 추가 - {$rootKey}: " . count($fileContext) . "개 항목");
                 }
             } catch (\Exception $e) {
                 // 문제가 있는 파일 건너뛰기
-                \Log::warning("TranslationContext: 파일 처리 오류 - " . basename($sourceFile) . ": " . $e->getMessage());
                 continue;
             }
         }
 
-        \Log::debug("TranslationContext: 컨텍스트 수집 완료 - {$processedFiles}개 파일, {$totalContextItems}개 항목");
         return $context;
     }
 

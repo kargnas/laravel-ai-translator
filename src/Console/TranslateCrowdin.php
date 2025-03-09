@@ -29,8 +29,8 @@ class TranslateCrowdin extends Command
                             {--project= : Crowdin project ID}
                             {--source-language= : Source language code}
                             {--target-language= : Target language code}
-                            {--chunk-size=30 : Chunk size for translation}
-                            {--max-context-items=100 : Maximum number of context items}
+                            {--chunk-size=50 : Chunk size for translation}
+                            {--max-context-items=10000 : Maximum number of context items}
                             {--show-prompt : Show AI prompts during translation}';
 
     protected $description = 'Translate strings in Crowdin using AI technology';

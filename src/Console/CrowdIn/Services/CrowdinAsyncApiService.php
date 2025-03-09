@@ -125,8 +125,6 @@ class CrowdinAsyncApiService
         $results = [];
 
         foreach ($chunks as $index => $chunk) {
-            \Log::debug("Processing chunk " . ($index + 1) . "/" . count($chunks));
-
             try {
                 $response = $this->client->post(
                     "projects/{$this->projectService->getProjectId()}/translations",
@@ -142,7 +140,6 @@ class CrowdinAsyncApiService
                 );
 
                 $results = array_merge($results, array_fill(0, count($chunk), true));
-                \Log::debug("Successfully processed chunk " . ($index + 1));
             } catch (\Exception $e) {
                 $errorBody = json_decode($e->getResponse()->getBody(), true);
 
@@ -151,10 +148,6 @@ class CrowdinAsyncApiService
                     isset($errorBody['errors']) &&
                     str_contains($errorBody['errors'][0]['error']['errors'][0]['message'] ?? '', 'identical translation')
                 ) {
-                    \Log::info("Skipping identical translation", [
-                        'chunk' => $chunk,
-                        'error' => $errorBody['errors']
-                    ]);
                     $results = array_merge($results, array_fill(0, count($chunk), true));
                     continue;
                 }

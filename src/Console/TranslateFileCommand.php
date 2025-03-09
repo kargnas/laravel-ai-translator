@@ -88,8 +88,6 @@ class TranslateFileCommand extends Command
             config(['ai-translator.ai.use_extended_thinking' => false]);
             config(['ai-translator.ai.disable_stream' => false]);
 
-            \Log::info("TranslateFileCommand: Starting translation with source language = {$sourceLanguage}, target language = {$targetLanguage}, additional rules = " . json_encode($rules));
-
             // 전역 번역 컨텍스트 가져오기
             $contextProvider = new TranslationContextProvider();
             $maxContextItems = (int) $this->option('max-context-items') ?: 100;

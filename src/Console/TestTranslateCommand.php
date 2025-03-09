@@ -108,8 +108,6 @@ class TestTranslateCommand extends Command
             }
         };
 
-        \Log::info("TestTranslateCommand: Starting translation with source language = {$sourceLanguage}, target language = {$targetLanguage}, additional rules = " . json_encode($rulesList));
-
         // Called when a translation item is completed
         $onTranslated = function (LocalizedString $item, string $status, array $translatedItems) use ($text) {
             // 원본 텍스트 가져오기

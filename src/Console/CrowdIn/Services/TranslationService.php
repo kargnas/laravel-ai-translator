@@ -12,21 +12,30 @@ use CrowdinApiClient\Model\SourceString;
 use CrowdinApiClient\Model\LanguageTranslation;
 use CrowdinApiClient\Model\StringTranslation;
 use CrowdinApiClient\Model\StringTranslationApproval;
+use GuzzleHttp\Promise as GuzzlePromise;
+use GuzzleHttp\Pool;
+use React\Promise\Promise;
+use function React\Async\async;
+use function React\Async\await;
+use function React\Promise\all;
 
 class TranslationService
 {
     protected ProjectService $projectService;
     protected LanguageService $languageService;
     protected FileService $fileService;
+    protected CrowdinAsyncApiService $asyncApiService;
     protected Command $command;
     protected int $chunkSize;
     protected int $maxContextItems;
     protected bool $showPrompt;
+    protected Collection $untranslatedStrings;
 
     public function __construct(
         ProjectService $projectService,
         LanguageService $languageService,
         FileService $fileService,
+        CrowdinAsyncApiService $asyncApiService,
         Command $command,
         int $chunkSize = 30,
         int $maxContextItems = 100,
@@ -35,6 +44,7 @@ class TranslationService
         $this->projectService = $projectService;
         $this->languageService = $languageService;
         $this->fileService = $fileService;
+        $this->asyncApiService = $asyncApiService;
         $this->command = $command;
         $this->chunkSize = $chunkSize;
         $this->maxContextItems = $maxContextItems;
@@ -112,6 +122,21 @@ class TranslationService
             $allStrings = $this->fileService->getAllSourceString($file->getId());
             $allTranslations = $this->fileService->getAllLanguageTranslations($file->getId(), $targetLanguage['id']);
             $approvals = $this->fileService->getApprovals($file->getId(), $targetLanguage['id']);
+
+            // 디버깅: 파일 정보 로깅
+            \Log::info("Processing file", [
+                'file_name' => $file->getName(),
+                'file_id' => $file->getId(),
+                'all_strings_count' => $allStrings->count(),
+                'all_translations_count' => $allTranslations->count(),
+                'approvals_count' => $approvals->count(),
+                'strings' => $allStrings->map(fn($s) => [
+                    'id' => $s->getId(),
+                    'identifier' => $s->getIdentifier(),
+                    'text' => $s->getText(),
+                    'is_hidden' => $s->isHidden()
+                ])->toArray()
+            ]);
 
             // Get reference language translations
             $referenceApprovals = $this->getReferenceApprovals($file, $allStrings);
@@ -195,27 +220,53 @@ class TranslationService
      */
     protected function filterUntranslatedStrings(Collection $allStrings, Collection $approvals, Collection $allTranslations): Collection
     {
-        return $allStrings
-            ->filter(function (SourceString $sourceString) use ($approvals, $allTranslations) {
-                if (!$sourceString->getIdentifier() || $sourceString->isHidden()) {
+        $filteredStrings = $allStrings->filter(function (SourceString $sourceString) use ($approvals, $allTranslations) {
+            // 디버깅: 각 문자열 필터링 과정 로깅
+            $debug = [
+                'string_id' => $sourceString->getId(),
+                'identifier' => $sourceString->getIdentifier(),
+                'text' => $sourceString->getText(),
+                'is_hidden' => $sourceString->isHidden()
+            ];
+
+            if (!$sourceString->getIdentifier() || $sourceString->isHidden()) {
+                $debug['reason'] = !$sourceString->getIdentifier() ? 'no_identifier' : 'hidden';
+                \Log::info("String filtered out", $debug);
+                return false;
+            }
+
+            $approved = $approvals->filter(fn(StringTranslationApproval $ap) => $ap->getStringId() == $sourceString->getId());
+            $debug['has_approval'] = $approved->count() > 0;
+
+            if ($approved->count() > 0) {
+                $translation = $allTranslations->filter(fn(LanguageTranslation $t) => $t->getTranslationId() == $approved->first()->getTranslationId())->first();
+                $debug['has_translation'] = $translation !== null;
+
+                if ($translation) {
+                    $debug['reason'] = 'has_approved_translation';
+                    \Log::info("String filtered out", $debug);
                     return false;
                 }
+            }
 
-                $approved = $approvals->filter(fn(StringTranslationApproval $ap) => $ap->getStringId() == $sourceString->getId());
+            \Log::info("String needs translation", $debug);
+            return true;
+        });
 
-                if ($approved->count() > 0) {
-                    $translation = $allTranslations->filter(fn(LanguageTranslation $t) => $t->getTranslationId() == $approved->first()->getTranslationId())->first();
+        // 디버깅: 최종 필터링 결과 로깅
+        \Log::info("Filtering results", [
+            'total_strings' => $allStrings->count(),
+            'filtered_strings' => $filteredStrings->count(),
+            'filtered_items' => $filteredStrings->map(fn($s) => [
+                'id' => $s->getId(),
+                'identifier' => $s->getIdentifier(),
+                'text' => $s->getText()
+            ])->toArray()
+        ]);
 
-                    if ($translation) {
-                        return false; // Skip if already approved translation exists
-                    }
-                }
-
-                return true;
-            })
-            ->map(function (SourceString $sourceString) {
-                return $sourceString->getData();
-            });
+        return $filteredStrings->map(function (SourceString $sourceString) {
+            return $sourceString->getData();
+        });
     }
 
     /**
@@ -273,8 +324,8 @@ class TranslationService
                     ],
                 ];
             })->toArray(),
-            sourceLanguage: $this->projectService->getSelectedProject()['sourceLanguage']['name'],
-            targetLanguage: $targetLanguage['name'],
+            sourceLanguage: $this->languageService->getSourceLocale(),
+            targetLanguage: $targetLanguage['id'],
             additionalRules: [],
             globalTranslationContext: $globalContext
         );
@@ -323,82 +374,243 @@ class TranslationService
     }
 
     /**
+     * Check for duplicate translations
+     */
+    private function checkDuplicateTranslations(array $translations, array $targetLanguage): array
+    {
+        $promises = [];
+        $duplicates = [];
+        $nonDuplicates = [];
+
+        // 모든 번역에 대해 동시에 중복 체크
+        foreach ($translations as $item) {
+            $targetString = $this->untranslatedStrings->where('identifier', $item->key)->first();
+            if (!$targetString) {
+                continue;
+            }
+
+            $promises[$item->key] = $this->asyncApiService->getClient()->getAsync(
+                "projects/{$this->projectService->getProjectId()}/translations",
+                [
+                    'query' => [
+                        'stringId' => $targetString['id'],
+                        'languageId' => $targetLanguage['id'],
+                        'limit' => 100
+                    ]
+                ]
+            );
+        }
+
+        // 병렬로 실행
+        $results = \GuzzleHttp\Promise\Utils::settle($promises)->wait();
+
+        // 결과 처리
+        foreach ($results as $key => $result) {
+            $item = collect($translations)->firstWhere('key', $key);
+
+            if ($result['state'] === 'fulfilled') {
+                $response = json_decode($result['value']->getBody(), true);
+                $existingTranslations = collect($response['data'] ?? []);
+
+                // 디버깅을 위한 로깅
+                \Log::debug("Checking duplicates for key: {$key}", [
+                    'new_translation' => trim($item->translated),
+                    'existing_translations' => $existingTranslations->map(fn($t) => [
+                        'text' => trim($t['data']['text']),
+                        'user_id' => $t['data']['user']['id'],
+                        'created_at' => $t['data']['createdAt']
+                    ])->toArray()
+                ]);
+
+                // 중복 체크 (trim 적용)
+                $duplicate = $existingTranslations->first(function ($t) use ($item) {
+                    return trim($t['data']['text']) === trim($item->translated);
+                });
+
+                if ($duplicate) {
+                    $duplicates[] = $item;
+                    $this->command->line("    ↳ Skipping: {$item->key} (Duplicate found: {$duplicate['data']['text']}, User: {$duplicate['data']['user']['id']})");
+                } else {
+                    $nonDuplicates[] = $item;
+                    $this->command->line("    ✓ New translation: {$item->key} → {$item->translated}");
+                }
+            } else {
+                // API 호출 실패 시 중복이 아닌 것으로 처리
+                $nonDuplicates[] = $item;
+                \Log::warning("Failed to check duplicates for {$key}", [
+                    'error' => $result['reason']->getMessage()
+                ]);
+            }
+        }
+
+        return [
+            'duplicates' => $duplicates,
+            'nonDuplicates' => $nonDuplicates,
+            'stringMap' => collect($translations)->mapWithKeys(function ($item) {
+                $targetString = $this->untranslatedStrings->where('identifier', $item->key)->first();
+                return [$item->key => $targetString['id'] ?? null];
+            })->filter()->toArray()
+        ];
+    }
+
+    /**
+     * Delete existing translations for current user
+     */
+    private function deleteExistingTranslations(array $translations, array $targetLanguage, array $stringMap): array
+    {
+        $currentUserId = $this->asyncApiService->getCurrentUserId();
+        $promises = [];
+        $deletionPromises = [];
+
+        // 1. 먼저 각 번역의 기존 버전들을 가져옴
+        foreach ($translations as $item) {
+            if (!isset($stringMap[$item->key])) {
+                continue;
+            }
+
+            $promises[$item->key] = $this->asyncApiService->getClient()->getAsync(
+                "projects/{$this->projectService->getProjectId()}/translations",
+                [
+                    'query' => [
+                        'stringId' => $stringMap[$item->key],
+                        'languageId' => $targetLanguage['id'],
+                        'limit' => 100
+                    ]
+                ]
+            );
+        }
+
+        $results = \GuzzleHttp\Promise\Utils::settle($promises)->wait();
+
+        // 2. 현재 사용자의 번역들을 찾아서 삭제 요청 준비
+        foreach ($results as $key => $result) {
+            if ($result['state'] === 'fulfilled') {
+                $response = json_decode($result['value']->getBody(), true);
+                $userTranslations = collect($response['data'] ?? [])
+                    ->filter(fn($t) => $t['data']['user']['id'] === $currentUserId);
+
+                foreach ($userTranslations as $translation) {
+                    $deletionPromises[] = $this->asyncApiService->getClient()->deleteAsync(
+                        "projects/{$this->projectService->getProjectId()}/translations/{$translation['data']['id']}"
+                    );
+                }
+
+                if ($userTranslations->isNotEmpty()) {
+                    $this->command->line("    ↳ Queued {$userTranslations->count()} translation(s) for deletion: {$key}");
+                }
+            }
+        }
+
+        // 3. 모든 삭제 요청을 병렬로 실행
+        if (!empty($deletionPromises)) {
+            $deletionResults = \GuzzleHttp\Promise\Utils::settle($deletionPromises)->wait();
+            $successCount = count(array_filter($deletionResults, fn($r) => $r['state'] === 'fulfilled'));
+            $this->command->line("    ✓ Successfully deleted {$successCount} translation(s)");
+        }
+
+        return $translations;
+    }
+
+    /**
+     * Add new translations in batches
+     */
+    private function addNewTranslations(array $translations, array $targetLanguage, array $stringMap): array
+    {
+        $validTranslations = array_filter($translations, fn($item) => isset($stringMap[$item->key]));
+        $chunks = array_chunk($validTranslations, 10);
+        $results = [];
+        $promises = [];
+
+        foreach ($validTranslations as $item) {
+            $promises[$item->key] = $this->asyncApiService->getClient()->postAsync(
+                "projects/{$this->projectService->getProjectId()}/translations",
+                [
+                    'json' => [
+                        'stringId' => $stringMap[$item->key],
+                        'languageId' => $targetLanguage['id'],
+                        'text' => $item->translated
+                    ]
+                ]
+            );
+        }
+
+        // 병렬로 실행
+        $promiseResults = \GuzzleHttp\Promise\Utils::settle($promises)->wait();
+
+        foreach ($promiseResults as $key => $result) {
+            if ($result['state'] === 'fulfilled') {
+                $this->command->line("    ✓ Added: {$key}");
+                $results[] = true;
+            } else {
+                $error = $result['reason']->getMessage();
+                if (str_contains($error, 'identical translation')) {
+                    $this->command->line("    ↳ Skipping: {$key} (Duplicate)");
+                    $results[] = true;
+                } else {
+                    $this->command->error("    ✗ Failed: {$key} - {$error}");
+                    $results[] = false;
+                }
+            }
+        }
+
+        return $results;
+    }
+
+    /**
      * Process translation results
      */
     protected function processTranslationResults(array $translated, Collection $untranslatedStrings, array $targetLanguage): void
     {
+        $this->untranslatedStrings = $untranslatedStrings;
         $this->command->newLine();
-        $this->command->info("🔄 Saving translations to Crowdin...");
+        $this->command->info("🔄 Processing translations...");
 
-        foreach ($translated as $item) {
-            $targetString = $untranslatedStrings->where('identifier', $item->key)->first();
-
-            if (!$targetString) {
-                $this->command->line("    ↳ Skipping: {$item->key} (Not found)");
-                continue;
-            }
-
-            $existsTranslations = $this->fileService->getAllTranslations($targetString['id'], $targetLanguage['id']);
-            $existsTranslations = $existsTranslations->sortByDesc(fn(StringTranslation $t) => Carbon::make($t->getDataProperty('created_at')))->values();
-
-            // Skip if identical translation exists
-            if ($existsTranslations->filter(fn(StringTranslation $t) => $t->getText() === $item->translated)->isNotEmpty()) {
-                $this->command->line("    ↳ Skipping: {$item->key} (Duplicate)");
-                continue;
-            }
-
-            // Delete existing translations by the same user
-            $myTransitions = $existsTranslations->filter(fn(StringTranslation $t) => $t->getUser()['id'] === 16501205);
-
-            if ($myTransitions->count() > 0) {
-                $this->fileService->deleteTranslation($myTransitions->first()->getId());
-            }
-
-            // Add new translation
-            $this->command->info("    ✓ Added: {$item->key} => {$item->translated}");
-
-            $this->fileService->addTranslation($targetString['id'], $targetLanguage['id'], $item->translated);
-        }
-
-        $this->command->info("✓ All translations have been successfully saved to Crowdin");
-    }
-
-    protected function processTranslationResult(string $key, string $translatedText, int &$translatedCount, int $totalCount): void
-    {
         try {
-            // Add translation to Crowdin
-            $this->fileService->addTranslation(
-                $this->currentStringId,
-                $this->currentLanguageId,
-                $translatedText
-            );
+            // 1. 중복 체크
+            $this->command->line("    Checking for duplicates...");
+            $checkResult = $this->checkDuplicateTranslations($translated, $targetLanguage);
+            $duplicateCount = count($checkResult['duplicates']);
 
-            // Display success message with green checkmark
-            $this->command->line("  ⟳ {$key} → {$translatedText} ({$translatedCount}/{$totalCount})");
-            $this->command->info("    ✓ Successfully saved to Crowdin");
-            $translatedCount++;
-        } catch (\Exception $e) {
-            // Display error message with red X
-            $this->command->error("    ✗ Failed to save to Crowdin: {$e->getMessage()}");
-            $this->command->warn("    Retrying in 5 seconds...");
-
-            // Wait 5 seconds before retry
-            sleep(5);
-
-            try {
-                // Retry adding translation
-                $this->fileService->addTranslation(
-                    $this->currentStringId,
-                    $this->currentLanguageId,
-                    $translatedText
-                );
-
-                // Display retry success message
-                $this->command->info("    ✓ Successfully saved to Crowdin after retry");
-                $translatedCount++;
-            } catch (\Exception $retryException) {
-                $this->command->error("    ✗ Failed to save to Crowdin after retry: {$retryException->getMessage()}");
+            if (empty($checkResult['nonDuplicates'])) {
+                $this->command->line("    ℹ All translations are duplicates");
+                return;
             }
+
+            // 2. 기존 번역 삭제
+            $this->command->line("    Removing existing translations...");
+            $this->deleteExistingTranslations($checkResult['nonDuplicates'], $targetLanguage, $checkResult['stringMap']);
+
+            // 3. 새 번역 추가
+            $this->command->line("    Adding new translations...");
+            $addResults = $this->addNewTranslations($checkResult['nonDuplicates'], $targetLanguage, $checkResult['stringMap']);
+            $successCount = count(array_filter($addResults));
+
+            // 4. 결과 요약
+            $this->command->newLine();
+            $this->command->info("✓ Translation Summary:");
+            $this->command->line("    - Total processed: " . count($translated));
+            $this->command->line("    - Duplicates skipped: {$duplicateCount}");
+            $this->command->line("    - Successfully added: {$successCount}");
+            $this->command->line("    - Failed: " . (count($checkResult['nonDuplicates']) - $successCount));
+
+            \Log::info("Translation process completed", [
+                'total' => count($translated),
+                'duplicates' => $duplicateCount,
+                'success' => $successCount,
+                'failed' => (count($checkResult['nonDuplicates']) - $successCount)
+            ]);
+        } catch (\Exception $e) {
+            $errorMessage = "Translation processing failed";
+            $errorDetails = $e->getMessage();
+
+            \Log::error($errorMessage, [
+                'error' => $errorDetails,
+                'file' => __FILE__,
+                'line' => __LINE__,
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            throw new \RuntimeException("{$errorMessage}\nDetails: {$errorDetails}");
         }
     }
 }

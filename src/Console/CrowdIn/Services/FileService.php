@@ -242,4 +242,9 @@ class FileService
 
         return $translations;
     }
+
+    public function getApiClient(): CrowdinApiService
+    {
+        return $this->apiService;
+    }
 }

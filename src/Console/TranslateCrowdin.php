@@ -8,6 +8,7 @@ use Kargnas\LaravelAiTranslator\Console\CrowdIn\Services\ProjectService;
 use Kargnas\LaravelAiTranslator\Console\CrowdIn\Services\LanguageService;
 use Kargnas\LaravelAiTranslator\Console\CrowdIn\Services\FileService;
 use Kargnas\LaravelAiTranslator\Console\CrowdIn\Services\TranslationService;
+use Kargnas\LaravelAiTranslator\Console\CrowdIn\Services\CrowdinAsyncApiService;
 use Kargnas\LaravelAiTranslator\Console\CrowdIn\Traits\ConsoleOutputTrait;
 use Kargnas\LaravelAiTranslator\Console\CrowdIn\Traits\TokenUsageTrait;
 
@@ -39,6 +40,7 @@ class TranslateCrowdin extends Command
     protected LanguageService $languageService;
     protected FileService $fileService;
     protected TranslationService $translationService;
+    protected CrowdinAsyncApiService $asyncApiService;
 
     /**
      * Main execution method
@@ -48,31 +50,31 @@ class TranslateCrowdin extends Command
         try {
             // Get option values
             $token = $this->option('token') ?: env('CROWDIN_API_KEY');
-        $organization = $this->option('organization');
+            $organization = $this->option('organization');
 
             // Validate and get token
-        if (empty($token)) {
+            if (empty($token)) {
                 $this->warn("No API token provided. You can:");
                 $this->line("1. Set CROWDIN_API_KEY in your .env file");
                 $this->line("2. Use --token option");
                 $this->line("3. Enter it interactively");
-            $token = $this->secret('Enter your Crowdin API token');
+                $token = $this->secret('Enter your Crowdin API token');
 
                 if (empty($token)) {
                     throw new \RuntimeException("API token is required to connect to Crowdin.");
-        }
-        }
+                }
+            }
 
             // Display header
-        $this->displayHeader();
+            $this->displayHeader();
 
             // Initialize services
             $this->initializeServices($token, $organization);
 
             // Select project
             if (!$this->projectService->selectProject($this->option('project'))) {
-            return 1;
-        }
+                return 1;
+            }
 
             // Select languages
             if (
@@ -81,8 +83,8 @@ class TranslateCrowdin extends Command
                     $this->option('target-language')
                 )
             ) {
-            return 1;
-        }
+                return 1;
+            }
 
             // Select reference languages
             $this->languageService->selectReferenceLanguages();
@@ -90,7 +92,7 @@ class TranslateCrowdin extends Command
             // Translate
             $this->translationService->translate();
 
-        return 0;
+            return 0;
         } catch (\Exception $e) {
             $this->displayError($e);
             return 1;
@@ -110,10 +112,12 @@ class TranslateCrowdin extends Command
         $this->projectService = new ProjectService($this->apiService, $this);
         $this->languageService = new LanguageService($this->projectService, $this);
         $this->fileService = new FileService($this->apiService, $this->projectService, $this);
+        $this->asyncApiService = new CrowdinAsyncApiService($this->apiService, $this->projectService, $this);
         $this->translationService = new TranslationService(
             $this->projectService,
             $this->languageService,
             $this->fileService,
+            $this->asyncApiService,
             $this,
             (int) $this->option('chunk-size'),
             (int) $this->option('max-context-items'),

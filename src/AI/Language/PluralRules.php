@@ -6,12 +6,8 @@ use Kargnas\LaravelAiTranslator\Utility;
 
 class PluralRules
 {
-    public static function getAdditionalRulesPlural(Language|string $language): array
+    public static function getAdditionalRulesPlural(Language $language): array
     {
-        if (is_string($language)) {
-            $language = Language::fromCode($language);
-        }
-
         $rules = [];
 
         // Skip plural rules if language doesn't have plural forms

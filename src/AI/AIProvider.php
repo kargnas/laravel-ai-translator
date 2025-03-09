@@ -67,9 +67,13 @@ class AIProvider
             return [$newKey => $value];
         })->toArray();
 
-        // 언어 객체 생성
-        $this->sourceLanguageObj = Language::fromCode($sourceLanguage);
-        $this->targetLanguageObj = Language::fromCode($targetLanguage);
+        try {
+            // 언어 객체 생성
+            $this->sourceLanguageObj = Language::fromCode($sourceLanguage);
+            $this->targetLanguageObj = Language::fromCode($targetLanguage);
+        } catch (\InvalidArgumentException $e) {
+            throw new \InvalidArgumentException("Failed to initialize language: " . $e->getMessage());
+        }
 
         // Get additional rules from LanguageRules
         $this->additionalRules = array_merge(

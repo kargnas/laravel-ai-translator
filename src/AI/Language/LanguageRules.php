@@ -103,12 +103,8 @@ class LanguageRules
         ],
     ];
 
-    public static function getAdditionalRules(Language|string $language): array
+    public static function getAdditionalRules(Language $language): array
     {
-        if (is_string($language)) {
-            $language = Language::fromCode($language);
-        }
-
         $rules = [];
 
         // Get plural rules first

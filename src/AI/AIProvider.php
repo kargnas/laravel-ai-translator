@@ -2,6 +2,7 @@
 
 namespace Kargnas\LaravelAiTranslator\AI;
 
+use Illuminate\Support\Facades\Log;
 use Kargnas\LaravelAiTranslator\AI\Clients\AnthropicClient;
 use Kargnas\LaravelAiTranslator\AI\Clients\OpenAIClient;
 use Kargnas\LaravelAiTranslator\AI\Language\Language;
@@ -86,8 +87,8 @@ class AIProvider
         $this->outputTokens = 0;
         $this->totalTokens = 0;
 
-        \Log::info("AIProvider initiated: Source language = {$this->sourceLanguageObj->name} ({$this->sourceLanguageObj->code}), Target language = {$this->targetLanguageObj->name} ({$this->targetLanguageObj->code})");
-        \Log::info("AIProvider additional rules: " . json_encode($this->additionalRules));
+        Log::info("AIProvider initiated: Source language = {$this->sourceLanguageObj->name} ({$this->sourceLanguageObj->code}), Target language = {$this->targetLanguageObj->name} ({$this->targetLanguageObj->code})");
+        Log::info("AIProvider additional rules: " . json_encode($this->additionalRules));
     }
 
     protected function getFilePrefix(): string
@@ -113,7 +114,7 @@ class AIProvider
 
                 // Output warning log if there is a comment
                 if (!empty($item->comment)) {
-                    \Log::warning("Translation comment for key '{$item->key}': {$item->comment}");
+                    Log::warning("Translation comment for key '{$item->key}': {$item->comment}");
                 }
 
                 break;
@@ -127,12 +128,12 @@ class AIProvider
 
         // Warning for missing keys
         if ($missingKeys->count() > 0) {
-            \Log::warning("Some keys were not translated: {$missingKeys->implode(', ')}");
+            Log::warning("Some keys were not translated: {$missingKeys->implode(', ')}");
         }
 
         // Warning for extra keys
         if ($extraKeys->count() > 0) {
-            \Log::warning("Found unexpected translation keys: {$extraKeys->implode(', ')}");
+            Log::warning("Found unexpected translation keys: {$extraKeys->implode(', ')}");
         }
 
         // After verification is complete, restore original keys
@@ -159,14 +160,14 @@ class AIProvider
                 $contextItemCount += count($items);
             }
 
-            \Log::debug("AIProvider: Using translation context - {$contextFileCount} files, {$contextItemCount} items");
+            Log::debug("AIProvider: Using translation context - {$contextFileCount} files, {$contextItemCount} items");
 
             $translationContext = collect($this->globalTranslationContext)->map(function ($translations, $file) {
                 // Remove .php extension from filename
                 $rootKey = pathinfo($file, PATHINFO_FILENAME);
                 $itemCount = count($translations);
 
-                \Log::debug("AIProvider: Including context file - {$rootKey}: {$itemCount} items");
+                Log::debug("AIProvider: Including context file - {$rootKey}: {$itemCount} items");
 
                 $translationsText = collect($translations)->map(function ($item, $key) use ($rootKey) {
                     $sourceText = $item['source'] ?? '';
@@ -192,9 +193,9 @@ class AIProvider
             })->filter()->implode("\n\n");
 
             $contextLength = strlen($translationContext);
-            \Log::debug("AIProvider: Generated context size - {$contextLength} bytes");
+            Log::debug("AIProvider: Generated context size - {$contextLength} bytes");
         } else {
-            \Log::debug("AIProvider: No translation context available or empty");
+            Log::debug("AIProvider: No translation context available or empty");
         }
 
         $replaces = array_merge($replaces, [
@@ -311,7 +312,7 @@ class AIProvider
 
     /**
      * Set the callback to be called when a prompt is generated
-     * 
+     *
      * @param callable $callback Callback function that receives prompt text and PromptType
      */
     public function setOnPromptGenerated(?callable $callback): self
@@ -329,7 +330,7 @@ class AIProvider
         do {
             try {
                 if ($tried > 1) {
-                    \Log::warning("[{$tried}/{$this->configRetries}] Retrying translation into {$this->targetLanguageObj->name} using {$this->configProvider} with {$this->configModel} model...");
+                    Log::warning("[{$tried}/{$this->configRetries}] Retrying translation into {$this->targetLanguageObj->name} using {$this->configProvider} with {$this->configModel} model...");
                 }
 
                 $translatedObjects = $this->getTranslatedObjects();
@@ -345,9 +346,9 @@ class AIProvider
 
                 return $translatedObjects;
             } catch (VerifyFailedException $e) {
-                \Log::error($e->getMessage());
+                Log::error($e->getMessage());
             } catch (\Exception $e) {
-                \Log::critical("AIProvider: Error during translation", [
+                Log::critical("AIProvider: Error during translation", [
                     'message' => $e->getMessage(),
                     'file' => $e->getFile(),
                     'line' => $e->getLine(),
@@ -356,7 +357,7 @@ class AIProvider
             }
         } while (++$tried <= $this->configRetries);
 
-        \Log::warning("Failed to translate {$this->filename} into {$this->targetLanguageObj->name} after {$this->configRetries} retries.");
+        Log::warning("Failed to translate {$this->filename} into {$this->targetLanguageObj->name} after {$this->configRetries} retries.");
 
         return [];
     }
@@ -459,7 +460,7 @@ class AIProvider
         $responseParser = new AIResponseParser($this->onTranslated, $debugMode);
 
         if ($debugMode) {
-            \Log::debug('AIProvider: Starting translation with Anthropic', [
+            Log::debug('AIProvider: Starting translation with Anthropic', [
                 'model' => $this->configModel,
                 'source_language' => $this->sourceLanguageObj->name,
                 'target_language' => $this->targetLanguageObj->name,
@@ -589,7 +590,7 @@ class AIProvider
                         if ($currentItemCount > $previousItemCount) {
                             $newItems = array_slice($currentItems, $previousItemCount);
                             $translatedItems = $currentItems; // 전체 번역 결과 업데이트
-    
+
                             // 새 번역 항목 각각에 대해 콜백 호출
                             foreach ($newItems as $index => $newItem) {
                                 // Skip already processed keys
@@ -607,7 +608,7 @@ class AIProvider
                                     }
 
                                     if ($debugMode) {
-                                        \Log::debug('AIProvider: Calling onTranslated callback', [
+                                        Log::debug('AIProvider: Calling onTranslated callback', [
                                             'key' => $newItem->key,
                                             'status' => $newItem->translated ? TranslationStatus::COMPLETED : TranslationStatus::STARTED,
                                             'translated_count' => $translatedCount,
@@ -672,7 +673,7 @@ class AIProvider
 
             // 디버깅: 최종 응답 구조 로깅
             if ($debugMode) {
-                \Log::debug("Final response structure", [
+                Log::debug("Final response structure", [
                     'has_usage' => isset($response['usage']),
                     'usage' => $response['usage'] ?? null,
                 ]);
@@ -722,7 +723,7 @@ class AIProvider
         // Process final response
         if (empty($responseParser->getTranslatedItems()) && !empty($responseText)) {
             if ($debugMode) {
-                \Log::debug('AIProvider: No items parsed from response, trying final parse', [
+                Log::debug('AIProvider: No items parsed from response, trying final parse', [
                     'response_length' => strlen($responseText),
                     'detected_xml_length' => strlen($detectedXml),
                     'response_text' => $responseText,
@@ -755,7 +756,7 @@ class AIProvider
 
     /**
      * 토큰 사용량 정보를 반환합니다.
-     * 
+     *
      * @return array 토큰 사용량 정보
      */
     public function getTokenUsage(): array
@@ -776,7 +777,7 @@ class AIProvider
     {
         $tokenInfo = $this->getTokenUsage();
 
-        \Log::info('AIProvider: Token Usage Information', [
+        Log::info('AIProvider: Token Usage Information', [
             'input_tokens' => $tokenInfo['input_tokens'],
             'output_tokens' => $tokenInfo['output_tokens'],
             'cache_creation_input_tokens' => $tokenInfo['cache_creation_input_tokens'],
@@ -787,7 +788,7 @@ class AIProvider
 
     /**
      * API 응답 데이터에서 토큰 사용량 정보를 추적합니다.
-     * 
+     *
      * @param array $data API 응답 데이터
      */
     protected function trackTokenUsage(array $data): void
@@ -796,7 +797,7 @@ class AIProvider
         if (config('app.debug', false) || config('ai-translator.debug', false)) {
             $eventType = $data['type'] ?? 'unknown';
             if (in_array($eventType, ['message_start', 'message_stop', 'message_delta'])) {
-                \Log::debug("Anthropic API Event: {$eventType}", json_decode(json_encode($data), true));
+                Log::debug("Anthropic API Event: {$eventType}", json_decode(json_encode($data), true));
             }
         }
 
@@ -846,10 +847,9 @@ class AIProvider
             }
         }
     }
-
     /**
      * usage 객체에서 토큰 정보를 추출합니다.
-     * 
+     *
      * @param array $usage 토큰 사용량 정보
      */
     protected function extractTokensFromUsage(array $usage): void
@@ -873,4 +873,3 @@ class AIProvider
         return $this->configModel;
     }
 }
-

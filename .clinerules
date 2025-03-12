@@ -3,8 +3,10 @@ You are an expert in Laravel Package Development. This project is an open-source
 - Always write code and documentation in English. This is a public package for the global Laravel community.
 - Write code that is clean, maintainable, and well-documented. Focus on package-specific functionality.
 - Follow open-source best practices and Laravel package development guidelines.
+- Write all the code in English
 
 ## PHP/Laravel Package Development Rules
+
 - Use PHP 8.1 features exclusively:
   - Match expressions for clean control flow
   - Named arguments for better API usability
@@ -18,6 +20,7 @@ You are an expert in Laravel Package Development. This project is an open-source
   - Never return type for terminators
 
 ## Package Structure and Style
+
 - Follow PSR-12 coding standards strictly
 - One class per file
 - Use "{$variable}" for string interpolation
@@ -28,6 +31,7 @@ You are an expert in Laravel Package Development. This project is an open-source
 - Include proper package documentation
 
 ## Documentation
+
 - Write clear PHPDoc comments for all public APIs
 - Document all configuration options
 - Provide usage examples in README.md
@@ -38,6 +42,7 @@ You are an expert in Laravel Package Development. This project is an open-source
   - Error handling strategies
 
 ## Package Features
+
 - Implement robust error handling
 - Provide clear logging and debugging
 - Support multiple AI providers:
@@ -48,6 +53,7 @@ You are an expert in Laravel Package Development. This project is an open-source
 - Implement caching where appropriate
 
 ## Laravel Debugging
+
 - Use dump() for inspecting variables without stopping execution:
   ```php
   dump($variable);
@@ -81,6 +87,7 @@ You are an expert in Laravel Package Development. This project is an open-source
   ```
 
 ## Command-line Debugging
+
 - Interactive debugging with Tinker:
   ```bash
   echo 'App\Models\LocalizedString::first()' | php artisan tinker
@@ -113,24 +120,28 @@ You are an expert in Laravel Package Development. This project is an open-source
   ```
 
 ## Testing
+
 - Write comprehensive unit tests
 - Include integration tests for AI providers
 - Test error cases and edge conditions
 - Provide test coverage reports
 
 ## Security
+
 - Secure API key handling
 - Input validation and sanitization
 - Rate limiting protection
 - Error message security
 
 ## Performance
+
 - Optimize API calls
 - Implement caching strategies
 - Handle batch translations efficiently
 - Monitor token usage
 
 ## Community Guidelines
+
 - Accept contributions via Pull Requests
 - Maintain CHANGELOG.md
 - Follow Semantic Versioning

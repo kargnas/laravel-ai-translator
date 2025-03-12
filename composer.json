@@ -28,6 +28,12 @@
         "illuminate/support": "^8.0|^9.0|^10.0|^11.0|^12.0",
         "openai-php/client": "^0.10.3"
     },
+    "require-dev": {
+        "laravel/pint": "^1.21",
+        "orchestra/testbench": "^8.0|^9.0",
+        "pestphp/pest": "^2.0",
+        "pestphp/pest-plugin-laravel": "^2.0"
+    },
     "suggest": {
         "laravel/framework": "Required for using this package with Laravel"
     },
@@ -36,11 +42,21 @@
             "Kargnas\\LaravelAiTranslator\\": "src"
         }
     },
+    "autoload-dev": {
+        "psr-4": {
+            "Kargnas\\LaravelAiTranslator\\Tests\\": "tests"
+        }
+    },
     "config": {
         "sort-packages": true,
         "allow-plugins": {
-            "php-http/discovery": true
+            "php-http/discovery": true,
+            "pestphp/pest-plugin": true
         }
+    },
+    "scripts": {
+        "test": "pest",
+        "test:coverage": "pest --coverage"
     },
     "extra": {
         "laravel": {

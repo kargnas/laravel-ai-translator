@@ -6,19 +6,19 @@ use Illuminate\Support\Facades\Log;
 
 class XMLParser
 {
-    // 전체 XML 응답 저장
+    // Store full XML response
     private string $fullResponse = '';
 
-    // 파싱된 데이터
+    // Parsed data storage
     private array $parsedData = [];
 
-    // 디버그 모드
+    // Debug mode flag
     private bool $debug = false;
 
-    // 노드 완성시 콜백
+    // Node completion callback
     private $nodeCompleteCallback = null;
 
-    // CDATA 내용 캐시 (완전한 CDATA 추출용)
+    // CDATA content cache (for complete CDATA extraction)
     private string $cdataCache = '';
 
     public function __construct(bool $debug = false)
@@ -27,7 +27,7 @@ class XMLParser
     }
 
     /**
-     * 노드 완료 콜백 설정
+     * Set node completion callback
      */
     public function onNodeComplete(callable $callback): void
     {
@@ -35,7 +35,7 @@ class XMLParser
     }
 
     /**
-     * 파서 상태 초기화
+     * Reset parser state
      */
     public function reset(): void
     {
@@ -45,7 +45,7 @@ class XMLParser
     }
 
     /**
-     * 청크 데이터 추가하고 전체 응답 누적
+     * Add chunk data and accumulate full response
      */
     public function addChunk(string $chunk): void
     {
@@ -53,7 +53,7 @@ class XMLParser
     }
 
     /**
-     * 전체 XML 문자열 파싱 (스트리밍 대신 완전한 문자열 처리)
+     * Parse complete XML string (full string processing instead of streaming)
      */
     public function parse(string $xml): void
     {
@@ -63,14 +63,14 @@ class XMLParser
     }
 
     /**
-     * 전체 응답 처리 (표준 XML 파서 우선 사용)
+     * Process full response (using standard XML parser first)
      */
     private function processFullResponse(): void
     {
-        // XML 응답 정리
+        // Clean up XML response
         $xml = $this->prepareXmlForParsing($this->fullResponse);
 
-        // XML이 비어있거나 불완전하면 건너뛰기
+        // Skip if XML is empty or incomplete
         if (empty($xml)) {
             if ($this->debug) {
                 Log::debug('XMLParser: Empty XML response');
@@ -78,7 +78,7 @@ class XMLParser
             return;
         }
 
-        // 각 <item> 태그를 개별적으로 처리
+        // Process each <item> tag individually
         if (preg_match_all('/<item>(.*?)<\/item>/s', $xml, $matches)) {
             foreach ($matches[1] as $itemContent) {
                 $this->processItem($itemContent);
@@ -87,11 +87,11 @@ class XMLParser
     }
 
     /**
-     * 단일 item 태그 처리
+     * Process single item tag
      */
     private function processItem(string $itemContent): void
     {
-        // key와 trx 추출
+        // Extract key and trx
         if (
             preg_match('/<key>(.*?)<\/key>/s', $itemContent, $keyMatch) &&
             preg_match('/<trx><!\[CDATA\[(.*?)\]\]><\/trx>/s', $itemContent, $trxMatch)
@@ -99,58 +99,74 @@ class XMLParser
             $key = $this->cleanContent($keyMatch[1]);
             $trx = $this->cleanContent($trxMatch[1]);
 
-            // 파싱된 데이터 저장
+            // Extract comment if exists
+            $comment = null;
+            if (preg_match('/<comment><!\[CDATA\[(.*?)\]\]><\/comment>/s', $itemContent, $commentMatch)) {
+                $comment = $this->cleanContent($commentMatch[1]);
+            }
+
+            // Store parsed data
             if (!isset($this->parsedData['key'])) {
                 $this->parsedData['key'] = [];
             }
             if (!isset($this->parsedData['trx'])) {
                 $this->parsedData['trx'] = [];
             }
+            if ($comment !== null && !isset($this->parsedData['comment'])) {
+                $this->parsedData['comment'] = [];
+            }
 
             $this->parsedData['key'][] = ['content' => $key];
             $this->parsedData['trx'][] = ['content' => $trx];
+            if ($comment !== null) {
+                $this->parsedData['comment'][] = ['content' => $comment];
+            }
 
-            // 노드 완료 콜백 호출
+            // Call node completion callback
             if ($this->nodeCompleteCallback) {
                 call_user_func($this->nodeCompleteCallback, 'item', $itemContent, []);
             }
 
             if ($this->debug) {
-                Log::debug('XMLParser: Processed item', [
+                $debugInfo = [
                     'key' => $key,
                     'trx_length' => strlen($trx),
                     'trx_preview' => mb_substr($trx, 0, 30)
-                ]);
+                ];
+                if ($comment !== null) {
+                    $debugInfo['comment'] = $comment;
+                }
+                Log::debug('XMLParser: Processed item', $debugInfo);
             }
         }
     }
 
     /**
-     * 표준 XML 파싱을 위한 응답 정리
+     * Clean up XML response for standard parsing
      */
     private function prepareXmlForParsing(string $xml): string
     {
-        // 실제 XML 태그 시작 이전의 내용 제거
+        // Remove content before actual XML tag start
         $firstTagPos = strpos($xml, '<');
         if ($firstTagPos > 0) {
             $xml = substr($xml, $firstTagPos);
         }
 
-        // 마지막 XML 태그 이후의 내용 제거
+        // Remove content after last XML tag
         $lastTagPos = strrpos($xml, '>');
         if ($lastTagPos !== false && $lastTagPos < strlen($xml) - 1) {
             $xml = substr($xml, 0, $lastTagPos + 1);
         }
 
-        // 특수 문자 처리
+        // Handle special characters
         $xml = $this->unescapeSpecialChars($xml);
 
-        // 루트 태그 누락 시 추가
+        // Add root tag if missing
         if (!preg_match('/^\s*<\?xml|^\s*<translations/i', $xml)) {
             $xml = '<translations>' . $xml . '</translations>';
         }
 
-        // XML 선언 추가 (없는 경우)
+        // Add XML declaration if missing
         if (strpos($xml, '<?xml') === false) {
             $xml = '<?xml version="1.0" encoding="UTF-8"?>' . $xml;
         }
@@ -159,28 +175,28 @@ class XMLParser
     }
 
     /**
-     * 완전한 <item> 태그 추출 (다중 항목 처리)
+     * Extract complete <item> tags (handle multiple items)
      */
     private function extractCompleteItems(): void
     {
-        // 여러 패턴으로 <item> 태그 시도
+        // Try multiple patterns for <item> tags
         $patterns = [
-            // 표준 패턴 (줄바꿈 있는 경우)
+            // Standard pattern (with line breaks)
             '/<item>\s*<key>(.*?)<\/key>\s*<trx>(.*?)<\/trx>\s*<\/item>/s',
 
-            // 한 줄 패턴
+            // Single line pattern
             '/<item><key>(.*?)<\/key><trx>(.*?)<\/trx><\/item>/s',
 
-            // 태그 사이에 공백 있는 경우
+            // Pattern with spaces between tags
             '/<item>\s*<key>(.*?)<\/key>\s*<trx>(.*?)<\/trx>\s*<\/item>/s',
 
-            // 닫는 태그 없는 경우를 처리
+            // Handle missing closing tag
             '/<item>\s*<key>(.*?)<\/key>\s*<trx>(.*?)(?:<\/trx>|<item>)/s',
 
-            // CDATA를 직접 찾는 패턴
+            // Pattern for direct CDATA search
             '/<key>(.*?)<\/key>\s*<trx><!\[CDATA\[(.*?)\]\]><\/trx>/s',
 
-            // 단순화된 패턴
+            // Simplified pattern
             '/<key>(.*?)<\/key>.*?<trx>.*?\[CDATA\[(.*?)\]\]>.*?<\/trx>/s',
         ];
 
@@ -194,34 +210,34 @@ class XMLParser
                     ]);
                 }
 
-                // 각 항목에 대해 처리
-                foreach ($matches as $i => $match) {
-                    if (count($match) < 3) {
-                        continue; // 패턴 매치 실패
-                    }
+                    // Process each item
+                    foreach ($matches as $i => $match) {
+                        if (count($match) < 3) {
+                            continue; // Pattern match failed
+                        }
 
-                    $key = $this->cleanContent($match[1]);
-                    $trxContent = $match[2];
+                        $key = $this->cleanContent($match[1]);
+                        $trxContent = $match[2];
 
-                    // 이미 처리된 키인지 확인
-                    $keyExists = false;
-                    if (isset($this->parsedData['key'])) {
-                        foreach ($this->parsedData['key'] as $existingKeyData) {
-                            if ($existingKeyData['content'] === $key) {
-                                $keyExists = true;
-                                break;
+                        // Check if key already processed
+                        $keyExists = false;
+                        if (isset($this->parsedData['key'])) {
+                            foreach ($this->parsedData['key'] as $existingKeyData) {
+                                if ($existingKeyData['content'] === $key) {
+                                    $keyExists = true;
+                                    break;
+                                }
                             }
                         }
-                    }
 
-                    if ($keyExists) {
-                        continue; // 이미 처리된 키 스킵
-                    }
+                        if ($keyExists) {
+                            continue; // Skip already processed key
+                        }
 
-                    // CDATA 내용 추출
-                    $trxProcessed = $this->processTrxContent($trxContent);
+                        // Extract CDATA content
+                        $trxProcessed = $this->processTrxContent($trxContent);
 
-                    // 파싱된 데이터에 추가
+                        // Add to parsed data
                     if (!isset($this->parsedData['key'])) {
                         $this->parsedData['key'] = [];
                     }
@@ -245,7 +261,7 @@ class XMLParser
             }
         }
 
-        // 추가: 특별한 케이스 - CDATA 직접 추출 시도
+        // Additional: Special case - Direct CDATA extraction attempt
         if (preg_match_all('/<key>(.*?)<\/key>.*?<trx><!\[CDATA\[(.*?)\]\]><\/trx>/s', $this->fullResponse, $matches, PREG_SET_ORDER)) {
             if ($this->debug) {
                 Log::debug('XMLParser: Direct CDATA extraction attempt', [
@@ -309,56 +325,52 @@ class XMLParser
     }
 
     /**
-     * 전체 XML에서 <trx> 태그와 CDATA 내용 추출
+     * Extract <trx> tags and CDATA content from full XML
      */
     private function extractTrxItems(): void
     {
-        // CDATA를 포함한 <trx> 태그 내용 추출 (greedy 패턴 사용)
+        // Extract <trx> tag content including CDATA (using greedy pattern)
         $pattern = '/<trx>(.*?)<\/trx>/s';
 
         if (preg_match_all($pattern, $this->fullResponse, $matches)) {
             $this->parsedData['trx'] = [];
 
             foreach ($matches[1] as $trxContent) {
-                // CDATA 추출 및 처리
+                // Extract and process CDATA
                 $processedContent = $this->processTrxContent($trxContent);
                 $this->parsedData['trx'][] = ['content' => $processedContent];
 
-                // CDATA 내용 캐시에 저장 (후처리용)
+                // Store CDATA content in cache (for post-processing)
                 $this->cdataCache = $processedContent;
-
-                // 디버그 로그 제거
             }
         }
     }
 
     /**
-     * <trx> 태그 내용 처리 및 CDATA 추출
+     * Process <trx> tag content and extract CDATA
      */
     private function processTrxContent(string $content): string
     {
-        // CDATA 내용 추출
+        // Extract CDATA content
         if (preg_match('/<!\[CDATA\[(.*)\]\]>/s', $content, $cdataMatches)) {
             $cdataContent = $cdataMatches[1];
 
-            // 특수 문자 이스케이프 처리
+            // Handle special character escaping
             $processedContent = $this->unescapeSpecialChars($cdataContent);
-
-            // 디버그 로그 제거
 
             return $processedContent;
         }
 
-        // CDATA가 없는 경우 원본 내용 반환
+        // Return original content if no CDATA
         return $this->unescapeSpecialChars($content);
     }
 
     /**
-     * 특수 문자 이스케이프 해제 (백슬래시, 따옴표 등)
+     * Unescape special characters (backslashes, quotes, etc.)
      */
     private function unescapeSpecialChars(string $content): string
     {
-        // 이스케이프된 따옴표와 백슬래시 복원
+        // Restore escaped quotes and backslashes
         $unescaped = str_replace(
             ['\\"', "\\'", '\\\\'],
             ['"', "'", '\\'],
@@ -369,19 +381,19 @@ class XMLParser
     }
 
     /**
-     * 태그 내용 정리 (공백, HTML 엔티티 등)
+     * Clean tag content (whitespace, HTML entities, etc.)
      */
     private function cleanContent(string $content): string
     {
-        // HTML 엔티티 디코딩
+        // Decode HTML entities
         $content = html_entity_decode($content, ENT_QUOTES | ENT_XML1);
 
-        // 앞뒤 공백 제거
+        // Remove leading and trailing whitespace
         return trim($content);
     }
 
     /**
-     * 처리된 모든 항목에 대해 콜백 호출
+     * Call callback for all processed items
      */
     private function notifyAllProcessedItems(): void
     {
@@ -389,10 +401,10 @@ class XMLParser
             return;
         }
 
-        // <item> 태그가 존재하는 경우 처리
+        // Process if <item> tags exist
         if (preg_match_all('/<item>(.*?)<\/item>/s', $this->fullResponse, $itemMatches)) {
             foreach ($itemMatches[1] as $itemContent) {
-                // 각 <item> 내부의 <key>와 <trx> 추출
+                // Extract <key> and <trx> from each <item>
                 if (
                     preg_match('/<key>(.*?)<\/key>/s', $itemContent, $keyMatch) &&
                     preg_match('/<trx>(.*?)<\/trx>/s', $itemContent, $trxMatch)
@@ -401,20 +413,20 @@ class XMLParser
                     $key = $this->cleanContent($keyMatch[1]);
                     $trxContent = $this->processTrxContent($trxMatch[1]);
 
-                    // 콜백 호출
+                    // Call callback
                     call_user_func($this->nodeCompleteCallback, 'item', $itemContent, []);
                 }
             }
         }
 
-        // <key> 태그가 존재하는 경우 처리
+        // Process if <key> tags exist
         if (!empty($this->parsedData['key'])) {
             foreach ($this->parsedData['key'] as $keyData) {
                 call_user_func($this->nodeCompleteCallback, 'key', $keyData['content'], []);
             }
         }
 
-        // <trx> 태그가 존재하는 경우 처리
+        // Process if <trx> tags exist
         if (!empty($this->parsedData['trx'])) {
             foreach ($this->parsedData['trx'] as $trxData) {
                 call_user_func($this->nodeCompleteCallback, 'trx', $trxData['content'], []);
@@ -423,7 +435,7 @@ class XMLParser
     }
 
     /**
-     * 파싱된 데이터 반환
+     * Return parsed data
      */
     public function getParsedData(): array
     {
@@ -431,7 +443,7 @@ class XMLParser
     }
 
     /**
-     * CDATA 캐시 반환 (원본 번역 내용 접근용)
+     * Return CDATA cache (for accessing original translation content)
      */
     public function getCdataCache(): string
     {
@@ -439,7 +451,7 @@ class XMLParser
     }
 
     /**
-     * 전체 응답 반환
+     * Return full response
      */
     public function getFullResponse(): string
     {

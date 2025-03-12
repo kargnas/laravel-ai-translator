@@ -2,7 +2,7 @@
 
 AI-powered translation tool for Laravel language files
 
-## 🔄 Recent Updates (March 10, 2025)
+## 🔄 Recent Updates (March, 2025)
 
 - **AI Enhancement**: Added support for Claude 3.7's Extended Thinking capabilities
   - Extended context window up to 200K tokens, output tokens up to 64K tokens
@@ -19,10 +19,12 @@ AI-powered translation tool for Laravel language files
   - Separated services into dedicated classes
   - Improved token usage tracking and reporting
   - Enhanced console output formatting
-
-## 💡 New Feature: Custom Language Styles
-
-We've expanded our capabilities with support for custom language styles, allowing for unique and creative translations. [Learn more about Custom Language Styles](#custom-language-styles)
+- **Testing Improvements**: Added comprehensive test suite using Pest
+  - XML parsing validation tests
+  - Line break handling in CDATA
+  - XML comment tag support
+  - Multiple translation items processing
+- **XML Processing**: Enhanced XML and AI response parsing system for more reliable translations
 
 ## Overview
 
@@ -65,21 +67,26 @@ Do you want to know how this works? See the prompt in `src/AI`.
 In addition to standard language translations, this package now supports custom language styles, allowing for unique and creative localizations.
 
 ### Built-in Styles
+
 The package includes several built-in language styles:
+
 - `ko_kp`: North Korean style Korean
 - Various regional dialects and language variants
 
 These are automatically available and don't require additional configuration.
 
 ### Custom Style Example: Reddit English
+
 As an demonstration of custom styling capabilities, we've implemented a "Reddit style" English:
 
 This style mimics the casual, often humorous language found on Reddit, featuring:
+
 - Liberal use of sarcasm
 - Internet slang and meme references
 - Playful skepticism
 
 Example configuration:
+
 ```php
 'locale_names' => [
     'en_reddit' => 'English (Reddit)',
@@ -94,6 +101,7 @@ Example configuration:
 ```
 
 ### Creating Custom Styles
+
 You can create your own custom language styles by adding new entries to the `locale_names` and `additional_rules` in the configuration. This allows you to tailor translations to specific audiences or platforms.
 
 These custom styles offer creative ways to customize your translations, adding a unique flair to your localized content. Use responsibly to enhance user engagement while maintaining clarity and appropriateness for your audience.
@@ -107,15 +115,15 @@ These custom styles offer creative ways to customize your translations, adding a
 
 1. Install the package via composer:
 
-    ```bash
-    composer require kargnas/laravel-ai-translator
-    ```
+   ```bash
+   composer require kargnas/laravel-ai-translator
+   ```
 
 2. Add the OpenAI API key to your `.env` file:
 
-    ```
-    OPENAI_API_KEY=your-openai-api-key-here
-    ```
+   ```
+   OPENAI_API_KEY=your-openai-api-key-here
+   ```
 
    You can obtain an API key from the [OpenAI website](https://platform.openai.com/account/api-keys).
 
@@ -123,32 +131,32 @@ These custom styles offer creative ways to customize your translations, adding a
 
 3. (Optional) Publish the configuration file:
 
-    ```bash
-    php artisan vendor:publish --provider="Kargnas\LaravelAiTranslator\ServiceProvider"
-    ```
+   ```bash
+   php artisan vendor:publish --provider="Kargnas\LaravelAiTranslator\ServiceProvider"
+   ```
 
    This step is optional but recommended if you want to customize the package's behavior. It will create a `config/ai-translator.php` file where you can modify various settings.
 
 4. (Optional) If you want to use Anthropic's Claude instead of OpenAI's GPT, update the `config/ai-translator.php` file:
 
-    ```php
-    'ai' => [
-        'provider' => 'anthropic',
-        'model' => 'claude-3-7-sonnet-20250219',
-        'api_key' => env('ANTHROPIC_API_KEY'),
-    ],
-    ```
+   ```php
+   'ai' => [
+       'provider' => 'anthropic',
+       'model' => 'claude-3-7-sonnet-20250219',
+       'api_key' => env('ANTHROPIC_API_KEY'),
+   ],
+   ```
 
    Then, add the Anthropic API key to your `.env` file:
 
-    ```
-    ANTHROPIC_API_KEY=your-anthropic-api-key-here
-    ```
+   ```
+   ANTHROPIC_API_KEY=your-anthropic-api-key-here
+   ```
 
    You can obtain an Anthropic API key from the [Anthropic website](https://www.anthropic.com).
    For best results, we recommend using the Claude-3-5-Sonnet model for your translations rather than OpenAI GPT. This model provides more accurate and natural translations.
 
-6. You're now ready to use the Laravel AI Translator!
+5. You're now ready to use the Laravel AI Translator!
 
 ## Usage
 
@@ -181,45 +189,45 @@ return [
 The package will generate translations like these:
 
 - Korean (ko-kr):
-    ```php
-    <?php
-    return array (
-      'notifications.new_feature_search_sentence' => '새로운 기능: 이제 단어뿐만 아니라 문장도 입력할 수 있어요. 심지어 여러분의 언어로도 가능해요.',
-      'notifications.refresh_after_1_min' => '1분 후에 새로고침하세요. 새로운 내용이 준비될 거예요! (이전 모델: :model, 업데이트: :updated_at)',
-    );
-    ```
+  ```php
+  <?php
+  return array (
+    'notifications.new_feature_search_sentence' => '새로운 기능: 이제 단어뿐만 아니라 문장도 입력할 수 있어요. 심지어 여러분의 언어로도 가능해요.',
+    'notifications.refresh_after_1_min' => '1분 후에 새로고침하세요. 새로운 내용이 준비될 거예요! (이전 모델: :model, 업데이트: :updated_at)',
+  );
+  ```
 - Chinese (zh-cn):
-    ```php
-    <?php
-    return array (
-      'notifications.new_feature_search_sentence' => '新功能：现在你不仅可以输入单词，还可以输入句子。甚至可以用你的语言。',
-      'notifications.refresh_after_1_min' => '1分钟后刷新。新内容即将到来！（之前的模型：:model，更新时间：:updated_at）',
-    );
-    ```
+  ```php
+  <?php
+  return array (
+    'notifications.new_feature_search_sentence' => '新功能：现在你不仅可以输入单词，还可以输入句子。甚至可以用你的语言。',
+    'notifications.refresh_after_1_min' => '1分钟后刷新。新内容即将到来！（之前的模型：:model，更新时间：:updated_at）',
+  );
+  ```
 - Thai (th-th):
-    ```php
-    <?php
-    return array (
-      'notifications.new_feature_search_sentence' => 'ฟีเจอร์ใหม่: ตอนนี้คุณพิมพ์ประโยคได้แล้ว ไม่ใช่แค่คำเดียว แม้แต่ภาษาของคุณเอง',
-      'notifications.refresh_after_1_min' => 'รีเฟรชหลังจาก 1 นาที จะมีเนื้อหาใหม่ให้ดู! (โมเดลก่อนหน้า: :model, อัปเดตเมื่อ: :updated_at)',
-    );
-    ```
+  ```php
+  <?php
+  return array (
+    'notifications.new_feature_search_sentence' => 'ฟีเจอร์ใหม่: ตอนนี้คุณพิมพ์ประโยคได้แล้ว ไม่ใช่แค่คำเดียว แม้แต่ภาษาของคุณเอง',
+    'notifications.refresh_after_1_min' => 'รีเฟรชหลังจาก 1 นาที จะมีเนื้อหาใหม่ให้ดู! (โมเดลก่อนหน้า: :model, อัปเดตเมื่อ: :updated_at)',
+  );
+  ```
 - 🤣 Korean (North Korea):
-    ```php
-    <?php
-    return array (
-      'notifications.new_feature_search_sentence' => '혁명적 새로운 기능: 동무들! 이제 단어뿐만 아니라 문장도 입력하여 단어의 력사를 확인할 수 있습니다. 모국어로도 괜찮습니다. 인공지능이 중국어로 번역해드리겠습니다.',
-      'notifications.refresh_after_1_min' => '1분후에 새로고침하십시요. 새로운 내용을 볼수 있습니다! (이전 모델: :model, 갱신: :updated_at)',
-    );
-    ```
+  ```php
+  <?php
+  return array (
+    'notifications.new_feature_search_sentence' => '혁명적 새로운 기능: 동무들! 이제 단어뿐만 아니라 문장도 입력하여 단어의 력사를 확인할 수 있습니다. 모국어로도 괜찮습니다. 인공지능이 중국어로 번역해드리겠습니다.',
+    'notifications.refresh_after_1_min' => '1분후에 새로고침하십시요. 새로운 내용을 볼수 있습니다! (이전 모델: :model, 갱신: :updated_at)',
+  );
+  ```
 - 🤣 English (Reddit):
-    ```php
-    <?php
-    return array (
-      'notifications.new_feature_search_sentence' => 'Whoa, hold onto your keyboards, nerds! We\'ve leveled up our search game. Now you can type entire sentences, not just measly words. Mind. Blown. And get this - it even works in your weird non-English languages! Our AI overlord will graciously translate your gibberish into Chinese. You\'re welcome.',
-      'notifications.refresh_after_1_min' => 'Yo, hit that F5 in 60 seconds, fam. Fresh content incoming! (Previous model was :model, last updated when dinosaurs roamed the Earth at :updated_at)',
-    );
-    ```
+  ```php
+  <?php
+  return array (
+    'notifications.new_feature_search_sentence' => 'Whoa, hold onto your keyboards, nerds! We\'ve leveled up our search game. Now you can type entire sentences, not just measly words. Mind. Blown. And get this - it even works in your weird non-English languages! Our AI overlord will graciously translate your gibberish into Chinese. You\'re welcome.',
+    'notifications.refresh_after_1_min' => 'Yo, hit that F5 in 60 seconds, fam. Fresh content incoming! (Previous model was :model, last updated when dinosaurs roamed the Earth at :updated_at)',
+  );
+  ```
 
 ## Configuration
 
@@ -234,6 +242,7 @@ This will create a `config/ai-translator.php` file where you can modify the foll
 - `source_directory`: If you use a different directory for language files instead of the default `lang` directory, you can specify it here.
 
 - `ai`: Configure the AI provider and model:
+
   ```php
   'ai' => [
       'provider' => 'anthropic',
@@ -244,35 +253,39 @@ This will create a `config/ai-translator.php` file where you can modify the foll
 
   This package supports Anthropic's Claude and OpenAI's GPT models for translations. Here are the tested and verified models:
 
-  | Provider  | Model                     | Extended Thinking | Context Window | Max Tokens |
-  |-----------|---------------------------|------------------|----------------|------------|
-  | `anthropic` | `claude-3-7-sonnet-latest` | ✅               | 200K          | 8K/64K*    |
-  | `anthropic` | `claude-3-5-sonnet-latest` | ❌               | 200K          | 8K         |
-  | `anthropic` | `claude-3-haiku-20240307`  | ❌               | 200K          | 8K         |
-  | `openai`    | `gpt-4o`                   | ❌               | 128K          | 4K         |
-  | `openai`    | `gpt-4o-mini`             | ❌               | 128K          | 4K         |
+  | Provider    | Model                      | Extended Thinking | Context Window | Max Tokens |
+  | ----------- | -------------------------- | ----------------- | -------------- | ---------- |
+  | `anthropic` | `claude-3-7-sonnet-latest` | ✅                | 200K           | 8K/64K\*   |
+  | `anthropic` | `claude-3-5-sonnet-latest` | ❌                | 200K           | 8K         |
+  | `anthropic` | `claude-3-haiku-20240307`  | ❌                | 200K           | 8K         |
+  | `openai`    | `gpt-4o`                   | ❌                | 128K           | 4K         |
+  | `openai`    | `gpt-4o-mini`              | ❌                | 128K           | 4K         |
 
   \* 8K tokens for normal mode, 64K tokens when extended thinking is enabled
 
   For available models:
+
   - Anthropic: See [Anthropic Models Documentation](https://docs.anthropic.com/en/docs/about-claude/models)
   - OpenAI: See [OpenAI Models Documentation](https://platform.openai.com/docs/models)
 
   > **⭐️ Strong Recommendation**: We highly recommend using Anthropic's Claude models, particularly `claude-3-5-sonnet-latest`. Here's why:
+  >
   > - More accurate and natural translations
   > - Better understanding of context and nuances
   > - More consistent output quality
   > - More cost-effective for the quality provided
-  > 
+  >
   > While OpenAI integration is available, we strongly advise against using it for translations. Our extensive testing has shown that Claude models consistently produce superior results for localization tasks.
 
   ### Provider Setup
 
   1. Get your API key:
+
      - Anthropic: [Console API Keys](https://console.anthropic.com/settings/keys)
      - OpenAI: [API Keys](https://platform.openai.com/api-keys)
 
   2. Add to your `.env` file:
+
      ```env
      # For Anthropic
      ANTHROPIC_API_KEY=your-api-key
@@ -356,27 +369,21 @@ If you're currently using JSON files for your translations, we recommend migrati
 
 > **Note**: We recommend Anthropic's Claude models for superior translation quality.
 
-## Recent Updates (March 2025)
-
-We've made significant improvements to the Laravel AI Translator:
-
-- ✅ Enhanced XML and AI response parsing system for more reliable translations
-- ✅ Optimized batch translation capabilities for processing multiple items simultaneously
-- ✅ Added streaming support for real-time translation progress monitoring and feedback
-
 ## TODO List
 
 We're constantly working to improve Laravel AI Translator. Here are some features and improvements we're planning:
 
 - [ ] Implement strict validation for translations:
-    - Verify that variables are correctly preserved in translated strings
-    - Ensure placeholders and Laravel-specific syntax are maintained 
-    - Check for consistency in pluralization rules across translations
+  - Verify that variables are correctly preserved in translated strings
+  - Ensure placeholders and Laravel-specific syntax are maintained
+  - Check for consistency in pluralization rules across translations
 - [ ] Write test code to ensure reliability and catch potential issues
 - [ ] Implement functionality to maintain the array structure of strings during translation
 - [ ] Expand support for other LLMs (such as Gemini)
 - [ ] Add context from previous translations:
-    - Use previously translated strings as reference for consistency
+  - Use previously translated strings as reference for consistency
+- [ ] Replace regex-based XML parser with proper XML parsing:
+  - Better handle edge cases and malformed XML
 
 If you'd like to contribute to any of these tasks, please feel free to submit a pull request!
 

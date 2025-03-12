@@ -40,10 +40,9 @@ You are an expert in Laravel, PHP. This project is my blog project.
 ## Command-line Debugging in Laravel
 - Use Artisan Tinker for interactive debugging:
   ```bash
-  php artisan tinker
-  >>> App\Models\User::find(1) // Test queries directly
-  >>> DB::table('users')->where('email', 'test@example.com')->first() // Check data
+  echo 'App\Models\User::find(1)' | php artisan tinker
   ```
+  Note that do not just type `php artisan tinker`. This command is interactive command. You need to use `echo`
 - Check Laravel logs for errors:
   ```bash
   tail -f storage/logs/laravel.log
@@ -154,6 +153,9 @@ You are an expert in Laravel, PHP. This project is my blog project.
       }
   }
   ```
+
+## Javascript
+- use moment.js with `import moment from "moment/moment.js";`
 
 Dependencies
 - Laravel 10

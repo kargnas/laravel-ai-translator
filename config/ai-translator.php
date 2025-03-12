@@ -33,9 +33,6 @@ return [
 
     // 'disable_plural' => true,
     // 'skip_locales' => [],
-    
-    // If set to true, translations will be saved as flat arrays using dot notation keys. If set to false, translations will be saved as multi-dimensional arrays.
-    'dot_notation' => true,
 
     // You can add additional custom locale names here.
     // Example: 'en_us', 'en-us', 'en_US', 'en-US'

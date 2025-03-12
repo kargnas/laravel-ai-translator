@@ -24,6 +24,7 @@ class PHPLangTransformer
 
     public function __construct(
         public string $filePath,
+        private string $sourceLanguage = 'en',
     ) {
         $this->useDotNotation = Config::get('ai-translator.dot_notation', false);
         $this->loadOriginalContent();
@@ -114,7 +115,13 @@ class PHPLangTransformer
     {
         $this->flattenedContent[$key] = $translated;
 
-        file_put_contents($this->filePath, "<?php" . PHP_EOL . "return " . var_export($this->flattenedContent, true) . ";");
+        $code = "<?php\n\n";
+        $code .= "/**\n";
+        $code .= " * WARNING: This is an auto-generated file.\n";
+        $code .= " * Do not modify this file manually as your changes will be lost.\n";
+        $code .= " */\n\n";
+        $code .= "return " . var_export($this->flattenedContent, true) . ";";
+        file_put_contents($this->filePath, $code);
     }
 
     /**
@@ -165,7 +172,15 @@ class PHPLangTransformer
      */
     private function saveContentToFile(array $content): void
     {
-        $code = "<?php\n\nreturn " . $this->arrayExport($content, 0) . ";\n";
+        $date = date('Y-m-d H:i:s');
+        $timezone = date('T');
+        $code = "<?php\n\n";
+        $code .= "/**\n";
+        $code .= " * WARNING: This is an auto-generated file.\n";
+        $code .= " * Do not modify this file manually as your changes will be lost.\n";
+        $code .= " * This file was automatically translated from {$this->sourceLanguage} at {$date} {$timezone}.\n";
+        $code .= " */\n\n";
+        $code .= "return " . $this->arrayExport($content, 0) . ";\n";
         file_put_contents($this->filePath, $code);
     }
 

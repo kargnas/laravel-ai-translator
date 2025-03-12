@@ -13,24 +13,22 @@ use Kargnas\LaravelAiTranslator\Utility;
 use Kargnas\LaravelAiTranslator\Enums\PromptType;
 
 /**
- * Command to translate PHP language files using AI technology
- */
-/**
- * Command to translate PHP language files using AI technology
+ * Artisan command that translates PHP language files using LLMs with support for multiple locales,
+ * reference languages, chunking for large files, and customizable context settings
  */
 class TranslateStrings extends Command
 {
-    protected $signature = 'ai-translator:translate 
-        {--l|locale=* : Specific locales to translate (e.g. --locale=ko,ja). If not provided, will ask interactively}
+    protected $signature = 'ai-translator:translate
         {--s|source= : Source language to translate from (e.g. --source=en)}
-        {--r|reference=* : Reference languages for translation guidance (e.g. --reference=fr,es)}
+        {--l|locale=* : Target locales to translate (e.g. --locale=ko,ja). If not provided, will ask interactively}
+        {--r|reference= : Reference languages for translation guidance (e.g. --reference=fr,es). If not provided, will ask interactively}
         {--c|chunk= : Chunk size for translation (e.g. --chunk=100)}
         {--m|max-context= : Maximum number of context items to include (e.g. --max-context=1000)}
-        {--show-prompt : Show AI prompts during translation}
-        {--f|force : Skip all confirmations}
+        {--skip-big-files : Skip files with more than 500 strings to translate}
+        {--show-prompt : Show the whole AI prompts during translation}
         {--non-interactive : Run in non-interactive mode, using default or provided values}';
 
-    protected $description = 'Translates PHP language files using AI technology';
+    protected $description = 'Translates PHP language files using LLMs with support for multiple locales, reference languages, chunking for large files, and customizable context settings';
 
     /**
      * Translation settings
@@ -39,6 +37,10 @@ class TranslateStrings extends Command
     protected string $sourceDirectory;
     protected int $chunkSize;
     protected array $referenceLocales = [];
+
+    protected int $defaultChunkSize = 100;
+    protected int $defaultMaxContextItems = 1000;
+    protected int $warningStringCount = 500;
 
     /**
      * Token usage tracking
@@ -140,27 +142,27 @@ class TranslateStrings extends Command
 
         // Set chunk size
         if ($nonInteractive || $this->option('chunk')) {
-            $this->chunkSize = (int) ($this->option('chunk') ?? 100);
+            $this->chunkSize = (int) ($this->option('chunk') ?? $this->defaultChunkSize);
             $this->info($this->colors['green'] . "✓ Chunk size: " .
                 $this->colors['reset'] . $this->colors['bold'] . $this->chunkSize .
                 $this->colors['reset']);
         } else {
             $this->chunkSize = (int) $this->ask(
                 $this->colors['yellow'] . "Enter the chunk size for translation. Translate strings in a batch. The higher, the cheaper." . $this->colors['reset'],
-                100
+                $this->defaultChunkSize
             );
         }
 
         // Set context items count
         if ($nonInteractive || $this->option('max-context')) {
-            $maxContextItems = (int) ($this->option('max-context') ?? 1000);
+            $maxContextItems = (int) ($this->option('max-context') ?? $this->defaultMaxContextItems);
             $this->info($this->colors['green'] . "✓ Maximum context items: " .
                 $this->colors['reset'] . $this->colors['bold'] . $maxContextItems .
                 $this->colors['reset']);
         } else {
             $maxContextItems = (int) $this->ask(
                 $this->colors['yellow'] . "Maximum number of context items to include for consistency (set 0 to disable)" . $this->colors['reset'],
-                1000
+                $this->defaultMaxContextItems
             );
         }
 
@@ -296,7 +298,7 @@ class TranslateStrings extends Command
                 $totalStringCount += count($sourceStringList);
 
                 // Check if there are many strings to translate
-                if (count($sourceStringList) > 500 && !$this->option('force')) {
+                if (count($sourceStringList) > $this->warningStringCount && !$this->option('skip-big-files')) {
                     if (
                         !$this->confirm(
                             $this->colors['yellow'] . "⚠️ Warning: " . $this->colors['reset'] .

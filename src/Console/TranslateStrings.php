@@ -13,26 +13,37 @@ use Kargnas\LaravelAiTranslator\Utility;
 use Kargnas\LaravelAiTranslator\Enums\PromptType;
 
 /**
- * Command to translate PHP language files using AI technology
+ * Artisan command that translates PHP language files using LLMs with support for multiple locales,
+ * reference languages, chunking for large files, and customizable context settings
  */
 class TranslateStrings extends Command
 {
-    protected $signature = 'ai-translator:translate 
-        {--l|locale=* : Specific locales to translate (e.g. --locale=ko,ja). If not provided, will ask interactively}
-        {--show-prompt : Show AI prompts during translation}';
+    protected $signature = 'ai-translator:translate
+        {--s|source= : Source language to translate from (e.g. --source=en)}
+        {--l|locale=* : Target locales to translate (e.g. --locale=ko,ja). If not provided, will ask interactively}
+        {--r|reference= : Reference languages for translation guidance (e.g. --reference=fr,es). If not provided, will ask interactively}
+        {--c|chunk= : Chunk size for translation (e.g. --chunk=100)}
+        {--m|max-context= : Maximum number of context items to include (e.g. --max-context=1000)}
+        {--skip-big-files : Skip files with more than 500 strings to translate}
+        {--show-prompt : Show the whole AI prompts during translation}
+        {--non-interactive : Run in non-interactive mode, using default or provided values}';
 
-    protected $description = 'Translates PHP language files using AI technology';
+    protected $description = 'Translates PHP language files using LLMs with support for multiple locales, reference languages, chunking for large files, and customizable context settings';
 
     /**
-     * 번역 관련 설정
+     * Translation settings
      */
     protected string $sourceLocale;
     protected string $sourceDirectory;
     protected int $chunkSize;
     protected array $referenceLocales = [];
 
+    protected int $defaultChunkSize = 100;
+    protected int $defaultMaxContextItems = 1000;
+    protected int $warningStringCount = 500;
+
     /**
-     * 토큰 사용량 추적
+     * Token usage tracking
      */
     protected array $tokenUsage = [
         'input_tokens' => 0,
@@ -41,7 +52,7 @@ class TranslateStrings extends Command
     ];
 
     /**
-     * 컬러 코드
+     * Color codes
      */
     protected array $colors = [
         'reset' => "\033[0m",
@@ -65,7 +76,7 @@ class TranslateStrings extends Command
     ];
 
     /**
-     * 생성자
+     * Constructor
      */
     public function __construct()
     {
@@ -82,44 +93,80 @@ class TranslateStrings extends Command
     }
 
     /**
-     * 커맨드 실행 메인 메서드
+     * Main command execution method
      */
     public function handle()
     {
-        // 헤더 출력
+        // Display header
         $this->displayHeader();
 
-        // 소스 디렉토리 설정
+        // Set source directory
         $this->sourceDirectory = config('ai-translator.source_directory');
 
-        // 소스 언어 선택
-        $this->sourceLocale = $this->choiceLanguages(
-            $this->colors['yellow'] . "Choose a source language to translate from" . $this->colors['reset'],
-            false,
-            'en'
-        );
+        // Check if running in non-interactive mode
+        $nonInteractive = $this->option('non-interactive');
 
-        // 레퍼런스 언어 선택
-        if ($this->ask($this->colors['yellow'] . 'Do you want to add reference languages? (y/n)' . $this->colors['reset'], 'n') === 'y') {
+        // Select source language
+        if ($nonInteractive || $this->option('source')) {
+            $this->sourceLocale = $this->option('source') ?? config('ai-translator.source_locale', 'en');
+            $this->info($this->colors['green'] . "✓ Selected source locale: " .
+                $this->colors['reset'] . $this->colors['bold'] . $this->sourceLocale .
+                $this->colors['reset']);
+        } else {
+            $this->sourceLocale = $this->choiceLanguages(
+                $this->colors['yellow'] . "Choose a source language to translate from" . $this->colors['reset'],
+                false,
+                'en'
+            );
+        }
+
+        // Select reference languages
+        if ($nonInteractive) {
+            $this->referenceLocales = $this->option('reference') ?? [];
+            if (!empty($this->referenceLocales)) {
+                $this->info($this->colors['green'] . "✓ Selected reference locales: " .
+                    $this->colors['reset'] . $this->colors['bold'] . implode(', ', $this->referenceLocales) .
+                    $this->colors['reset']);
+            }
+        } else if ($this->option('reference')) {
+            $this->referenceLocales = $this->option('reference');
+            $this->info($this->colors['green'] . "✓ Selected reference locales: " .
+                $this->colors['reset'] . $this->colors['bold'] . implode(', ', $this->referenceLocales) .
+                $this->colors['reset']);
+        } else if ($this->ask($this->colors['yellow'] . 'Do you want to add reference languages? (y/n)' . $this->colors['reset'], 'n') === 'y') {
             $this->referenceLocales = $this->choiceLanguages(
                 $this->colors['yellow'] . "Choose reference languages for translation guidance. Select languages with high-quality translations. Multiple selections with comma separator (e.g. '1,2')" . $this->colors['reset'],
                 true
             );
         }
 
-        // 청크 사이즈 설정
-        $this->chunkSize = (int) $this->ask(
-            $this->colors['yellow'] . "Enter the chunk size for translation. Translate strings in a batch. The higher, the cheaper." . $this->colors['reset'],
-            100
-        );
+        // Set chunk size
+        if ($nonInteractive || $this->option('chunk')) {
+            $this->chunkSize = (int) ($this->option('chunk') ?? $this->defaultChunkSize);
+            $this->info($this->colors['green'] . "✓ Chunk size: " .
+                $this->colors['reset'] . $this->colors['bold'] . $this->chunkSize .
+                $this->colors['reset']);
+        } else {
+            $this->chunkSize = (int) $this->ask(
+                $this->colors['yellow'] . "Enter the chunk size for translation. Translate strings in a batch. The higher, the cheaper." . $this->colors['reset'],
+                $this->defaultChunkSize
+            );
+        }
 
-        // 컨텍스트 항목 수 설정
-        $maxContextItems = (int) $this->ask(
-            $this->colors['yellow'] . "Maximum number of context items to include for consistency (set 0 to disable)" . $this->colors['reset'],
-            1000
-        );
+        // Set context items count
+        if ($nonInteractive || $this->option('max-context')) {
+            $maxContextItems = (int) ($this->option('max-context') ?? $this->defaultMaxContextItems);
+            $this->info($this->colors['green'] . "✓ Maximum context items: " .
+                $this->colors['reset'] . $this->colors['bold'] . $maxContextItems .
+                $this->colors['reset']);
+        } else {
+            $maxContextItems = (int) $this->ask(
+                $this->colors['yellow'] . "Maximum number of context items to include for consistency (set 0 to disable)" . $this->colors['reset'],
+                $this->defaultMaxContextItems
+            );
+        }
 
-        // 번역 실행
+        // Execute translation
         $this->translate($maxContextItems);
 
         return 0;
@@ -250,8 +297,8 @@ class TranslateStrings extends Command
                 $localeStringCount += count($sourceStringList);
                 $totalStringCount += count($sourceStringList);
 
-                // 많은 문자열이 있을 경우 확인
-                if (count($sourceStringList) > 500) {
+                // Check if there are many strings to translate
+                if (count($sourceStringList) > $this->warningStringCount && !$this->option('skip-big-files')) {
                     if (
                         !$this->confirm(
                             $this->colors['yellow'] . "⚠️ Warning: " . $this->colors['reset'] .

@@ -24,7 +24,7 @@ class TranslateStrings extends Command
         {--r|reference= : Reference languages for translation guidance (e.g. --reference=fr,es). If not provided, will ask interactively}
         {--c|chunk= : Chunk size for translation (e.g. --chunk=100)}
         {--m|max-context= : Maximum number of context items to include (e.g. --max-context=1000)}
-        {--skip-big-files : Skip files with more than 500 strings to translate}
+        {--force-big-files : Force translation of files with more than 500 strings}
         {--show-prompt : Show the whole AI prompts during translation}
         {--non-interactive : Run in non-interactive mode, using default or provided values}';
 

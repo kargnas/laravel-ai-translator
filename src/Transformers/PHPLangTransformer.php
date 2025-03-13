@@ -93,15 +93,11 @@ class PHPLangTransformer
      */
     public function updateString(string $key, string $translated): void
     {
-        $this->loadOriginalContent();
-
         if ($this->useDotNotation) {
             $this->updateStringDotNotation($key, $translated);
         } else {
             $this->updateStringArrayNotation($key, $translated);
         }
-
-        $this->flattenedContent = $this->flatten();
     }
 
     /**
@@ -113,15 +109,21 @@ class PHPLangTransformer
      */
     private function updateStringDotNotation(string $key, string $translated): void
     {
+        // Update flattened content
         $this->flattenedContent[$key] = $translated;
 
+        // Save to file
         $code = "<?php\n\n";
         $code .= "/**\n";
         $code .= " * WARNING: This is an auto-generated file.\n";
         $code .= " * Do not modify this file manually as your changes will be lost.\n";
+        $code .= " * This file was automatically translated from {$this->sourceLanguage} at " . date('Y-m-d H:i:s T') . ".\n";
         $code .= " */\n\n";
         $code .= "return " . var_export($this->flattenedContent, true) . ";";
         file_put_contents($this->filePath, $code);
+
+        // Update original content from flattened content
+        $this->originalContent = $this->flattenedContent;
     }
 
     /**

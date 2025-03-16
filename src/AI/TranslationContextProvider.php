@@ -16,7 +16,7 @@ class TranslationContextProvider
 {
     /**
      * Get global translation context for improving consistency
-     * 
+     *
      * @param string $sourceLocale Source language locale code
      * @param string $targetLocale Target language locale code
      * @param string $currentFilePath Current file being translated
@@ -29,14 +29,14 @@ class TranslationContextProvider
         string $currentFilePath,
         int $maxContextItems = 100
     ): array {
-        // 언어 파일이 위치한 기본 디렉토리 경로
+        // Base directory path for language files
         $langDirectory = config('ai-translator.source_directory');
 
-        // 소스 및 타겟 언어 디렉토리 경로 구성
+        // Configure source and target language directory paths
         $sourceLocaleDir = $this->getLanguageDirectory($langDirectory, $sourceLocale);
         $targetLocaleDir = $this->getLanguageDirectory($langDirectory, $targetLocale);
 
-        // 소스 디렉토리가 없으면 빈 배열 반환
+        // Return empty array if source directory doesn't exist
         if (!is_dir($sourceLocaleDir)) {
             return [];
         }
@@ -46,15 +46,15 @@ class TranslationContextProvider
         $totalContextItems = 0;
         $processedFiles = 0;
 
-        // 소스 디렉토리의 모든 PHP 파일 가져오기
+        // Get all PHP files from source directory
         $sourceFiles = glob("{$sourceLocaleDir}/*.php");
 
-        // 파일이 없는 경우 빈 배열 반환
+        // Return empty array if no files exist
         if (empty($sourceFiles)) {
             return [];
         }
 
-        // 유사한 이름의 파일을 먼저 처리하여 컨텍스트 관련성 향상
+        // Process similar named files first to improve context relevance
         usort($sourceFiles, function ($a, $b) use ($currentFileName) {
             $similarityA = similar_text($currentFileName, basename($a));
             $similarityB = similar_text($currentFileName, basename($b));
@@ -62,58 +62,53 @@ class TranslationContextProvider
         });
 
         foreach ($sourceFiles as $sourceFile) {
-            // 현재 파일 건너뛰기
-            if (basename($sourceFile) === $currentFileName) {
-                continue;
-            }
-
-            // 최대 컨텍스트 항목 수를 초과하면 중단
+            // Stop if maximum context items are reached
             if ($totalContextItems >= $maxContextItems) {
                 break;
             }
 
             try {
-                // 타겟 파일 경로 확인
+                // Confirm target file path
                 $targetFile = $targetLocaleDir . '/' . basename($sourceFile);
                 $hasTargetFile = file_exists($targetFile);
 
-                // 소스 파일에서 원본 문자열 가져오기
+                // Get original strings from source file
                 $sourceTransformer = new PHPLangTransformer($sourceFile);
                 $sourceStrings = $sourceTransformer->flatten();
 
-                // 소스 파일이 비어있으면 건너뛰기
+                // Skip empty files
                 if (empty($sourceStrings)) {
                     continue;
                 }
 
-                // 타겟 파일이 존재하면 타겟 문자열 가져오기
+                // Get target strings if target file exists
                 $targetStrings = [];
                 if ($hasTargetFile) {
                     $targetTransformer = new PHPLangTransformer($targetFile);
                     $targetStrings = $targetTransformer->flatten();
                 }
 
-                // 파일당 최대 항목 수 제한
+                // Limit maximum items per file
                 $maxPerFile = min(20, intval($maxContextItems / count($sourceFiles) / 2) + 1);
 
-                // 긴 파일의 경우 우선순위가 높은 항목만 선택
+                // Prioritize high-priority items from longer files
                 if (count($sourceStrings) > $maxPerFile) {
                     if ($hasTargetFile && !empty($targetStrings)) {
-                        // 타겟이 있는 경우 소스와 타겟 모두 우선순위 적용
+                        // If target exists, apply both source and target prioritization
                         $prioritizedItems = $this->getPrioritizedStrings($sourceStrings, $targetStrings, $maxPerFile);
                         $sourceStrings = $prioritizedItems['source'];
                         $targetStrings = $prioritizedItems['target'];
                     } else {
-                        // 타겟이 없는 경우 소스만 우선순위 적용
+                        // If target doesn't exist, apply source prioritization only
                         $sourceStrings = $this->getPrioritizedSourceOnly($sourceStrings, $maxPerFile);
                     }
                 }
 
-                // 번역 컨텍스트 구성 - 소스 및 타겟 문자열 모두 포함
+                // Construct translation context - include both source and target strings
                 $fileContext = [];
                 foreach ($sourceStrings as $key => $sourceValue) {
                     if ($hasTargetFile && !empty($targetStrings)) {
-                        // 타겟 파일이 있는 경우, 소스와 타겟 모두 포함
+                        // If target file exists, include both source and target
                         $targetValue = $targetStrings[$key] ?? null;
                         if ($targetValue !== null) {
                             $fileContext[$key] = [
@@ -122,7 +117,7 @@ class TranslationContextProvider
                             ];
                         }
                     } else {
-                        // 타겟 파일이 없는 경우, 소스만 포함
+                        // If target file doesn't exist, include source only
                         $fileContext[$key] = [
                             'source' => $sourceValue,
                             'target' => null
@@ -138,7 +133,7 @@ class TranslationContextProvider
                     $processedFiles++;
                 }
             } catch (\Exception $e) {
-                // 문제가 있는 파일 건너뛰기
+                // Skip problematic files
                 continue;
             }
         }
@@ -148,7 +143,7 @@ class TranslationContextProvider
 
     /**
      * Determines the directory path for a specified language.
-     * 
+     *
      * @param string $langDirectory Base directory path for language files
      * @param string $locale Language locale code
      * @return string Language-specific directory path
@@ -169,7 +164,7 @@ class TranslationContextProvider
 
     /**
      * Selects high-priority items from source and target strings.
-     * 
+     *
      * @param array $sourceStrings Source string array
      * @param array $targetStrings Target string array
      * @param int $maxItems Maximum number of items
@@ -208,7 +203,7 @@ class TranslationContextProvider
     }
 
     /**
-     * 소스 문자열만 우선순위를 적용합니다.
+     * Selects high-priority items from source strings only.
      */
     protected function getPrioritizedSourceOnly(array $sourceStrings, int $maxItems): array
     {

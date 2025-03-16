@@ -420,7 +420,7 @@ class AIProvider
                 }
             );
         } else {
-            $response = $client->chat()->create($requestData);
+            $response = $client->createChatStream($requestData, null);
             $responseText = $response['choices'][0]['message']['content'];
             $responseParser->parse($responseText);
 

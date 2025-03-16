@@ -26,12 +26,6 @@ uses(TestCase::class)->in('Unit', 'Feature');
 |
 */
 
-expect()->extend('toBeValidLanguageCode', function () {
-    return $this->and(
-        fn($code) => \Kargnas\LaravelAiTranslator\AI\Language\Language::isValidCode($code)
-    );
-});
-
 /*
 |--------------------------------------------------------------------------
 | Functions
@@ -42,8 +36,3 @@ expect()->extend('toBeValidLanguageCode', function () {
 | global functions to help you to reduce the number of lines of code in your test files.
 |
 */
-
-function createLanguage(string $code): \Kargnas\LaravelAiTranslator\AI\Language\Language
-{
-    return new \Kargnas\LaravelAiTranslator\AI\Language\Language($code);
-}

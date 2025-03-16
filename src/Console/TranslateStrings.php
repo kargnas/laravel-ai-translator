@@ -548,9 +548,11 @@ class TranslateStrings extends Command
 
         if (!empty($globalContext)) {
             $contextItemCount = collect($globalContext)->map(fn($items) => count($items))->sum();
-            $this->info($this->colors['blue'] . "    ℹ Using context: " .
+            $this->info($this->colors['blue'] . "    ℹ Using global context: " .
                 $this->colors['reset'] . count($globalContext) . " files, " .
                 $contextItemCount . " items");
+        } else {
+            $this->line($this->colors['gray'] . "    ℹ No global context available" . $this->colors['reset']);
         }
 
         return $globalContext;
@@ -585,8 +587,8 @@ class TranslateStrings extends Command
             $this->sourceLocale,
             $locale,
             $references,
-            [],
-            $globalContext
+            [],  // additionalRules
+            $globalContext  // globalTranslationContext
         );
 
         $translator->setOnThinking(function ($thinking) {

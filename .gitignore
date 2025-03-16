@@ -13,3 +13,11 @@ node_modules
 # env
 .env
 .env.testing
+
+# Test generated files
+/tests/Fixtures/lang/*/
+!/tests/Fixtures/lang/en/
+
+.phpunit.result.cache
+.php-cs-fixer.cache
+.vscode

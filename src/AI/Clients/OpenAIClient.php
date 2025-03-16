@@ -48,7 +48,7 @@ class OpenAIClient
      * @return array 최종 응답 데이터
      * @throws \Exception API 오류 발생 시
      */
-    public function createChatStream(array $data, callable $onChunk): array
+    public function createChatStream(array $data, ?callable $onChunk = null): array
     {
         // 스트리밍 요청 설정
         $data['stream'] = true;
@@ -126,7 +126,9 @@ class OpenAIClient
                             }
 
                             // 콜백 호출
-                            $onChunk($line, $data);
+                            if ($onChunk) {
+                                $onChunk($line, $data);
+                            }
                         }
                     } else if (strpos($line, 'event: ') === 0) {
                         // 이벤트 처리 (필요한 경우)

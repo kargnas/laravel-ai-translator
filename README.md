@@ -367,10 +367,6 @@ We recommend using PHP files for managing translations, especially when dealing 
 
 If you're currently using JSON files for your translations, we recommend migrating to PHP files for better compatibility with this package and improved manageability of your translations.
 
-## AI Service
-
-> **Note**: We recommend Anthropic's Claude models for superior translation quality.
-
 ## TODO List
 
 We're constantly working to improve Laravel AI Translator. Here are some features and improvements we're planning:

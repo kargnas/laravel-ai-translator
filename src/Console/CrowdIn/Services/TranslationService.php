@@ -226,7 +226,7 @@ class TranslationService
 
         return $filteredStrings->map(function (SourceString $sourceString) {
             $data = $sourceString->getData();
-            // HTML 파일의 경우 text를 identifier로 사용
+            // HTML files use text as identifier
             if (empty($data['identifier'])) {
                 $data['identifier'] = $data['text'];
             }
@@ -348,7 +348,7 @@ class TranslationService
         $duplicates = [];
         $nonDuplicates = [];
 
-        // 모든 번역에 대해 동시에 중복 체크
+        // Check all translations simultaneously
         foreach ($translations as $item) {
             $targetString = $this->untranslatedStrings->where('identifier', $item->key)->first();
             if (!$targetString) {
@@ -367,10 +367,10 @@ class TranslationService
             );
         }
 
-        // 병렬로 실행
+        // Execute in parallel
         $results = \GuzzleHttp\Promise\Utils::settle($promises)->wait();
 
-        // 결과 처리
+        // Process results
         foreach ($results as $key => $result) {
             $item = collect($translations)->firstWhere('key', $key);
 
@@ -391,7 +391,7 @@ class TranslationService
                     $this->command->line("    ✓ New translation: {$item->key} → {$item->translated}");
                 }
             } else {
-                // API 호출 실패 시 중복이 아닌 것으로 처리
+                // API call failure is treated as non-duplicate
                 $nonDuplicates[] = $item;
                 \Log::warning("Failed to check duplicates for {$key}", [
                     'error' => $result['reason']->getMessage()
@@ -418,7 +418,7 @@ class TranslationService
         $promises = [];
         $deletionPromises = [];
 
-        // 1. 먼저 각 번역의 기존 버전들을 가져옴
+        // 1. Get existing translations for each item
         foreach ($translations as $item) {
             if (!isset($stringMap[$item->key])) {
                 continue;
@@ -438,7 +438,7 @@ class TranslationService
 
         $results = \GuzzleHttp\Promise\Utils::settle($promises)->wait();
 
-        // 2. 현재 사용자의 번역들을 찾아서 삭제 요청 준비
+        // 2. Find and prepare for deletion of current user's translations
         foreach ($results as $key => $result) {
             if ($result['state'] === 'fulfilled') {
                 $response = json_decode($result['value']->getBody(), true);
@@ -457,7 +457,7 @@ class TranslationService
             }
         }
 
-        // 3. 모든 삭제 요청을 병렬로 실행
+        // 3. Execute all deletion requests in parallel
         if (!empty($deletionPromises)) {
             $deletionResults = \GuzzleHttp\Promise\Utils::settle($deletionPromises)->wait();
             $successCount = count(array_filter($deletionResults, fn($r) => $r['state'] === 'fulfilled'));
@@ -473,38 +473,46 @@ class TranslationService
     private function addNewTranslations(array $translations, array $targetLanguage, array $stringMap): array
     {
         $validTranslations = array_filter($translations, fn($item) => isset($stringMap[$item->key]));
-        $chunks = array_chunk($validTranslations, 10);
         $results = [];
-        $promises = [];
-
-        foreach ($validTranslations as $item) {
-            $promises[$item->key] = $this->asyncApiService->getClient()->postAsync(
-                "projects/{$this->projectService->getProjectId()}/translations",
-                [
-                    'json' => [
-                        'stringId' => $stringMap[$item->key],
-                        'languageId' => $targetLanguage['id'],
-                        'text' => $item->translated
+        
+        // Set concurrency limit for parallel execution
+        $concurrencyLimit = 10; // Maximum number of requests to execute simultaneously
+        $chunks = array_chunk($validTranslations, $concurrencyLimit);
+        
+        foreach ($chunks as $chunk) {
+            $promises = [];
+            
+            // Create requests for each chunk
+            foreach ($chunk as $item) {
+                $promises[$item->key] = $this->asyncApiService->getClient()->postAsync(
+                    "projects/{$this->projectService->getProjectId()}/translations",
+                    [
+                        'json' => [
+                            'stringId' => $stringMap[$item->key],
+                            'languageId' => $targetLanguage['id'],
+                            'text' => $item->translated
+                        ]
                     ]
-                ]
-            );
-        }
-
-        // 병렬로 실행
-        $promiseResults = \GuzzleHttp\Promise\Utils::settle($promises)->wait();
-
-        foreach ($promiseResults as $key => $result) {
-            if ($result['state'] === 'fulfilled') {
-                $this->command->line("    ✓ Added: {$key}");
-                $results[] = true;
-            } else {
-                $error = $result['reason']->getMessage();
-                if (str_contains($error, 'identical translation')) {
-                    $this->command->line("    ↳ Skipping: {$key} (Duplicate)");
+                );
+            }
+            
+            // Execute promises for this chunk in parallel
+            $promiseResults = \GuzzleHttp\Promise\Utils::settle($promises)->wait();
+            
+            // Process results
+            foreach ($promiseResults as $key => $result) {
+                if ($result['state'] === 'fulfilled') {
+                    $this->command->line("    ✓ Added: {$key}");
                     $results[] = true;
                 } else {
-                    $this->command->error("    ✗ Failed: {$key} - {$error}");
-                    $results[] = false;
+                    $error = $result['reason']->getMessage();
+                    if (str_contains($error, 'identical translation')) {
+                        $this->command->line("    ↳ Skipping: {$key} (Duplicate)");
+                        $results[] = true;
+                    } else {
+                        $this->command->error("    ✗ Failed: {$key} - {$error}");
+                        $results[] = false;
+                    }
                 }
             }
         }

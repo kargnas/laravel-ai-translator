@@ -36,6 +36,7 @@ You are an expert in Laravel Package Development. This project is an open-source
   - AI integration points
   - Performance considerations
   - Error handling strategies
+- Don't numbering comments
 
 ## Package Features
 - Implement robust error handling

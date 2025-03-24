@@ -28,6 +28,8 @@ AI-powered translation tool for Laravel language files
 
 ## Overview
 
+![Laravel AI Translator Example](docs/example.webp)
+
 Laravel AI Translator is a powerful tool designed to streamline the localization process in Laravel projects. It automates the tedious task of translating strings across multiple languages, leveraging advanced AI models to provide high-quality, context-aware translations.
 
 Key benefits:

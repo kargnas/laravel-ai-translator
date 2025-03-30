@@ -392,3 +392,10 @@ The MIT License (MIT). Please see [License File](LICENSE.md) for more informatio
 
 - Created by [Sangrak Choi](https://kargn.as)
 - Inspired by [Mandarin Study](https://mandarin.study)
+
+## Read my articles about this project
+- [Hong Kong vs Taiwan Chinese - Essential UI Localization Guide](https://kargn.as/posts/differences-hong-kong-taiwan-chinese-website-ui-localisation)
+- [Setting non-English as the Default Language in a Global Service? Are you crazy?](https://kargn.as/posts/building-global-service-language-settings-considerations)
+- [Introducing a Service for Learning Mandarin Chinese Based on Etymology](https://kargn.as/posts/innovative-chinese-mandarin-learning-hanzi-analysis-etymology)
+- [Tired of manual translations? I've created an AI translator that actually works.] (https://kargn.as/posts/laravel-ai-translator-ai-gpt-composer)
+- [Laravel AI Translator v1.1: Smarter, Faster, and More Cost-Effective](https://kargn.as/posts/laravel-ai-translator-v1-1-updates-chunking-validation-laravel11-support)

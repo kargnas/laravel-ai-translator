@@ -148,7 +148,7 @@ class AIProvider
 
     protected function getSystemPrompt($replaces = [])
     {
-        $systemPrompt = file_get_contents(__DIR__ . '/prompt-system.txt');
+        $systemPrompt = file_get_contents(config('ai-translator.ai.prompt_system_file') ?? __DIR__ . '/prompt-system.txt');
 
         $translationContext = '';
 
@@ -219,7 +219,7 @@ class AIProvider
 
     protected function getUserPrompt($replaces = [])
     {
-        $userPrompt = file_get_contents(__DIR__ . '/prompt-user.txt');
+        $userPrompt = file_get_contents(config('ai-translator.ai.prompt_user_file') ?? __DIR__ . '/prompt-user.txt');
 
         $replaces = array_merge($replaces, [
             // Options

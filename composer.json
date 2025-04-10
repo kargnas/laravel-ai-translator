@@ -56,8 +56,8 @@
         }
     },
     "scripts": {
-        "test": "./vendor/bin/pest",
-        "test:coverage": "pest --coverage"
+        "test": "vendor/bin/pest",
+        "test:coverage": "vendor/bin/pest --coverage"
     },
     "extra": {
         "laravel": {

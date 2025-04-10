@@ -29,11 +29,14 @@ return [
         // 'max_tokens' => 4096,
         // 'use_extended_thinking' => false, // Extended Thinking 기능 사용 여부 (claude-3-7-sonnet-latest 모델만 지원)
         // 'disable_stream' => true, // Disable streaming mode for better error messages
+
+        'prompt_custom_system_file_path' => null, // Full path to your own custom prompt-system.txt - i.e. resource_path('prompt-system.txt')
+        'prompt_custom_user_file_path' => null, // Full path to your own custom prompt-user.txt - i.e. resource_path('prompt-user.txt')
     ],
 
     // 'disable_plural' => true,
     // 'skip_locales' => [],
-    
+
     // If set to true, translations will be saved as flat arrays using dot notation keys. If set to false, translations will be saved as multi-dimensional arrays.
     'dot_notation' => true,
 

@@ -148,7 +148,7 @@ class AIProvider
 
     protected function getSystemPrompt($replaces = [])
     {
-        $systemPrompt = file_get_contents(config('ai-translator.ai.prompt_system_file') ?? __DIR__ . '/prompt-system.txt');
+        $systemPrompt = file_get_contents(config('ai-translator.ai.prompt_custom_system_file_path') ?? __DIR__ . '/prompt-system.txt');
 
         $translationContext = '';
 
@@ -219,7 +219,7 @@ class AIProvider
 
     protected function getUserPrompt($replaces = [])
     {
-        $userPrompt = file_get_contents(config('ai-translator.ai.prompt_user_file') ?? __DIR__ . '/prompt-user.txt');
+        $userPrompt = file_get_contents(config('ai-translator.ai.prompt_custom_user_file_path') ?? __DIR__ . '/prompt-user.txt');
 
         $replaces = array_merge($replaces, [
             // Options
@@ -590,7 +590,7 @@ class AIProvider
                         if ($currentItemCount > $previousItemCount) {
                             $newItems = array_slice($currentItems, $previousItemCount);
                             $translatedItems = $currentItems; // 전체 번역 결과 업데이트
-
+    
                             // 새 번역 항목 각각에 대해 콜백 호출
                             foreach ($newItems as $index => $newItem) {
                                 // Skip already processed keys

@@ -46,4 +46,4 @@ jobs:
         run: ls -la vendor/bin/ && cat vendor/bin/pest
 
       - name: Execute tests
-        run: vendor/bin/pest --test-directory=tests
+        run: cd $GITHUB_WORKSPACE && vendor/bin/pest tests

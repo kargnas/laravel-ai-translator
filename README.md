@@ -5,7 +5,7 @@ AI-powered translation tool for Laravel language files
 </p>
 
 <p align="center">
-<a href="https://github.com/kargnas/laravel-ai-translator/actions"><img src="https://github.com/kargnas/laravel-ai-translator/workflows/tests/badge.svg" alt="Build Status"></a>
+<a href="https://github.com/kargnas/laravel-ai-translator/actions"><img src="https://github.com/kargnas/laravel-ai-translator/actions/workflows/tests.yml/badge.svg" alt="Build Status"></a>
 <a href="https://packagist.org/packages/kargnas/laravel-ai-translator"><img src="https://img.shields.io/packagist/dt/kargnas/laravel-ai-translator" alt="Total Downloads"></a>
 <a href="https://packagist.org/packages/kargnas/laravel-ai-translator"><img src="https://img.shields.io/packagist/v/kargnas/laravel-ai-translator" alt="Latest Stable Version"></a>
 <a href="https://packagist.org/packages/kargnas/laravel-ai-translator"><img src="https://img.shields.io/packagist/l/kargnas/laravel-ai-translator" alt="License"></a>

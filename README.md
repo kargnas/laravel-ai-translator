@@ -169,7 +169,7 @@ These custom styles offer creative ways to customize your translations, adding a
    ```
 
    You can obtain an Anthropic API key from the [Anthropic website](https://www.anthropic.com).
-   For best results, we recommend using the Claude-3-5-Sonnet model for your translations rather than OpenAI GPT. This model provides more accurate and natural translations.
+   For best results, we recommend using the Claude-3-7-sonnet model for your translations rather than OpenAI GPT. This model provides more accurate and natural translations.
 
 5. You're now ready to use the Laravel AI Translator!
 
@@ -203,45 +203,101 @@ return [
 
 The package will generate translations like these:
 
-- Korean (ko-kr):
+- Korean:
   ```php
   <?php
-  return array (
-    'notifications.new_feature_search_sentence' => '새로운 기능: 이제 단어뿐만 아니라 문장도 입력할 수 있어요. 심지어 여러분의 언어로도 가능해요.',
-    'notifications.refresh_after_1_min' => '1분 후에 새로고침하세요. 새로운 내용이 준비될 거예요! (이전 모델: :model, 업데이트: :updated_at)',
-  );
+  return [
+      'expertise' => [
+          'coding' => [
+              'title' => '코딩 & 제품',
+              'description' => '코딩은 사실상 제 인생 전부입니다. 11살 때부터 해리 포터와 스타크래프트 팬 사이트를 만들기 시작했습니다. 대학생이 되기 전에 넥서스 TK, 테일즈위버, 메이플스토리와 같은 다양한 게임 관련 웹 서비스를 개발했습니다. 대학 시절에는 웹사이트를 만드는 아르바이트로 돈을 벌었습니다. 현재 제 회사인 OP.GG도 어린 시절부터 개발해 온 게임 관련 서비스의 연장선으로, 이는 저에게 큰 자부심을 줍니다.',
+          ]
+      ]
+  ];
   ```
-- Chinese (zh-cn):
+- Simplified Chinese:
   ```php
   <?php
-  return array (
-    'notifications.new_feature_search_sentence' => '新功能：现在你不仅可以输入单词，还可以输入句子。甚至可以用你的语言。',
-    'notifications.refresh_after_1_min' => '1分钟后刷新。新内容即将到来！（之前的模型：:model，更新时间：:updated_at）',
-  );
+  return [
+      'expertise' => [
+          'coding' => [
+              'title' => '编程与产品',
+            'description' => '编程几乎就是我的整个生活。11岁时，我就开始为《哈利·波特》和《星际争霸》创建粉丝网站。在上大学之前，我开发了各种游戏相关网络服务，如Nexus TK、TalesWeaver和冒险岛。大学期间，我通过创建网站的兼职工作赚钱。我现在的公司OP.GG，也  是我从小就在开发的游戏相关服务的延伸，这让我感到非常自豪。'
+          ]
+      ]
+  ];
   ```
-- Thai (th-th):
+- Thai:
   ```php
   <?php
-  return array (
-    'notifications.new_feature_search_sentence' => 'ฟีเจอร์ใหม่: ตอนนี้คุณพิมพ์ประโยคได้แล้ว ไม่ใช่แค่คำเดียว แม้แต่ภาษาของคุณเอง',
-    'notifications.refresh_after_1_min' => 'รีเฟรชหลังจาก 1 นาที จะมีเนื้อหาใหม่ให้ดู! (โมเดลก่อนหน้า: :model, อัปเดตเมื่อ: :updated_at)',
-  );
+  return [
+      'expertise' => [
+          'coding' => [
+              'title' => 'Coding & Product',
+              'description' => 'การเขียนโค้ดเป็นเรื่องที่อยู่ในชีวิตผมแทบทั้งหมด ผมเริ่มสร้างเว็บไซต์แฟนคลับสำหรับแฮร์รี่ พอตเตอร์และสตาร์คราฟท์ตั้งแต่อายุ 11 ปี ก่อนที่จะเข้ามหาวิทยาลัย ผมได้พัฒนาเว็บบริการเกี่ยวกับเกมต่างๆ เช่น Nexus TK, TalesWeaver และ MapleStory ในช่วงมหาวิทยาลัย ผมหาเงินด้วยการทำงานพาร์ทไทม์สร้างเว็บไซต์ บริษัทปัจจุบันของผม OP.GG ก็เป็นส่วนขยายของบริการเกี่ยวกับเกมที่ผมได้พัฒนามาตั้งแต่เด็ก ซึ่งทำให้ผมรู้สึกภูมิใจเป็นอย่างมาก',
+          ]
+      ]
+  ];
+  ```
+- Japanese:
+  ```php
+  <?php
+  return [
+      'expertise' => [
+          'coding' => [
+              'title' => 'コーディング＆プロダクト',
+              'description' => 'コーディングは私の人生そのものです。11歳の時からハリーポッターやスタークラフトのファンサイトを作り始めました。大学生になる前に、Nexus TK、テイルズウィーバー、メイプルストーリーなどのゲーム関連のウェブサービスを開発していました。大学時代には、ウェブサイト制作のアルバイトでお金を稼いでいました。現在の会社OP.GGも、子供の頃から開発してきたゲーム関連サービスの延長線上にあり、それが大きな誇りとなっています。',
+          ]
+      ]
+  ];
+  ```
+- 🤣 Simplified Chinese (Dongbei Dialect):
+  ```php
+  <?php
+  return [
+      'expertise' => [
+          'coding' => [
+              'title' => '写代码和整产品',
+              'description' => '写代码简直就是俺的命根子。俺11岁那会儿就开始整哈利波特和星际争霸的粉丝网站了。上大学前，俺整了不少游戏网站，啥Nexus TK啊，TalesWeaver啊，还有冒险岛啊。上大学那会儿，俺靠给人整网站挣了不少零花钱。现在俺这公司OP.GG，也就是俺从小整的游戏服务的延续，这让俺贼有成就感。'
+          ]
+      ]
+  ];
   ```
 - 🤣 Korean (North Korea):
   ```php
   <?php
-  return array (
-    'notifications.new_feature_search_sentence' => '혁명적 새로운 기능: 동무들! 이제 단어뿐만 아니라 문장도 입력하여 단어의 력사를 확인할 수 있습니다. 모국어로도 괜찮습니다. 인공지능이 중국어로 번역해드리겠습니다.',
-    'notifications.refresh_after_1_min' => '1분후에 새로고침하십시요. 새로운 내용을 볼수 있습니다! (이전 모델: :model, 갱신: :updated_at)',
-  );
+  return [
+      'expertise' => [
+          'coding' => [
+              'title' => '콤퓨터프로그람작성 & 제품',
+              'description' => '프로그람작성은 혁명적으로 나의 전생애입니다. 11살때부터 해리 포터와 스타크래프트 애호가싸이트를 만들기 시작하였습니다. 대학생이 되기전에 넥서스 TK, 테일즈위버, 메이플스토리와 같은 혁명적인 게임관련 망봉사들을 개발하였습니다. 대학시절에는 웹싸이트를 만드는 림시일로 돈을 벌었습니다. 현재 나의 회사인 OP.GG도 어린시절부터 개발하여온 게임관련 봉사의 련장선으로, 이는 나에게 큰 혁명적자부심을 줍니다.',
+          ]
+      ]
+  ];
+  ```
+- 🤣 Korean (Busan Dialect):
+  ```php
+  <?php
+  return [
+      'expertise' => [
+          'coding' => [
+              'title' => '코딩 & 제품',
+              'description' => '코딩은 사실상 제 인생 전부라 카모. 11살 때부터 해리 포터캉 스타크래프트 팬 사이트 만들기 시작했데이. 대학생이 되기 전에는 넥서스 TK, 테일즈위버, 메이플스토리 같은 여러 게임 관련 웹 서비스 개발했디. 대학 다닐 때는 웹사이트 만드는 아르바이트로 돈 벌었데이. 지금 제 회사인 OP.GG도 어릴 때부터 개발해 온 게임 관련 서비스으 연장선인데, 이기 내인데 억수로 자부심이 된다 카모.',
+          ]
+      ]
+  ];
   ```
 - 🤣 English (Reddit):
   ```php
   <?php
-  return array (
-    'notifications.new_feature_search_sentence' => 'Whoa, hold onto your keyboards, nerds! We\'ve leveled up our search game. Now you can type entire sentences, not just measly words. Mind. Blown. And get this - it even works in your weird non-English languages! Our AI overlord will graciously translate your gibberish into Chinese. You\'re welcome.',
-    'notifications.refresh_after_1_min' => 'Yo, hit that F5 in 60 seconds, fam. Fresh content incoming! (Previous model was :model, last updated when dinosaurs roamed the Earth at :updated_at)',
-  );
+  return [
+      'expertise' => [
+          'coding' => [
+              'title' => 'Coding & Product',
+              'description' => 'Coding is practically my entire life, duh. Started building Harry Potter and StarCraft fan sites at 11 (yeah, I was *that* kid). Before even hitting university, I was already knee-deep in game sites like Nexus TK, TalesWeaver, and MapleStory. Paid my way through college building websites - because who needs a social life, right? Now I run OP.GG, which is basically just the grown-up version of what little-me was doing in his bedroom. Not gonna lie, pretty damn proud of that full-circle moment.',
+          ]
+      ]
+  ];
   ```
 
 ## Configuration
@@ -261,7 +317,7 @@ This will create a `config/ai-translator.php` file where you can modify the foll
   ```php
   'ai' => [
       'provider' => 'anthropic',
-      'model' => 'claude-3-5-sonnet-latest',
+      'model' => 'claude-3-7-sonnet-latest',
       'api_key' => env('ANTHROPIC_API_KEY'),
   ],
   ```
@@ -271,7 +327,7 @@ This will create a `config/ai-translator.php` file where you can modify the foll
   | Provider    | Model                      | Extended Thinking | Context Window | Max Tokens |
   | ----------- | -------------------------- | ----------------- | -------------- | ---------- |
   | `anthropic` | `claude-3-7-sonnet-latest` | ✅                | 200K           | 8K/64K\*   |
-  | `anthropic` | `claude-3-5-sonnet-latest` | ❌                | 200K           | 8K         |
+  | `anthropic` | `claude-3-7-sonnet-latest` | ❌                | 200K           | 8K         |
   | `anthropic` | `claude-3-haiku-20240307`  | ❌                | 200K           | 8K         |
   | `openai`    | `gpt-4o`                   | ❌                | 128K           | 4K         |
   | `openai`    | `gpt-4o-mini`              | ❌                | 128K           | 4K         |
@@ -283,7 +339,7 @@ This will create a `config/ai-translator.php` file where you can modify the foll
   - Anthropic: See [Anthropic Models Documentation](https://docs.anthropic.com/en/docs/about-claude/models)
   - OpenAI: See [OpenAI Models Documentation](https://platform.openai.com/docs/models)
 
-  > **⭐️ Strong Recommendation**: We highly recommend using Anthropic's Claude models, particularly `claude-3-5-sonnet-latest`. Here's why:
+  > **⭐️ Strong Recommendation**: We highly recommend using Anthropic's Claude models, particularly `claude-3-7-sonnet-latest`. Here's why:
   >
   > - More accurate and natural translations
   > - Better understanding of context and nuances
@@ -313,7 +369,7 @@ This will create a `config/ai-translator.php` file where you can modify the foll
      ```php
      'ai' => [
          'provider' => 'anthropic', // or 'openai'
-         'model' => 'claude-3-5-sonnet-latest', // see model list above
+         'model' => 'claude-3-7-sonnet-latest', // see model list above
          'api_key' => env('ANTHROPIC_API_KEY'), // or env('OPENAI_API_KEY')
      ],
      ```
@@ -334,7 +390,7 @@ return [
 
     'ai' => [
         'provider' => 'anthropic',
-        'model' => 'claude-3-5-sonnet-latest',
+        'model' => 'claude-3-7-sonnet-latest',
         'api_key' => env('ANTHROPIC_API_KEY'),
     ],
 

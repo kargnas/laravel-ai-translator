@@ -129,6 +129,7 @@ class LanguageConfig
         'ko' => 'Korean',
         'ko_kr' => 'Korean (South Korea)',
         'ko_kp' => 'Korean (North Korea)',
+        'ko_busan' => 'Korean (Busan Dialect)',
         'kok' => 'Konkani',
         'ks' => 'Kashmiri',
         'ku' => 'Kurdish',
@@ -223,6 +224,7 @@ class LanguageConfig
         'zh_mo' => 'Chinese (Macau SAR)',
         'zh_sg' => 'Chinese (Singapore)',
         'zh_tw' => 'Chinese (Taiwan)',
+        'zh_dongbei' => 'Chinese (Dongbei Dialect, China Mainland)',
         'zu' => 'Zulu',
     ];
 

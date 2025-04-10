@@ -29,7 +29,7 @@
         "openai-php/client": "^0.10.3"
     },
     "require-dev": {
-        "laravel/pint": "^1.21",
+        "laravel/pint": "^1",
         "orchestra/testbench": "^8.0|^9.0",
         "pestphp/pest": "^2.0",
         "pestphp/pest-plugin-laravel": "^2.0",

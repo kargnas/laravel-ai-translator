@@ -1,6 +1,19 @@
-# kargnas/laravel-ai-translator
+<h1 align="center">Laravel AI Translator by kargnas</h1>
 
+<p align="center">
 AI-powered translation tool for Laravel language files
+</p>
+
+<p align="center">
+<a href="https://github.com/kargnas/laravel-ai-translator/actions"><img src="https://github.com/kargnas/laravel-ai-translator/workflows/tests/badge.svg" alt="Build Status"></a>
+<a href="https://packagist.org/packages/kargnas/laravel-ai-translator"><img src="https://img.shields.io/packagist/dt/kargnas/laravel-ai-translator" alt="Total Downloads"></a>
+<a href="https://packagist.org/packages/kargnas/laravel-ai-translator"><img src="https://img.shields.io/packagist/v/kargnas/laravel-ai-translator" alt="Latest Stable Version"></a>
+<a href="https://packagist.org/packages/kargnas/laravel-ai-translator"><img src="https://img.shields.io/packagist/l/kargnas/laravel-ai-translator" alt="License"></a>
+</p>
+
+<p align="center">
+<a href="https://kargn.as/projects/laravel-ai-translator">Official Website</a>
+</p>
 
 ## 🔄 Recent Updates (March, 2025)
 
@@ -394,6 +407,7 @@ The MIT License (MIT). Please see [License File](LICENSE.md) for more informatio
 - Inspired by [Mandarin Study](https://mandarin.study)
 
 ## Read my articles about language
+
 - [Hong Kong vs Taiwan Chinese - Essential UI Localization Guide](https://kargn.as/posts/differences-hong-kong-taiwan-chinese-website-ui-localisation)
 - [Setting non-English as the Default Language in a Global Service? Are you crazy?](https://kargn.as/posts/building-global-service-language-settings-considerations)
 - [Introducing a Service for Learning Mandarin Chinese Based on Etymology](https://kargn.as/posts/innovative-chinese-mandarin-learning-hanzi-analysis-etymology)

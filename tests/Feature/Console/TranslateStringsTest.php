@@ -9,7 +9,14 @@ use Illuminate\Support\Facades\Artisan;
 use Symfony\Component\Console\Output\BufferedOutput;
 use function Pest\Laravel\artisan;
 
+function checkApiKeysExistForFeature(): bool {
+    return !empty(env('OPENAI_API_KEY')) && !empty(env('ANTHROPIC_API_KEY'));
+}
+
 beforeEach(function () {
+    // Check if API keys exist
+    $this->hasApiKeys = checkApiKeysExistForFeature();
+    
     // Set up test language file directory
     $this->testLangPath = __DIR__ . '/../../Fixtures/lang';
 
@@ -84,6 +91,10 @@ test('can get string file paths', function () {
 });
 
 test('handles show prompt option', function () {
+    if (!$this->hasApiKeys) {
+        $this->markTestSkipped('API keys not found in environment. Skipping test.');
+    }
+    
     artisan('ai-translator:translate', [
         '--source' => 'en',
         '--locale' => ['ko'],
@@ -93,6 +104,10 @@ test('handles show prompt option', function () {
 });
 
 test('captures console output', function () {
+    if (!$this->hasApiKeys) {
+        $this->markTestSkipped('API keys not found in environment. Skipping test.');
+    }
+    
     // Capture console output using BufferedOutput
     $output = new BufferedOutput();
 
@@ -118,6 +133,10 @@ test('captures console output', function () {
 });
 
 test('verifies Chinese translations format with dot notation', function () {
+    if (!$this->hasApiKeys) {
+        $this->markTestSkipped('API keys not found in environment. Skipping test.');
+    }
+    
     Config::set('ai-translator.dot_notation', true);
 
     // Execute Chinese Simplified translation
@@ -156,6 +175,10 @@ test('verifies Chinese translations format with dot notation', function () {
 });
 
 test('verifies Chinese translations format with nested arrays', function () {
+    if (!$this->hasApiKeys) {
+        $this->markTestSkipped('API keys not found in environment. Skipping test.');
+    }
+    
     Config::set('ai-translator.dot_notation', false);
 
     // Execute Chinese Simplified translation
@@ -203,6 +226,10 @@ test('verifies Chinese translations format with nested arrays', function () {
 });
 
 test('compares Chinese variants translations', function () {
+    if (!$this->hasApiKeys) {
+        $this->markTestSkipped('API keys not found in environment. Skipping test.');
+    }
+    
     // Translate zh_CN with dot notation
     Config::set('ai-translator.dot_notation', true);
     Artisan::call('ai-translator:translate', [

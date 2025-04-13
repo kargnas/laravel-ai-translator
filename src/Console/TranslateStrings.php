@@ -25,7 +25,6 @@ class TranslateStrings extends Command
         {--c|chunk= : Chunk size for translation (e.g. --chunk=100)}
         {--m|max-context= : Maximum number of context items to include (e.g. --max-context=1000)}
         {--force-big-files : Force translation of files with more than 500 strings}
-        {--skip-big-files : Skip confirmation on big files (useful for automation)}
         {--show-prompt : Show the whole AI prompts during translation}
         {--non-interactive : Run in non-interactive mode, using default or provided values}';
 
@@ -299,7 +298,7 @@ class TranslateStrings extends Command
                 $totalStringCount += count($sourceStringList);
 
                 // Check if there are many strings to translate
-                if (count($sourceStringList) > $this->warningStringCount && !$this->option('skip-big-files')) {
+                if (count($sourceStringList) > $this->warningStringCount && !$this->option('force-big-files')) {
                     if (
                         !$this->confirm(
                             $this->colors['yellow'] . "⚠️ Warning: " . $this->colors['reset'] .

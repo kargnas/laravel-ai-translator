@@ -298,7 +298,7 @@ class TranslateStrings extends Command
                 $totalStringCount += count($sourceStringList);
 
                 // Check if there are many strings to translate
-                if (count($sourceStringList) > $this->warningStringCount && !$this->option('skip-big-files')) {
+                if (count($sourceStringList) > $this->warningStringCount && !$this->option('force-big-files')) {
                     if (
                         !$this->confirm(
                             $this->colors['yellow'] . "⚠️ Warning: " . $this->colors['reset'] .

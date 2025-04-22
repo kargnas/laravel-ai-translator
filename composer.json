@@ -1,6 +1,6 @@
 {
     "name": "kargnas/laravel-ai-translator",
-    "version": "1.7.6",
+    "version": "1.7.7",
     "description": "AI-powered translation tool for Laravel language files",
     "keywords": [
         "kargnas",
@@ -12,7 +12,7 @@
         "claude"
     ],
     "license": "MIT",
-    "homepage": "https://github.com/kargnas/laravel-ai-translate",
+    "homepage": "https://kargn.as/projects/laravel-ai-translator",
     "type": "library",
     "authors": [
         {

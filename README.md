@@ -192,12 +192,13 @@ Given an English language file:
 
 ```php
 <?php
-
 return [
-    'notifications' => [
-        'new_feature_search_sentence' => 'New feature: Now you can type sentences not only words. Even in your languages. The AI will translate them to Chinese.',
-        'refresh_after_1_min' => 'Refresh after 1 minutes. New content will be available! (The previous model: :model, Updated: :updated_at)',
-    ]
+    'expertise' => [
+        'coding' => [
+            'title' => 'Coding & Product',
+            'description' => 'Coding is practically my entire life. I started creating fan sites for Harry Potter and StarCraft when I was 11 years old. Before becoming a university student, I developed various game-related web services such as Nexus TK, TalesWeaver, and MapleStory. During my university days, I earned money by doing part-time jobs creating websites. My current company, OP.GG, is also an extension of the game-related services I\'ve been developing since childhood, which gives me a great sense of pride.',
+        ],
+    ],
 ];
 ```
 

@@ -129,7 +129,7 @@ class TranslateStrings extends Command
                     $this->colors['reset']);
             }
         } else if ($this->option('reference')) {
-            $this->referenceLocales = $this->option('reference');
+            $this->referenceLocales = explode(',', $this->option('reference'));
             $this->info($this->colors['green'] . "✓ Selected reference locales: " .
                 $this->colors['reset'] . $this->colors['bold'] . implode(', ', $this->referenceLocales) .
                 $this->colors['reset']);

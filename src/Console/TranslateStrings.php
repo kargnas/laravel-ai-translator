@@ -244,7 +244,8 @@ class TranslateStrings extends Command
 
         foreach ($locales as $locale) {
             // 소스 언어와 같거나 스킵 목록에 있는 언어는 건너뜀
-            if ($locale === $this->sourceLocale || in_array($locale, config('ai-translator.skip_locales', []))) {
+           if ($locale === $this->sourceLocale || in_array($locale, config('ai-translator.skip_locales', []))) {
+                this->warn('Skipping locale ' . $locale .'.');
                 continue;
             }
 
@@ -268,6 +269,12 @@ class TranslateStrings extends Command
 
             foreach ($files as $file) {
                 $outputFile = $this->getOutputDirectoryLocale($locale) . '/' . basename($file);
+
+                if (in_array(basename($file), config('ai-translator.skip_files', []))) {
+                    $this->warn('Skipping file  ' . basename($file) .'.');
+                    continue;
+                }
+                
                 $this->displayFileInfo($file, $locale, $outputFile);
 
                 $localeFileCount++;

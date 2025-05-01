@@ -36,6 +36,7 @@ return [
 
     // 'disable_plural' => true,
     // 'skip_locales' => [],
+    // 'skip_files' => [],
 
     // If set to true, translations will be saved as flat arrays using dot notation keys. If set to false, translations will be saved as multi-dimensional arrays.
     'dot_notation' => true,

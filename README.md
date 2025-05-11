@@ -15,7 +15,7 @@ AI-powered translation tool for Laravel language files
 <a href="https://kargn.as/projects/laravel-ai-translator">Official Website</a>
 </p>
 
-## 🔄 Recent Updates (March, 2025)
+## 🔄 Recent Updates
 
 - **AI Enhancement**: Added support for Claude 3.7's Extended Thinking capabilities
   - Extended context window up to 200K tokens, output tokens up to 64K tokens

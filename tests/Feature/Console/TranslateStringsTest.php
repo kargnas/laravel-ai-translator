@@ -16,6 +16,11 @@ function checkApiKeysExistForFeature(): bool {
 beforeEach(function () {
     // Check if API keys exist
     $this->hasApiKeys = checkApiKeysExistForFeature();
+    if (!$this->hasApiKeys) {
+        // Use fake provider when API keys are missing so tests can run offline
+        Config::set('ai-translator.ai.provider', 'fake');
+        $this->hasApiKeys = true;
+    }
     
     // Set up test language file directory
     $this->testLangPath = __DIR__ . '/../../Fixtures/lang';

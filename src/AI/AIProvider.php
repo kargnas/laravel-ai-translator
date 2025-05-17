@@ -367,6 +367,7 @@ class AIProvider
         return match ($this->configProvider) {
             'anthropic' => $this->getTranslatedObjectsFromAnthropic(),
             'openai' => $this->getTranslatedObjectsFromOpenAI(),
+            'fake' => $this->getTranslatedObjectsFromFake(),
             default => throw new \Exception("Provider {$this->configProvider} is not supported."),
         };
     }
@@ -442,6 +443,37 @@ class AIProvider
         }
 
         return $responseParser->getTranslatedItems();
+    }
+
+    protected function getTranslatedObjectsFromFake(): array
+    {
+        $items = [];
+        foreach ($this->strings as $key => $value) {
+            $localized = new LocalizedString();
+            $localized->key = $key;
+            $localized->translated = '[' . $this->targetLanguageObj->code . '] ' . $value;
+            $items[] = $localized;
+        }
+
+        // Simulate minimal token usage for offline mode
+        $this->inputTokens = count($this->strings);
+        $this->outputTokens = count($this->strings);
+        $this->totalTokens = $this->inputTokens + $this->outputTokens;
+
+        if ($this->onTranslated) {
+            foreach ($items as $item) {
+                ($this->onTranslated)($item, TranslationStatus::STARTED, $items);
+                ($this->onTranslated)($item, TranslationStatus::COMPLETED, $items);
+            }
+        }
+
+        if ($this->onTokenUsage) {
+            $tokenUsage = $this->getTokenUsage();
+            $tokenUsage['final'] = true;
+            ($this->onTokenUsage)($tokenUsage);
+        }
+
+        return $items;
     }
 
     protected function getTranslatedObjectsFromAnthropic(): array

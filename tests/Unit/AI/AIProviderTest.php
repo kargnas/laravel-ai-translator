@@ -12,10 +12,14 @@ function checkApiKeysExist(): bool {
 
 beforeEach(function() {
     $this->hasApiKeys = checkApiKeysExist();
+    if (!$this->hasApiKeys) {
+        config()->set('ai-translator.ai.provider', 'fake');
+        $this->hasApiKeys = true;
+    }
 });
 
 test('environment variables are loaded from .env.testing', function () {
-    if (!$this->hasApiKeys) {
+    if (empty(env('OPENAI_API_KEY')) || empty(env('ANTHROPIC_API_KEY'))) {
         $this->markTestSkipped('API keys not found in environment. Skipping test.');
     }
     
@@ -31,7 +35,7 @@ test('environment variables are loaded from .env.testing', function () {
 });
 
 test('can translate strings using OpenAI', function () {
-    if (!$this->hasApiKeys || empty(env('OPENAI_API_KEY'))) {
+    if (empty(env('OPENAI_API_KEY'))) {
         $this->markTestSkipped('OpenAI API key not found in environment. Skipping test.');
     }
     
@@ -51,7 +55,7 @@ test('can translate strings using OpenAI', function () {
 });
 
 test('can translate strings using Anthropic', function () {
-    if (!$this->hasApiKeys || empty(env('ANTHROPIC_API_KEY'))) {
+    if (empty(env('ANTHROPIC_API_KEY'))) {
         $this->markTestSkipped('Anthropic API key not found in environment. Skipping test.');
     }
     
@@ -85,4 +89,21 @@ test('throws exception for unsupported provider', function () {
 
     expect(fn() => $method->invoke($provider))
         ->toThrow(\Exception::class, 'Provider unsupported is not supported.');
+});
+
+test('can translate strings using fake provider', function () {
+    config()->set('ai-translator.ai.provider', 'fake');
+
+    $provider = new AIProvider(
+        'test.php',
+        ['greeting' => 'Hello, world!'],
+        'en',
+        'ko'
+    );
+
+    $result = $provider->translate();
+
+    expect($result)->toBeArray()
+        ->toHaveCount(1);
+    expect($result[0]->translated)->toContain('[ko]');
 });

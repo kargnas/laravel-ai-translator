@@ -6,7 +6,8 @@ use Kargnas\LaravelAiTranslator\AI\Clients\AnthropicClient;
 use Kargnas\LaravelAiTranslator\AI\Language\Language;
 use Mockery\MockInterface;
 
-function providerKeys(): array {
+function providerKeys(): array
+{
     return [
         'openai' => !empty(env('OPENAI_API_KEY')),
         'anthropic' => !empty(env('ANTHROPIC_API_KEY')),
@@ -14,7 +15,7 @@ function providerKeys(): array {
     ];
 }
 
-beforeEach(function() {
+beforeEach(function () {
     $keys = providerKeys();
     $this->hasOpenAI = $keys['openai'];
     $this->hasAnthropic = $keys['anthropic'];
@@ -46,7 +47,7 @@ test('can translate strings using OpenAI', function () {
     if (!$this->hasOpenAI) {
         $this->markTestSkipped('OpenAI API key not found in environment. Skipping test.');
     }
-    
+
     config()->set('ai-translator.ai.provider', 'openai');
     config()->set('ai-translator.ai.model', 'gpt-4o-mini');
     config()->set('ai-translator.ai.api_key', env('OPENAI_API_KEY'));
@@ -66,7 +67,7 @@ test('can translate strings using Anthropic', function () {
     if (!$this->hasAnthropic) {
         $this->markTestSkipped('Anthropic API key not found in environment. Skipping test.');
     }
-    
+
     config()->set('ai-translator.ai.provider', 'anthropic');
     config()->set('ai-translator.ai.model', 'claude-3-haiku-20240307');
     config()->set('ai-translator.ai.api_key', env('ANTHROPIC_API_KEY'));
@@ -79,7 +80,7 @@ test('can translate strings using Anthropic', function () {
     );
 
     $result = $provider->translate();
-    expect($result)->toBeArray();
+    expect($result)->toBeArray()->toHaveCount(1);
 });
 
 test('can translate strings using Gemini', function () {
@@ -88,7 +89,8 @@ test('can translate strings using Gemini', function () {
     }
 
     config()->set('ai-translator.ai.provider', 'gemini');
-    config()->set('ai-translator.ai.model', 'gemini-2.5-pro-latest');
+    config()->set('ai-translator.ai.model', 'gemini-2.5-pro-preview-05-06');
+    config()->set('ai-translator.ai.model', 'gemini-2.5-flash-preview-04-17');
     config()->set('ai-translator.ai.api_key', env('GEMINI_API_KEY'));
 
     $provider = new AIProvider(
@@ -99,7 +101,7 @@ test('can translate strings using Gemini', function () {
     );
 
     $result = $provider->translate();
-    expect($result)->toBeArray();
+    expect($result)->toBeArray()->toHaveCount(1);
 });
 
 test('throws exception for unsupported provider', function () {

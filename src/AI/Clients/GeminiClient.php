@@ -2,71 +2,87 @@
 
 namespace Kargnas\LaravelAiTranslator\AI\Clients;
 
-use Illuminate\Support\Facades\Http;
-
 class GeminiClient
 {
-    protected string $baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
-
     protected string $apiKey;
+    protected $client;
 
     public function __construct(string $apiKey)
     {
         $this->apiKey = $apiKey;
+        $this->client = \Gemini::client($apiKey);
     }
 
     public function request(string $model, array $contents): array
     {
-        $endpoint = "{$this->baseUrl}/models/{$model}:generateContent?key={$this->apiKey}";
-        $response = Http::withHeaders([
-            'Content-Type' => 'application/json',
-        ])->post($endpoint, ['contents' => $contents]);
+        try {
+            $formattedContent = $this->formatRequestContent($contents);
 
-        if (!$response->successful()) {
-            throw new \Exception('Gemini API error: ' . $response->body());
+            $response = $this->client->generativeModel(model: $model)->generateContent($formattedContent);
+
+            return $this->formatResponse($response);
+        } catch (\Throwable $e) {
+            throw new \Exception("Gemini API error: {$e->getMessage()}");
         }
-
-        return $response->json();
     }
 
     public function createStream(string $model, array $contents, ?callable $onChunk = null): void
     {
-        $url = "{$this->baseUrl}/models/{$model}:streamGenerateContent?key={$this->apiKey}";
-        $headers = [
-            'Content-Type: application/json',
-            'Accept: text/event-stream',
-        ];
-        $data = json_encode(['contents' => $contents, 'stream' => true]);
+        try {
+            $formattedContent = $this->formatRequestContent($contents);
 
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
-        curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
-        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 30);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 120);
-        curl_setopt($ch, CURLOPT_WRITEFUNCTION, function ($ch, $chunk) use ($onChunk) {
-            if ($onChunk) {
-                $onChunk($chunk);
+            $stream = $this->client->generativeModel(model: $model)->streamGenerateContent($formattedContent);
+
+            foreach ($stream as $response) {
+                if ($onChunk) {
+                    $chunk = json_encode([
+                        'candidates' => [
+                            [
+                                'content' => [
+                                    'parts' => [
+                                        ['text' => $response->text()]
+                                    ],
+                                    'role' => 'model'
+                                ]
+                            ]
+                        ]
+                    ]);
+                    $onChunk($chunk);
+                }
             }
-            return strlen($chunk);
-        });
+        } catch (\Throwable $e) {
+            throw new \Exception("Gemini API streaming error: {$e->getMessage()}");
+        }
+    }
 
-        curl_exec($ch);
-
-        if (curl_errno($ch)) {
-            $error = curl_error($ch);
-            curl_close($ch);
-            throw new \Exception("Gemini API streaming error: {$error}");
+    /**
+     * 입력 콘텐츠를 라이브러리에 맞게 변환
+     */
+    protected function formatRequestContent(array $contents): string
+    {
+        if (isset($contents[0]['parts'][0]['text'])) {
+            return $contents[0]['parts'][0]['text'];
         }
 
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        if ($httpCode >= 400) {
-            curl_close($ch);
-            throw new \Exception("Gemini API streaming error: HTTP {$httpCode}");
-        }
+        return json_encode($contents);
+    }
 
-        curl_close($ch);
+    /**
+     * 응답을 AIProvider가 기대하는 형식으로 변환
+     */
+    protected function formatResponse($response): array
+    {
+        return [
+            'candidates' => [
+                [
+                    'content' => [
+                        'parts' => [
+                            ['text' => $response->text()]
+                        ],
+                        'role' => 'model'
+                    ]
+                ]
+            ]
+        ];
     }
 }

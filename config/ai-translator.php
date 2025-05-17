@@ -24,9 +24,9 @@ return [
         // 'model' => 'gpt-4o-mini', // Recommend to use for testing purpose. It sometimes doesn't translate.
         // 'api_key' => env('OPENAI_API_KEY'),
 
-        // gemini-2.5-pro-latest
+        // gemini-2.5-pro-preview-05-06
         // 'provider' => 'gemini',
-        // 'model' => 'gemini-2.5-pro-latest',
+        // 'model' => 'gemini-2.5-pro-preview-05-06',
         // 'api_key' => env('GEMINI_API_KEY'),
 
         // Additional options

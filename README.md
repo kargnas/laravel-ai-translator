@@ -142,7 +142,7 @@ These custom styles offer creative ways to customize your translations, adding a
 
    You can obtain an API key from the [OpenAI website](https://platform.openai.com/account/api-keys).
 
-  (If you want to use Anthropic's Claude or Google's Gemini instead, see step 4 below for configuration instructions.)
+(If you want to use Anthropic's Claude or Google's Gemini instead, see step 4 below for configuration instructions.)
 
 3. (Optional) Publish the configuration file:
 
@@ -167,7 +167,7 @@ These custom styles offer creative ways to customize your translations, adding a
    ```php
    'ai' => [
        'provider' => 'gemini',
-       'model' => 'gemini-2.5-pro-latest',
+       'model' => 'gemini-2.5-pro-preview-05-06',
        'api_key' => env('GEMINI_API_KEY'),
    ],
    ```
@@ -336,14 +336,15 @@ This will create a `config/ai-translator.php` file where you can modify the foll
 
   This package supports Anthropic's Claude, Google's Gemini, and OpenAI's GPT models for translations. Here are the tested and verified models:
 
-  | Provider    | Model                      | Extended Thinking | Context Window | Max Tokens |
-  | ----------- | -------------------------- | ----------------- | -------------- | ---------- |
-  | `anthropic` | `claude-3-7-sonnet-latest` | ✅                | 200K           | 8K/64K\*   |
-  | `anthropic` | `claude-3-7-sonnet-latest` | ❌                | 200K           | 8K         |
-  | `anthropic` | `claude-3-haiku-20240307`  | ❌                | 200K           | 8K         |
-  | `openai`    | `gpt-4o`                   | ❌                | 128K           | 4K         |
-  | `openai`    | `gpt-4o-mini`              | ❌                | 128K           | 4K         |
-  | `gemini`    | `gemini-2.5-pro-latest`    | ❌                | 128K           | 4K         |
+  | Provider    | Model                            | Extended Thinking | Context Window | Max Tokens |
+  | ----------- | -------------------------------- | ----------------- | -------------- | ---------- |
+  | `anthropic` | `claude-3-7-sonnet-latest`       | ✅                | 200K           | 8K/64K\*   |
+  | `anthropic` | `claude-3-7-sonnet-latest`       | ❌                | 200K           | 8K         |
+  | `anthropic` | `claude-3-haiku-20240307`        | ❌                | 200K           | 8K         |
+  | `openai`    | `gpt-4o`                         | ❌                | 128K           | 4K         |
+  | `openai`    | `gpt-4o-mini`                    | ❌                | 128K           | 4K         |
+  | `gemini`    | `gemini-2.5-pro-preview-05-06`   | ❌                | 1000K          | 64K        |
+  | `gemini`    | `gemini-2.5-flash-preview-04-17` | ❌                | 1000K          | 64K        |
 
   \* 8K tokens for normal mode, 64K tokens when extended thinking is enabled
 

@@ -17,7 +17,7 @@ AI-powered translation tool for Laravel language files
 
 ## 🔄 Recent Updates
 
-- 🔁 **Parallel Translation**: Translate multiple locales concurrently with the new `translate-parallel` command. Specify locales with `--locale=ko,ja` and run up to five processes at once by default.
+ - 🔁 **Parallel Translation**: Translate multiple locales concurrently with the `translate-parallel` command.
 - **New Provider**: Added Google Gemini support (including the 2.5 models)
 - **AI Enhancement**: Added support for Claude 3.7's Extended Thinking capabilities
   - Extended context window up to 200K tokens, output tokens up to 64K tokens

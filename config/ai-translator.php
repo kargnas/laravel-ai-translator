@@ -24,6 +24,11 @@ return [
         // 'model' => 'gpt-4o-mini', // Recommend to use for testing purpose. It sometimes doesn't translate.
         // 'api_key' => env('OPENAI_API_KEY'),
 
+        // gemini-2.5-pro-latest
+        // 'provider' => 'gemini',
+        // 'model' => 'gemini-2.5-pro-latest',
+        // 'api_key' => env('GEMINI_API_KEY'),
+
         // Additional options
         // 'retries' => 5,
         // 'max_tokens' => 4096,

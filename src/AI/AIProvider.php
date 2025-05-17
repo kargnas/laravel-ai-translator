@@ -5,6 +5,7 @@ namespace Kargnas\LaravelAiTranslator\AI;
 use Illuminate\Support\Facades\Log;
 use Kargnas\LaravelAiTranslator\AI\Clients\AnthropicClient;
 use Kargnas\LaravelAiTranslator\AI\Clients\OpenAIClient;
+use Kargnas\LaravelAiTranslator\AI\Clients\GeminiClient;
 use Kargnas\LaravelAiTranslator\AI\Language\Language;
 use Kargnas\LaravelAiTranslator\AI\Language\LanguageConfig;
 use Kargnas\LaravelAiTranslator\AI\Language\LanguageRules;
@@ -367,6 +368,7 @@ class AIProvider
         return match ($this->configProvider) {
             'anthropic' => $this->getTranslatedObjectsFromAnthropic(),
             'openai' => $this->getTranslatedObjectsFromOpenAI(),
+            'gemini' => $this->getTranslatedObjectsFromGemini(),
             default => throw new \Exception("Provider {$this->configProvider} is not supported."),
         };
     }
@@ -438,6 +440,38 @@ class AIProvider
             // 토큰 사용량 콜백 호출 (설정된 경우)
             if ($this->onTokenUsage) {
                 ($this->onTokenUsage)($this->getTokenUsage());
+            }
+        }
+
+        return $responseParser->getTranslatedItems();
+    }
+
+    protected function getTranslatedObjectsFromGemini(): array
+    {
+        $client = new GeminiClient(config('ai-translator.ai.api_key'));
+
+        $responseParser = new AIResponseParser($this->onTranslated);
+
+        $contents = [
+            [
+                'role' => 'user',
+                'parts' => [
+                    ['text' => $this->getSystemPrompt() . "\n\n" . $this->getUserPrompt()],
+                ],
+            ],
+        ];
+
+        $response = $client->request($this->configModel, $contents);
+        $responseText = $response['candidates'][0]['content']['parts'][0]['text'] ?? '';
+        $responseParser->parse($responseText);
+
+        if ($this->onProgress) {
+            ($this->onProgress)($responseText, $responseParser->getTranslatedItems());
+        }
+
+        if ($this->onTranslated) {
+            foreach ($responseParser->getTranslatedItems() as $item) {
+                ($this->onTranslated)($item, TranslationStatus::COMPLETED, $responseParser->getTranslatedItems());
             }
         }
 

@@ -276,7 +276,7 @@ class TranslateStrings extends Command
                     $this->warn('Skipping file  ' . basename($file) .'.');
                     continue;
                 }
-                
+
                 $this->displayFileInfo($file, $locale, $outputFile);
 
                 $localeFileCount++;

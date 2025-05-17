@@ -7,6 +7,7 @@ use Kargnas\LaravelAiTranslator\Console\TestTranslateCommand;
 use Kargnas\LaravelAiTranslator\Console\TranslateCrowdin;
 use Kargnas\LaravelAiTranslator\Console\TranslateStrings;
 use Kargnas\LaravelAiTranslator\Console\TranslateStringsParallel;
+use Kargnas\LaravelAiTranslator\Console\TranslateCrowdinParallel;
 use Kargnas\LaravelAiTranslator\Console\TranslateFileCommand;
 
 class ServiceProvider extends \Illuminate\Support\ServiceProvider
@@ -28,6 +29,7 @@ class ServiceProvider extends \Illuminate\Support\ServiceProvider
         $this->commands([
             TranslateStrings::class,
             TranslateStringsParallel::class,
+            TranslateCrowdinParallel::class,
             TranslateCrowdin::class,
             TestTranslateCommand::class,
             TranslateFileCommand::class,

@@ -192,6 +192,18 @@ To translate your language files, run the following command:
 php artisan ai-translator:translate
 ```
 
+To speed up translating multiple locales, you can run them in parallel. The command uses up to five processes by default:
+
+```bash
+php artisan ai-translator:translate-parallel --max-processes=5
+```
+
+Specify target locales separated by commas using the `--locale` option. For example:
+
+```bash
+php artisan ai-translator:translate-parallel --locale=ko,ja
+```
+
 This command will:
 
 1. Recognize all language folders in your `lang` directory

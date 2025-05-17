@@ -206,6 +206,8 @@ Specify target locales separated by commas using the `--locale` option. For exam
 php artisan ai-translator:translate-parallel --locale=ko,ja
 ```
 
+If you omit the `--locale` option, the command automatically translates all available locales.
+
 This command will:
 
 1. Recognize all language folders in your `lang` directory

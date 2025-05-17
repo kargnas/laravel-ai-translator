@@ -48,7 +48,7 @@ Laravel AI Translator is a powerful tool designed to streamline the localization
 Key benefits:
 
 - Time-saving: Translate all your language files with one simple command
-- AI-powered: Utilizes state-of-the-art language models (GPT-4, GPT-4o, GPT-3.5, Claude) for superior translation quality
+- AI-powered: Utilizes state-of-the-art language models (GPT-4, GPT-4o, GPT-3.5, Claude, Gemini) for superior translation quality
 - Smart context understanding: Accurately captures nuances, technical terms, and Laravel-specific expressions
 - Seamless integration: Works within your existing Laravel project structure, preserving complex language file structures
 
@@ -142,7 +142,7 @@ These custom styles offer creative ways to customize your translations, adding a
 
    You can obtain an API key from the [OpenAI website](https://platform.openai.com/account/api-keys).
 
-   (If you want to use Anthropic's Claude instead, see step 4 below for configuration instructions.)
+(If you want to use Anthropic's Claude or Google's Gemini instead, see step 4 below for configuration instructions.)
 
 3. (Optional) Publish the configuration file:
 
@@ -152,7 +152,7 @@ These custom styles offer creative ways to customize your translations, adding a
 
    This step is optional but recommended if you want to customize the package's behavior. It will create a `config/ai-translator.php` file where you can modify various settings.
 
-4. (Optional) If you want to use Anthropic's Claude instead of OpenAI's GPT, update the `config/ai-translator.php` file:
+4. (Optional) If you want to use Anthropic's Claude or Google's Gemini instead of OpenAI's GPT, update the `config/ai-translator.php` file:
 
    ```php
    'ai' => [
@@ -162,10 +162,21 @@ These custom styles offer creative ways to customize your translations, adding a
    ],
    ```
 
-   Then, add the Anthropic API key to your `.env` file:
+   Or for Gemini:
+
+   ```php
+   'ai' => [
+       'provider' => 'gemini',
+       'model' => 'gemini-2.5-pro-preview-05-06',
+       'api_key' => env('GEMINI_API_KEY'),
+   ],
+   ```
+
+   Then, add the Anthropic or Gemini API key to your `.env` file:
 
    ```
    ANTHROPIC_API_KEY=your-anthropic-api-key-here
+   GEMINI_API_KEY=your-gemini-api-key-here
    ```
 
    You can obtain an Anthropic API key from the [Anthropic website](https://www.anthropic.com).
@@ -323,15 +334,17 @@ This will create a `config/ai-translator.php` file where you can modify the foll
   ],
   ```
 
-  This package supports Anthropic's Claude and OpenAI's GPT models for translations. Here are the tested and verified models:
+  This package supports Anthropic's Claude, Google's Gemini, and OpenAI's GPT models for translations. Here are the tested and verified models:
 
-  | Provider    | Model                      | Extended Thinking | Context Window | Max Tokens |
-  | ----------- | -------------------------- | ----------------- | -------------- | ---------- |
-  | `anthropic` | `claude-3-7-sonnet-latest` | ✅                | 200K           | 8K/64K\*   |
-  | `anthropic` | `claude-3-7-sonnet-latest` | ❌                | 200K           | 8K         |
-  | `anthropic` | `claude-3-haiku-20240307`  | ❌                | 200K           | 8K         |
-  | `openai`    | `gpt-4o`                   | ❌                | 128K           | 4K         |
-  | `openai`    | `gpt-4o-mini`              | ❌                | 128K           | 4K         |
+  | Provider    | Model                            | Extended Thinking | Context Window | Max Tokens |
+  | ----------- | -------------------------------- | ----------------- | -------------- | ---------- |
+  | `anthropic` | `claude-3-7-sonnet-latest`       | ✅                | 200K           | 8K/64K\*   |
+  | `anthropic` | `claude-3-7-sonnet-latest`       | ❌                | 200K           | 8K         |
+  | `anthropic` | `claude-3-haiku-20240307`        | ❌                | 200K           | 8K         |
+  | `openai`    | `gpt-4o`                         | ❌                | 128K           | 4K         |
+  | `openai`    | `gpt-4o-mini`                    | ❌                | 128K           | 4K         |
+  | `gemini`    | `gemini-2.5-pro-preview-05-06`   | ❌                | 1000K          | 64K        |
+  | `gemini`    | `gemini-2.5-flash-preview-04-17` | ❌                | 1000K          | 64K        |
 
   \* 8K tokens for normal mode, 64K tokens when extended thinking is enabled
 
@@ -355,6 +368,7 @@ This will create a `config/ai-translator.php` file where you can modify the foll
 
      - Anthropic: [Console API Keys](https://console.anthropic.com/settings/keys)
      - OpenAI: [API Keys](https://platform.openai.com/api-keys)
+     - Gemini: [Google AI Studio](https://aistudio.google.com/app/apikey)
 
   2. Add to your `.env` file:
 
@@ -364,14 +378,17 @@ This will create a `config/ai-translator.php` file where you can modify the foll
 
      # For OpenAI
      OPENAI_API_KEY=your-api-key
+
+     # For Gemini
+     GEMINI_API_KEY=your-api-key
      ```
 
   3. Configure in `config/ai-translator.php`:
      ```php
      'ai' => [
-         'provider' => 'anthropic', // or 'openai'
-         'model' => 'claude-3-7-sonnet-latest', // see model list above
-         'api_key' => env('ANTHROPIC_API_KEY'), // or env('OPENAI_API_KEY')
+        'provider' => 'anthropic', // or 'openai' or 'gemini'
+        'model' => 'claude-3-7-sonnet-latest', // see model list above
+        'api_key' => env('ANTHROPIC_API_KEY'), // or env('OPENAI_API_KEY') or env('GEMINI_API_KEY')
      ],
      ```
 

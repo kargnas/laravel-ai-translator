@@ -14,7 +14,6 @@ class TranslateStringsParallel extends TranslateStrings
         {--m|max-context= : Maximum number of context items to include (e.g. --max-context=1000)}
         {--force-big-files : Force translation of files with more than 500 strings}
         {--show-prompt : Show the whole AI prompts during translation}
-        {--max-processes=5 : Number of locales to translate simultaneously}
         {--non-interactive : Run in non-interactive mode, using default or provided values}';
 
     protected $description = 'Translates PHP language files in parallel for multiple locales.';
@@ -50,7 +49,7 @@ class TranslateStringsParallel extends TranslateStrings
             $queue[] = $locale;
         }
 
-        $maxProcesses = (int) ($this->option('max-processes') ?? 5);
+        $maxProcesses = (int) ($this->option('max-processes') ?? 100); // This doesn't work
         $running = [];
 
         while (!empty($queue) || !empty($running)) {
@@ -76,7 +75,7 @@ class TranslateStringsParallel extends TranslateStrings
             usleep(100000);
         }
 
-        $this->line('\n' . $this->colors['green_bg'] . $this->colors['white'] . $this->colors['bold'] . ' All translations completed ' . $this->colors['reset']);
+        $this->line(PHP_EOL . $this->colors['green_bg'] . $this->colors['white'] . $this->colors['bold'] . ' All translations completed ' . $this->colors['reset']);
     }
 
     private function buildLocaleCommand(string $locale, int $maxContextItems): array

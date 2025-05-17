@@ -122,7 +122,9 @@ class TranslateStrings extends Command
 
         // Select reference languages
         if ($nonInteractive) {
-            $this->referenceLocales = $this->option('reference') ?? [];
+            $this->referenceLocales = $this->option('reference')
+                ? explode(',', (string) $this->option('reference'))
+                : [];
             if (!empty($this->referenceLocales)) {
                 $this->info($this->colors['green'] . "✓ Selected reference locales: " .
                     $this->colors['reset'] . $this->colors['bold'] . implode(', ', $this->referenceLocales) .
@@ -245,7 +247,7 @@ class TranslateStrings extends Command
         foreach ($locales as $locale) {
             // 소스 언어와 같거나 스킵 목록에 있는 언어는 건너뜀
            if ($locale === $this->sourceLocale || in_array($locale, config('ai-translator.skip_locales', []))) {
-                this->warn('Skipping locale ' . $locale .'.');
+                $this->warn('Skipping locale ' . $locale . '.');
                 continue;
             }
 

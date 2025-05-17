@@ -26,11 +26,10 @@ class TranslateStringsParallel extends TranslateStrings
         $availableLocales = $this->getExistingLocales();
 
         if (!$nonInteractive && empty($specifiedLocales)) {
-            $selected = $this->choiceLanguages(
-                $this->colors['yellow'] . 'Choose target locales for translation. Multiple selections with comma separator (e.g. "1,2")' . $this->colors['reset'],
-                true
-            );
-            $locales = is_array($selected) ? $selected : [$selected];
+            $locales = $availableLocales;
+            $this->info($this->colors['green'] . '✓ Selected locales: ' .
+                $this->colors['reset'] . $this->colors['bold'] . implode(', ', $locales) .
+                $this->colors['reset']);
         } else {
             $locales = !empty($specifiedLocales)
                 ? $this->validateAndFilterLocales($specifiedLocales, $availableLocales)

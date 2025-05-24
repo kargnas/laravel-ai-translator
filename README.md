@@ -60,6 +60,7 @@ Whether you're working on a personal project or a large-scale application, Larav
 
 - Automatically detects all language folders in your `lang` directory
 - Translates PHP language files from a source language (default: English) to all other languages
+- Supports gettext PO files via the `translate-po` command
 - Supports multiple AI providers for intelligent, context-aware translations
 - Preserves variables, HTML tags, pluralization codes, and nested structures
 - Maintains consistent tone and style across translations
@@ -452,7 +453,7 @@ Make sure to set your chosen AI provider's API key in your `.env` file.
 
 ## Supported File Types
 
-Currently, this package only supports PHP language files used by Laravel. JSON language files are not supported, and there are no plans to add support for them in the future.
+This package primarily works with PHP language files used by Laravel. JSON language files are not supported, and there are no plans to add support for them in the future. Gettext `.po` files can be translated using the dedicated `translate-po` command.
 
 ### Why PHP files only?
 

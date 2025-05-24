@@ -1,0 +1,1872 @@
+TITLE: Basic Guzzle HTTP Client Usage in PHP
+DESCRIPTION: Demonstrates how to create a Guzzle client, send synchronous and asynchronous HTTP requests, and handle responses. Shows basic operations like checking status codes, reading headers, and accessing response body content.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/README.md#2025-04-22_snippet_0
+
+LANGUAGE: php
+CODE:
+```
+$client = new \GuzzleHttp\Client();
+$response = $client->request('GET', 'https://api.github.com/repos/guzzle/guzzle');
+
+echo $response->getStatusCode(); // 200
+echo $response->getHeaderLine('content-type'); // 'application/json; charset=utf8'
+echo $response->getBody(); // '{"id": 1420053, "name": "guzzle", ...}'
+
+// Send an asynchronous request.
+$request = new \GuzzleHttp\Psr7\Request('GET', 'http://httpbin.org');
+$promise = $client->sendAsync($request)->then(function ($response) {
+    echo 'I completed! ' . $response->getBody();
+});
+
+$promise->wait();
+```
+
+----------------------------------------
+
+TITLE: Creating a Guzzle Client in PHP
+DESCRIPTION: Demonstrates how to create a new Guzzle client with a base URI and default request options. The client is immutable and uses an associative array for configuration.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/quickstart.rst#2025-04-22_snippet_0
+
+LANGUAGE: php
+CODE:
+```
+use GuzzleHttp\Client;
+
+$client = new Client([
+    // Base URI is used with relative requests
+    'base_uri' => 'http://httpbin.org',
+    // You can set any number of default request options.
+    'timeout'  => 2.0,
+]);
+```
+
+----------------------------------------
+
+TITLE: Basic Guzzle HTTP Client Usage in PHP
+DESCRIPTION: Demonstrates how to use Guzzle to make HTTP requests in PHP. The example shows making a synchronous GET request with basic authentication, retrieving response details, and executing an asynchronous request with a promise-based callback.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/index.rst#2025-04-22_snippet_0
+
+LANGUAGE: php
+CODE:
+```
+$client = new GuzzleHttp\Client();
+$res = $client->request('GET', 'https://api.github.com/user', [
+    'auth' => ['user', 'pass']
+]);
+echo $res->getStatusCode();
+// "200"
+echo $res->getHeader('content-type')[0];
+// 'application/json; charset=utf8'
+echo $res->getBody();
+// {"type":"User"...';
+
+// Send an asynchronous request.
+$request = new \GuzzleHttp\Psr7\Request('GET', 'http://httpbin.org');
+$promise = $client->sendAsync($request)->then(function ($response) {
+    echo 'I completed! ' . $response->getBody();
+});
+$promise->wait();
+```
+
+----------------------------------------
+
+TITLE: Installing Guzzle via Composer
+DESCRIPTION: Shows how to install Guzzle using Composer, which is the recommended installation method for the library.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/README.md#2025-04-22_snippet_1
+
+LANGUAGE: bash
+CODE:
+```
+composer require guzzlehttp/guzzle
+```
+
+----------------------------------------
+
+TITLE: Sending Asynchronous Requests with Guzzle in PHP
+DESCRIPTION: Demonstrates how to send asynchronous requests using Guzzle's magic methods and the sendAsync() and requestAsync() methods. These return promises that can be chained or waited on.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/quickstart.rst#2025-04-22_snippet_3
+
+LANGUAGE: php
+CODE:
+```
+$promise = $client->getAsync('http://httpbin.org/get');
+$promise = $client->deleteAsync('http://httpbin.org/delete');
+$promise = $client->headAsync('http://httpbin.org/get');
+$promise = $client->optionsAsync('http://httpbin.org/get');
+$promise = $client->patchAsync('http://httpbin.org/patch');
+$promise = $client->postAsync('http://httpbin.org/post');
+$promise = $client->putAsync('http://httpbin.org/put');
+```
+
+----------------------------------------
+
+TITLE: Sending Synchronous Requests with Guzzle in PHP
+DESCRIPTION: Shows how to send various types of synchronous HTTP requests using Guzzle's magic methods. These methods provide a simple way to make GET, DELETE, HEAD, OPTIONS, PATCH, POST, and PUT requests.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/quickstart.rst#2025-04-22_snippet_1
+
+LANGUAGE: php
+CODE:
+```
+$response = $client->get('http://httpbin.org/get');
+$response = $client->delete('http://httpbin.org/delete');
+$response = $client->head('http://httpbin.org/get');
+$response = $client->options('http://httpbin.org/get');
+$response = $client->patch('http://httpbin.org/patch');
+$response = $client->post('http://httpbin.org/post');
+$response = $client->put('http://httpbin.org/put');
+```
+
+----------------------------------------
+
+TITLE: Custom Headers Configuration in Guzzle
+DESCRIPTION: Examples of setting custom HTTP headers for requests, including default headers when creating the client and request-specific headers.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/request-options.rst#2025-04-22_snippet_12
+
+LANGUAGE: php
+CODE:
+```
+// Set various headers on a request
+$client->request('GET', '/get', [
+    'headers' => [
+        'User-Agent' => 'testing/1.0',
+        'Accept'     => 'application/json',
+        'X-Foo'      => ['Bar', 'Baz']
+    ]
+]);
+```
+
+----------------------------------------
+
+TITLE: Handling Asynchronous Request Promises with Guzzle in PHP
+DESCRIPTION: Shows how to work with the promises returned by asynchronous requests in Guzzle. The example demonstrates chaining then() calls to handle successful responses and exceptions.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/quickstart.rst#2025-04-22_snippet_4
+
+LANGUAGE: php
+CODE:
+```
+use Psr\Http\Message\ResponseInterface;
+use GuzzleHttp\Exception\RequestException;
+
+$promise = $client->requestAsync('GET', 'http://httpbin.org/get');
+$promise->then(
+    function (ResponseInterface $res) {
+        echo $res->getStatusCode() . "\n";
+    },
+    function (RequestException $e) {
+        echo $e->getMessage() . "\n";
+        echo $e->getRequest()->getMethod();
+    }
+);
+```
+
+----------------------------------------
+
+TITLE: Sending Asynchronous Requests with Guzzle in PHP
+DESCRIPTION: Demonstrates how to send asynchronous HTTP requests using Guzzle's requestAsync method and handle responses with promise chains. Shows how to attach a callback function to process the response once it's received.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/faq.rst#2025-04-22_snippet_0
+
+LANGUAGE: php
+CODE:
+```
+$promise = $client->requestAsync('GET', 'http://httpbin.org/get');
+$promise->then(function ($response) {
+    echo 'Got a response! ' . $response->getStatusCode();
+});
+```
+
+----------------------------------------
+
+TITLE: Handling Exceptions in Guzzle
+DESCRIPTION: Shows how to catch and process client exceptions in Guzzle, accessing both the request and response objects to get detailed error information.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/quickstart.rst#2025-04-22_snippet_17
+
+LANGUAGE: php
+CODE:
+```
+use GuzzleHttp\Psr7;
+use GuzzleHttp\Exception\ClientException;
+
+try {
+    $client->request('GET', 'https://github.com/_abc_123_404');
+} catch (ClientException $e) {
+    echo Psr7\Message::toString($e->getRequest());
+    echo Psr7\Message::toString($e->getResponse());
+}
+```
+
+----------------------------------------
+
+TITLE: Using Guzzle Pool for Multiple Requests in PHP
+DESCRIPTION: Illustrates how to use the GuzzleHttp\Pool object to send an indeterminate number of requests concurrently. The example shows creating a pool with a generator function and handling successful and failed requests.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/quickstart.rst#2025-04-22_snippet_6
+
+LANGUAGE: php
+CODE:
+```
+use GuzzleHttp\Client;
+use GuzzleHttp\Exception\RequestException;
+use GuzzleHttp\Pool;
+use GuzzleHttp\Psr7\Request;
+use GuzzleHttp\Psr7\Response;
+
+$client = new Client();
+
+$requests = function ($total) {
+    $uri = 'http://127.0.0.1:8126/guzzle-server/perf';
+    for ($i = 0; $i < $total; $i++) {
+        yield new Request('GET', $uri);
+    }
+};
+
+$pool = new Pool($client, $requests(100), [
+    'concurrency' => 5,
+    'fulfilled' => function (Response $response, $index) {
+        // this is delivered each successful response
+    },
+    'rejected' => function (RequestException $reason, $index) {
+        // this is delivered each failed request
+    },
+]);
+
+// Initiate the transfers and create a promise
+$promise = $pool->promise();
+
+// Force the pool of requests to complete.
+$promise->wait();
+```
+
+----------------------------------------
+
+TITLE: Sending Concurrent Requests with Guzzle in PHP
+DESCRIPTION: Demonstrates how to send multiple requests concurrently using Guzzle's promise functionality. The example shows initiating multiple requests and waiting for all of them to complete.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/quickstart.rst#2025-04-22_snippet_5
+
+LANGUAGE: php
+CODE:
+```
+use GuzzleHttp\Client;
+use GuzzleHttp\Promise;
+
+$client = new Client(['base_uri' => 'http://httpbin.org/']);
+
+// Initiate each request but do not block
+$promises = [
+    'image' => $client->getAsync('/image'),
+    'png'   => $client->getAsync('/image/png'),
+    'jpeg'  => $client->getAsync('/image/jpeg'),
+    'webp'  => $client->getAsync('/image/webp')
+];
+
+// Wait for the requests to complete; throws a ConnectException
+// if any of the requests fail
+$responses = Promise\Utils::unwrap($promises);
+
+// You can access each response using the key of the promise
+echo $responses['image']->getHeader('Content-Length')[0];
+echo $responses['png']->getHeader('Content-Length')[0];
+
+// Wait for the requests to complete, even if some of them fail
+$responses = Promise\Utils::settle($promises)->wait();
+
+// Values returned above are wrapped in an array with 2 keys: "state" (either fulfilled or rejected) and "value" (contains the response)
+echo $responses['image']['state']; // returns "fulfilled"
+echo $responses['image']['value']->getHeader('Content-Length')[0];
+echo $responses['png']['value']->getHeader('Content-Length')[0];
+```
+
+----------------------------------------
+
+TITLE: Adding Middleware to Guzzle Client in PHP
+DESCRIPTION: This code demonstrates how to add a custom middleware to a Guzzle client by wrapping the handler with HandlerStack and pushing the middleware onto the stack.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/handlers-and-middleware.rst#2025-04-22_snippet_3
+
+LANGUAGE: php
+CODE:
+```
+use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Handler\CurlHandler;
+use GuzzleHttp\Client;
+
+$stack = new HandlerStack();
+$stack->setHandler(new CurlHandler());
+$stack->push(add_header('X-Foo', 'bar'));
+$client = new Client(['handler' => $stack]);
+```
+
+----------------------------------------
+
+TITLE: Saving Response Content to Files or Streams in Guzzle
+DESCRIPTION: Demonstrates different ways to save the body of a response in Guzzle using the sink option. This allows saving responses directly to a file, PHP stream, or PSR-7 StreamInterface.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/request-options.rst#2025-04-22_snippet_24
+
+LANGUAGE: php
+CODE:
+```
+$client->request('GET', '/stream/20', ['sink' => '/path/to/file']);
+```
+
+LANGUAGE: php
+CODE:
+```
+$resource = \GuzzleHttp\Psr7\Utils::tryFopen('/path/to/file', 'w');
+$client->request('GET', '/stream/20', ['sink' => $resource]);
+```
+
+LANGUAGE: php
+CODE:
+```
+$resource = \GuzzleHttp\Psr7\Utils::tryFopen('/path/to/file', 'w');
+$stream = \GuzzleHttp\Psr7\Utils::streamFor($resource);
+$client->request('GET', '/stream/20', ['save_to' => $stream]);
+```
+
+----------------------------------------
+
+TITLE: Handling Guzzle Response Objects in PHP
+DESCRIPTION: Shows how to work with the PSR-7 response objects returned by Guzzle requests. The example demonstrates accessing status codes, headers, and the response body.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/quickstart.rst#2025-04-22_snippet_7
+
+LANGUAGE: php
+CODE:
+```
+$code = $response->getStatusCode(); // 200
+$reason = $response->getReasonPhrase(); // OK
+
+// Check if a header exists.
+if ($response->hasHeader('Content-Length')) {
+    echo "It exists";
+}
+
+// Get a header from the response.
+echo $response->getHeader('Content-Length')[0];
+
+// Get all of the response headers.
+foreach ($response->getHeaders() as $name => $values) {
+    echo $name . ': ' . implode(', ', $values) . "\r\n";
+}
+
+$body = $response->getBody();
+```
+
+----------------------------------------
+
+TITLE: Adding Response Header Middleware in Guzzle PHP
+DESCRIPTION: This snippet shows how to create a middleware that modifies the response by adding a header. It demonstrates working with the promise returned by the handler to modify the response.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/handlers-and-middleware.rst#2025-04-22_snippet_4
+
+LANGUAGE: php
+CODE:
+```
+use Psr\Http\Message\RequestInterface;
+use Psr\Http\Message\ResponseInterface;
+use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Handler\CurlHandler;
+use GuzzleHttp\Client;
+
+function add_response_header($header, $value)
+{
+    return function (callable $handler) use ($header, $value) {
+        return function (
+            RequestInterface $request,
+            array $options
+        ) use ($handler, $header, $value) {
+            $promise = $handler($request, $options);
+            return $promise->then(
+                function (ResponseInterface $response) use ($header, $value) {
+                    return $response->withHeader($header, $value);
+                }
+            );
+        };
+    };
+}
+
+$stack = new HandlerStack();
+$stack->setHandler(new CurlHandler());
+$stack->push(add_response_header('X-Foo', 'bar'));
+$client = new Client(['handler' => $stack]);
+```
+
+----------------------------------------
+
+TITLE: Uploading JSON Data in Guzzle
+DESCRIPTION: Shows how to upload JSON data with Guzzle using the json request option, which automatically sets the appropriate Content-Type header.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/quickstart.rst#2025-04-22_snippet_11
+
+LANGUAGE: php
+CODE:
+```
+$r = $client->request('PUT', 'http://httpbin.org/put', [
+    'json' => ['foo' => 'bar']
+]);
+```
+
+----------------------------------------
+
+TITLE: Mocking HTTP Responses with Guzzle Mock Handler in PHP
+DESCRIPTION: Demonstrates how to use Guzzle's MockHandler to queue predefined responses for testing HTTP clients without making actual network requests. It shows creating mock responses, handling exceptions, and resetting the queue.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/testing.rst#2025-04-22_snippet_0
+
+LANGUAGE: php
+CODE:
+```
+use GuzzleHttp\Client;
+use GuzzleHttp\Handler\MockHandler;
+use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Psr7\Response;
+use GuzzleHttp\Psr7\Request;
+use GuzzleHttp\Exception\RequestException;
+
+// Create a mock and queue two responses.
+$mock = new MockHandler([
+    new Response(200, ['X-Foo' => 'Bar'], 'Hello, World'),
+    new Response(202, ['Content-Length' => 0]),
+    new RequestException('Error Communicating with Server', new Request('GET', 'test'))
+]);
+
+$handlerStack = HandlerStack::create($mock);
+$client = new Client(['handler' => $handlerStack]);
+
+// The first request is intercepted with the first response.
+$response = $client->request('GET', '/');
+echo $response->getStatusCode();
+//> 200
+echo $response->getBody();
+//> Hello, World
+// The second request is intercepted with the second response.
+echo $client->request('GET', '/')->getStatusCode();
+//> 202
+
+// Reset the queue and queue up a new response
+$mock->reset();
+$mock->append(new Response(201));
+
+// As the mock was reset, the new response is the 201 CREATED,
+// instead of the previously queued RequestException
+echo $client->request('GET', '/')->getStatusCode();
+//> 201
+```
+
+----------------------------------------
+
+TITLE: Waiting for Asynchronous Request Completion in Guzzle
+DESCRIPTION: Shows how to force an asynchronous request to complete by using the wait() method on the returned promise object, which will block execution until the request is finished and a response is available.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/faq.rst#2025-04-22_snippet_1
+
+LANGUAGE: php
+CODE:
+```
+$promise = $client->requestAsync('GET', 'http://httpbin.org/get');
+$response = $promise->wait();
+```
+
+----------------------------------------
+
+TITLE: Sending Multipart Form Data with Guzzle
+DESCRIPTION: Shows how to send multipart/form-data POST requests with Guzzle, including both form fields and file uploads with optional headers and filenames.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/quickstart.rst#2025-04-22_snippet_13
+
+LANGUAGE: php
+CODE:
+```
+use GuzzleHttp\Psr7;
+
+$response = $client->request('POST', 'http://httpbin.org/post', [
+    'multipart' => [
+        [
+            'name'     => 'field_name',
+            'contents' => 'abc'
+        ],
+        [
+            'name'     => 'file_name',
+            'contents' => Psr7\Utils::tryFopen('/path/to/file', 'r')
+        ],
+        [
+            'name'     => 'other_file',
+            'contents' => 'hello',
+            'filename' => 'filename.txt',
+            'headers'  => [
+                'X-Foo' => 'this is an extra header to include'
+            ]
+        ]
+    ]
+]);
+```
+
+----------------------------------------
+
+TITLE: Working with Response Bodies in Guzzle
+DESCRIPTION: This code demonstrates different ways to handle and read from response bodies in Guzzle, including implicit and explicit string casting, reading specific byte amounts, and accessing remaining content.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/quickstart.rst#2025-04-22_snippet_8
+
+LANGUAGE: php
+CODE:
+```
+// Implicitly cast the body to a string and echo it
+echo $body;
+// Explicitly cast the body to a string
+$stringBody = (string) $body;
+// Read 10 bytes from the body
+$tenBytes = $body->read(10);
+// Read the remaining contents of the body as a string
+$remainingBytes = $body->getContents();
+```
+
+----------------------------------------
+
+TITLE: Using Middleware::mapResponse in Guzzle PHP
+DESCRIPTION: This snippet demonstrates using the Middleware::mapResponse helper to create a middleware that modifies the response. It shows adding a header to each response using this method.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/handlers-and-middleware.rst#2025-04-22_snippet_6
+
+LANGUAGE: php
+CODE:
+```
+use Psr\Http\Message\ResponseInterface;
+use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Handler\CurlHandler;
+use GuzzleHttp\Client;
+use GuzzleHttp\Middleware;
+
+$stack = new HandlerStack();
+$stack->setHandler(new CurlHandler());
+
+$stack->push(Middleware::mapResponse(function (ResponseInterface $response) {
+    return $response->withHeader('X-Foo', 'bar');
+}));
+
+$client = new Client(['handler' => $stack]);
+```
+
+----------------------------------------
+
+TITLE: SSL Certificate Verification in Guzzle PHP
+DESCRIPTION: Shows different ways to configure SSL certificate verification using the verify option, including using system CA bundle, custom certificate, or disabling verification.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/request-options.rst#2025-04-22_snippet_26
+
+LANGUAGE: php
+CODE:
+```
+// Use the system's CA bundle (this is the default setting)
+$client->request('GET', '/', ['verify' => true]);
+
+// Use a custom SSL certificate on disk.
+$client->request('GET', '/', ['verify' => '/path/to/cert.pem']);
+
+// Disable validation entirely (don't do this!).
+$client->request('GET', '/', ['verify' => false]);
+```
+
+----------------------------------------
+
+TITLE: Uploading Data with Guzzle
+DESCRIPTION: Demonstrates various methods for uploading data with Guzzle, including using string data, file streams, and PSR-7 streams as request body content.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/quickstart.rst#2025-04-22_snippet_10
+
+LANGUAGE: php
+CODE:
+```
+use GuzzleHttp\Psr7;
+
+// Provide the body as a string.
+$r = $client->request('POST', 'http://httpbin.org/post', [
+    'body' => 'raw data'
+]);
+
+// Provide an fopen resource.
+$body = Psr7\Utils::tryFopen('/path/to/file', 'r');
+$r = $client->request('POST', 'http://httpbin.org/post', ['body' => $body]);
+
+// Use the Utils::streamFor method to create a PSR-7 stream.
+$body = Psr7\Utils::streamFor('hello!');
+$r = $client->request('POST', 'http://httpbin.org/post', ['body' => $body]);
+```
+
+----------------------------------------
+
+TITLE: Named Middleware Management in Guzzle PHP
+DESCRIPTION: This snippet demonstrates how to add, position, and remove named middleware in a HandlerStack. It shows adding middleware before and after named middleware, and removing middleware by name.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/handlers-and-middleware.rst#2025-04-22_snippet_8
+
+LANGUAGE: php
+CODE:
+```
+use Psr\Http\Message\RequestInterface;
+use GuzzleHttp\Middleware;
+
+// Add a middleware with a name
+$stack->push(Middleware::mapRequest(function (RequestInterface $r) {
+    return $r->withHeader('X-Foo', 'Bar');
+}, 'add_foo'));
+
+// Add a middleware before a named middleware (unshift before).
+$stack->before('add_foo', Middleware::mapRequest(function (RequestInterface $r) {
+    return $r->withHeader('X-Baz', 'Qux');
+}, 'add_baz'));
+
+// Add a middleware after a named middleware (pushed after).
+$stack->after('add_baz', Middleware::mapRequest(function (RequestInterface $r) {
+    return $r->withHeader('X-Lorem', 'Ipsum');
+}));
+
+// Remove a middleware by name
+$stack->remove('add_foo');
+```
+
+----------------------------------------
+
+TITLE: Request Timeout Configuration in Guzzle PHP
+DESCRIPTION: Example showing how to set a timeout for HTTP requests. The request will throw an exception if the server does not respond within the specified timeout period.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/request-options.rst#2025-04-22_snippet_27
+
+LANGUAGE: php
+CODE:
+```
+// Timeout if a server does not return a response in 3.14 seconds.
+$client->request('GET', '/delay/5', ['timeout' => 3.14]);
+// PHP Fatal error:  Uncaught exception 'GuzzleHttp\Exception\TransferException'
+```
+
+----------------------------------------
+
+TITLE: Sending Form Fields with Guzzle
+DESCRIPTION: Demonstrates how to send application/x-www-form-urlencoded POST requests using the form_params option to specify form fields as an array.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/quickstart.rst#2025-04-22_snippet_12
+
+LANGUAGE: php
+CODE:
+```
+$response = $client->request('POST', 'http://httpbin.org/post', [
+    'form_params' => [
+        'field_name' => 'abc',
+        'other_field' => '123',
+        'nested_field' => [
+            'nested' => 'hello'
+        ]
+    ]
+]);
+```
+
+----------------------------------------
+
+TITLE: Configuring cURL Multi Handler Options in Guzzle
+DESCRIPTION: Shows how to create a Guzzle client with a customized CurlMultiHandler for managing multiple concurrent requests. This example configures maximum connection limits for improved performance.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/faq.rst#2025-04-22_snippet_3
+
+LANGUAGE: php
+CODE:
+```
+use GuzzleHttp\Client;
+use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Handler\CurlMultiHandler;
+
+$client = new Client(['handler' => HandlerStack::create(new CurlMultiHandler([
+    'options' => [
+        CURLMOPT_MAX_TOTAL_CONNECTIONS => 50,
+        CURLMOPT_MAX_HOST_CONNECTIONS => 5,
+    ]
+]))]);
+```
+
+----------------------------------------
+
+TITLE: Handling Redirects in Guzzle
+DESCRIPTION: Demonstrates how to customize redirect behavior in Guzzle requests using the allow_redirects option, including enabling, disabling, or setting maximum redirects.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/quickstart.rst#2025-04-22_snippet_16
+
+LANGUAGE: php
+CODE:
+```
+$response = $client->request('GET', 'http://github.com');
+echo $response->getStatusCode();
+// 200
+```
+
+LANGUAGE: php
+CODE:
+```
+$response = $client->request('GET', 'http://github.com', [
+    'allow_redirects' => false
+]);
+echo $response->getStatusCode();
+// 301
+```
+
+----------------------------------------
+
+TITLE: Creating Multipart Form Data Requests in Guzzle
+DESCRIPTION: Shows how to configure multipart form data requests in Guzzle using the multipart option. This approach is used for file uploads and complex form submissions that require the multipart/form-data Content-Type header.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/request-options.rst#2025-04-22_snippet_17
+
+LANGUAGE: php
+CODE:
+```
+use GuzzleHttp\Psr7;
+
+$client->request('POST', '/post', [
+    'multipart' => [
+        [
+            'name'     => 'foo',
+            'contents' => 'data',
+            'headers'  => ['X-Baz' => 'bar']
+        ],
+        [
+            'name'     => 'baz',
+            'contents' => Psr7\Utils::tryFopen('/path/to/file', 'r')
+        ],
+        [
+            'name'     => 'qux',
+            'contents' => Psr7\Utils::tryFopen('/path/to/file', 'r'),
+            'filename' => 'custom_filename.txt'
+        ],
+    ]
+]);
+```
+
+----------------------------------------
+
+TITLE: Creating a Custom Handler for Guzzle Client in PHP
+DESCRIPTION: This snippet demonstrates how to create a custom handler for a Guzzle client using CurlHandler and HandlerStack. It shows how to wrap the handler with middleware and create a new client instance.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/handlers-and-middleware.rst#2025-04-22_snippet_0
+
+LANGUAGE: php
+CODE:
+```
+use GuzzleHttp\Client;
+use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Handler\CurlHandler;
+
+$handler = new CurlHandler();
+$stack = HandlerStack::create($handler); // Wrap w/ middleware
+$client = new Client(['handler' => $stack]);
+```
+
+----------------------------------------
+
+TITLE: Creating and Sending a Custom Request with Guzzle in PHP
+DESCRIPTION: Illustrates how to create a custom PSR-7 request object and send it using the Guzzle client. This method allows for more control over the request details.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/quickstart.rst#2025-04-22_snippet_2
+
+LANGUAGE: php
+CODE:
+```
+use GuzzleHttp\Psr7\Request;
+
+$request = new Request('PUT', 'http://httpbin.org/put');
+$response = $client->send($request, ['timeout' => 2]);
+```
+
+----------------------------------------
+
+TITLE: Request Body Configuration in Guzzle - PHP
+DESCRIPTION: Different ways to set request body including string, file stream, and PSR-7 stream interface.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/request-options.rst#2025-04-22_snippet_3
+
+LANGUAGE: php
+CODE:
+```
+// You can send requests that use a string as the message body.
+$client->request('PUT', '/put', ['body' => 'foo']);
+```
+
+LANGUAGE: php
+CODE:
+```
+// You can send requests that use a stream resource as the body.
+$resource = \GuzzleHttp\Psr7\Utils::tryFopen('http://httpbin.org', 'r');
+$client->request('PUT', '/put', ['body' => $resource]);
+```
+
+LANGUAGE: php
+CODE:
+```
+// You can send requests that use a Guzzle stream object as the body
+$stream = GuzzleHttp\Psr7\Utils::streamFor('contents...');
+$client->request('POST', '/post', ['body' => $stream]);
+```
+
+----------------------------------------
+
+TITLE: Creating Middleware Function for Guzzle in PHP
+DESCRIPTION: This code defines a middleware function that can be used to augment the functionality of Guzzle handlers. It shows the basic structure of a middleware function that can modify requests or responses.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/handlers-and-middleware.rst#2025-04-22_snippet_1
+
+LANGUAGE: php
+CODE:
+```
+use Psr\Http\Message\RequestInterface;
+
+function my_middleware()
+{
+    return function (callable $handler) {
+        return function (RequestInterface $request, array $options) use ($handler) {
+            return $handler($request, $options);
+        };
+    };
+}
+```
+
+----------------------------------------
+
+TITLE: Configuring HTTP Proxies in Guzzle
+DESCRIPTION: Shows how to configure HTTP proxies in Guzzle requests, including both simple proxy strings and protocol-specific proxy configurations with exclusion lists.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/request-options.rst#2025-04-22_snippet_21
+
+LANGUAGE: php
+CODE:
+```
+$client->request('GET', '/', ['proxy' => 'http://localhost:8125']);
+```
+
+LANGUAGE: php
+CODE:
+```
+$client->request('GET', '/', [
+    'proxy' => [
+        'http'  => 'http://localhost:8125', // Use this proxy with "http"
+        'https' => 'http://localhost:9124', // Use this proxy with "https",
+        'no' => ['.mit.edu', 'foo.com']    // Don't use a proxy with these
+    ]
+]);
+```
+
+----------------------------------------
+
+TITLE: Authentication in Guzzle - PHP
+DESCRIPTION: Examples of different authentication methods including basic, digest, and NTLM authentication.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/request-options.rst#2025-04-22_snippet_2
+
+LANGUAGE: php
+CODE:
+```
+$client->request('GET', '/get', ['auth' => ['username', 'password']]);
+```
+
+LANGUAGE: php
+CODE:
+```
+$client->request('GET', '/get', [
+    'auth' => ['username', 'password', 'digest']
+]);
+```
+
+LANGUAGE: php
+CODE:
+```
+$client->request('GET', '/get', [
+    'auth' => ['username', 'password', 'ntlm']
+]);
+```
+
+----------------------------------------
+
+TITLE: Adding Header to Requests using Middleware in Guzzle PHP
+DESCRIPTION: This snippet shows how to create a middleware function that adds a header to each request. It demonstrates modifying the request before passing it to the handler.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/handlers-and-middleware.rst#2025-04-22_snippet_2
+
+LANGUAGE: php
+CODE:
+```
+use Psr\Http\Message\RequestInterface;
+
+function add_header($header, $value)
+{
+    return function (callable $handler) use ($header, $value) {
+        return function (
+            RequestInterface $request,
+            array $options
+        ) use ($handler, $header, $value) {
+            $request = $request->withHeader($header, $value);
+            return $handler($request, $options);
+        };
+    };
+}
+```
+
+----------------------------------------
+
+TITLE: Streaming Response with Guzzle in PHP
+DESCRIPTION: Demonstrates how to stream a response using the stream option. The example shows reading bytes from the response body in chunks until the end of stream is reached.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/request-options.rst#2025-04-22_snippet_25
+
+LANGUAGE: php
+CODE:
+```
+$response = $client->request('GET', '/stream/20', ['stream' => true]);
+// Read bytes off of the stream until the end of the stream is reached
+$body = $response->getBody();
+while (!$body->eof()) {
+    echo $body->read(1024);
+}
+```
+
+----------------------------------------
+
+TITLE: JSON Request Body in Guzzle
+DESCRIPTION: Example of sending JSON-encoded data in the request body with automatic application/json Content-Type header.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/request-options.rst#2025-04-22_snippet_15
+
+LANGUAGE: php
+CODE:
+```
+$response = $client->request('PUT', '/put', ['json' => ['foo' => 'bar']]);
+```
+
+----------------------------------------
+
+TITLE: Initializing Guzzle HTTP Client - PHP
+DESCRIPTION: Creates a new Guzzle HTTP client instance with a base URI configuration.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/request-options.rst#2025-04-22_snippet_0
+
+LANGUAGE: php
+CODE:
+```
+$client = new GuzzleHttp\Client(['base_uri' => 'http://httpbin.org']);
+```
+
+----------------------------------------
+
+TITLE: Setting Query String Parameters in Guzzle Requests
+DESCRIPTION: Shows three different ways to provide query string parameters in Guzzle HTTP requests: directly in the URI, as an array using the query option, or as a string query parameter.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/quickstart.rst#2025-04-22_snippet_9
+
+LANGUAGE: php
+CODE:
+```
+$response = $client->request('GET', 'http://httpbin.org?foo=bar');
+```
+
+LANGUAGE: php
+CODE:
+```
+$client->request('GET', 'http://httpbin.org', [
+    'query' => ['foo' => 'bar']
+]);
+```
+
+LANGUAGE: php
+CODE:
+```
+$client->request('GET', 'http://httpbin.org', ['query' => 'foo=bar']);
+```
+
+----------------------------------------
+
+TITLE: Creating PSR-7 Request Objects in PHP
+DESCRIPTION: Shows how to create a new PSR-7 Request object using GuzzleHttp\Psr7\Request class. Includes examples of creating simple GET requests and more complex requests with headers and body content.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/psr7.rst#2025-04-22_snippet_0
+
+LANGUAGE: php
+CODE:
+```
+use GuzzleHttp\Psr7\Request;
+
+$request = new Request('GET', 'http://httpbin.org/get');
+
+// You can provide other optional constructor arguments.
+$headers = ['X-Foo' => 'Bar'];
+$body = 'hello!';
+$request = new Request('PUT', 'http://httpbin.org/put', $headers, $body);
+```
+
+----------------------------------------
+
+TITLE: Tracking Request Progress in Guzzle
+DESCRIPTION: Demonstrates how to track upload and download progress in Guzzle using the progress callback option. This function receives the total expected bytes and current bytes for both upload and download operations.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/request-options.rst#2025-04-22_snippet_20
+
+LANGUAGE: php
+CODE:
+```
+// Send a GET request to /get?foo=bar
+$result = $client->request(
+    'GET',
+    '/',
+    [
+        'progress' => function(
+            $downloadTotal,
+            $downloadedBytes,
+            $uploadTotal,
+            $uploadedBytes
+        ) {
+            //do something
+        },
+    ]
+);
+```
+
+----------------------------------------
+
+TITLE: Capturing Transfer Statistics with on_stats in Guzzle
+DESCRIPTION: Shows how to use the on_stats option to capture detailed transfer statistics after a request has completed. This provides access to timing, handler-specific data, and the response or error information.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/request-options.rst#2025-04-22_snippet_19
+
+LANGUAGE: php
+CODE:
+```
+use GuzzleHttp\TransferStats;
+
+$client = new GuzzleHttp\Client();
+
+$client->request('GET', 'http://httpbin.org/stream/1024', [
+    'on_stats' => function (TransferStats $stats) {
+        echo $stats->getEffectiveUri() . "\n";
+        echo $stats->getTransferTime() . "\n";
+        var_dump($stats->getHandlerStats());
+
+        // You must check if a response was received before using the
+        // response object.
+        if ($stats->hasResponse()) {
+            echo $stats->getResponse()->getStatusCode();
+        } else {
+            // Error data is handler specific. You will need to know what
+            // type of error data your handler uses before using this
+            // value.
+            var_dump($stats->getHandlerErrorData());
+        }
+    }
+]);
+```
+
+----------------------------------------
+
+TITLE: Retrieving and Working with Response Bodies
+DESCRIPTION: Shows how to retrieve the body of a response message using getBody() and how to use the returned StreamInterface object to read from the body stream.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/psr7.rst#2025-04-22_snippet_7
+
+LANGUAGE: php
+CODE:
+```
+$response = GuzzleHttp\get('http://httpbin.org/get');
+echo $response->getBody();
+// JSON string: { ... }
+```
+
+----------------------------------------
+
+TITLE: Adding Custom cURL Options to Guzzle Requests
+DESCRIPTION: Demonstrates how to pass custom cURL options to a Guzzle request using the 'curl' key in the request options array. This example shows setting a specific network interface for the outgoing connection.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/faq.rst#2025-04-22_snippet_2
+
+LANGUAGE: php
+CODE:
+```
+$client->request('GET', '/', [
+    'curl' => [
+        CURLOPT_INTERFACE => 'xxx.xxx.xxx.xxx'
+    ]
+]);
+```
+
+----------------------------------------
+
+TITLE: Using on_headers Callback in Guzzle for Response Validation
+DESCRIPTION: Demonstrates how to use the on_headers option to examine HTTP headers of a response before the body is downloaded. This can be used to conditionally reject large responses based on content length or other header criteria.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/request-options.rst#2025-04-22_snippet_18
+
+LANGUAGE: php
+CODE:
+```
+// Reject responses that are greater than 1024 bytes.
+$client->request('GET', 'http://httpbin.org/stream/1024', [
+    'on_headers' => function (ResponseInterface $response) {
+        if ($response->getHeaderLine('Content-Length') > 1024) {
+            throw new \Exception('The file is too big!');
+        }
+    }
+]);
+```
+
+----------------------------------------
+
+TITLE: Adding Query Parameters to Guzzle Requests
+DESCRIPTION: Demonstrates how to add query string parameters to Guzzle requests using the query option. Query parameters can be specified as an associative array and will override any existing query parameters in the URL.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/request-options.rst#2025-04-22_snippet_22
+
+LANGUAGE: php
+CODE:
+```
+// Send a GET request to /get?foo=bar
+$client->request('GET', '/get', ['query' => ['foo' => 'bar']]);
+```
+
+LANGUAGE: php
+CODE:
+```
+// Send a GET request to /get?foo=bar
+$client->request('GET', '/get?abc=123', ['query' => ['foo' => 'bar']]);
+```
+
+----------------------------------------
+
+TITLE: Adding Custom Stream Context Options to Guzzle Requests
+DESCRIPTION: Demonstrates how to add custom PHP stream context options to a Guzzle request using the 'stream_context' key. This example shows allowing self-signed SSL certificates and binding to a specific network interface.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/faq.rst#2025-04-22_snippet_4
+
+LANGUAGE: php
+CODE:
+```
+$client->request('GET', '/', [
+    'stream' => true,
+    'stream_context' => [
+        'ssl' => [
+            'allow_self_signed' => true
+        ],
+        'socket' => [
+            'bindto' => 'xxx.xxx.xxx.xxx'
+        ]
+    ]
+]);
+```
+
+----------------------------------------
+
+TITLE: HTTP Error Handling Configuration in Guzzle
+DESCRIPTION: Example showing how to disable automatic exception throwing for HTTP error responses (4xx and 5xx).
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/request-options.rst#2025-04-22_snippet_13
+
+LANGUAGE: php
+CODE:
+```
+$client->request('GET', '/status/500');
+// Throws a GuzzleHttp\Exception\ServerException
+
+$res = $client->request('GET', '/status/500', ['http_errors' => false]);
+echo $res->getStatusCode();
+// 500
+```
+
+----------------------------------------
+
+TITLE: Handling Redirects in Guzzle - PHP
+DESCRIPTION: Examples of handling HTTP redirects with different configurations including disable redirects, default redirects, and custom redirect settings.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/request-options.rst#2025-04-22_snippet_1
+
+LANGUAGE: php
+CODE:
+```
+$res = $client->request('GET', '/redirect/3', ['allow_redirects' => false]);
+echo $res->getStatusCode();
+// 302
+```
+
+LANGUAGE: php
+CODE:
+```
+$res = $client->request('GET', '/redirect/3');
+echo $res->getStatusCode();
+// 200
+```
+
+LANGUAGE: php
+CODE:
+```
+use Psr\Http\Message\RequestInterface;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\UriInterface;
+
+$onRedirect = function(
+    RequestInterface $request,
+    ResponseInterface $response,
+    UriInterface $uri
+) {
+    echo 'Redirecting! ' . $request->getUri() . ' to ' . $uri . "\n";
+};
+
+$res = $client->request('GET', '/redirect/3', [
+    'allow_redirects' => [
+        'max'             => 10,        // allow at most 10 redirects.
+        'strict'          => true,      // use "strict" RFC compliant redirects.
+        'referer'         => true,      // add a Referer header
+        'protocols'       => ['https'], // only allow https URLs
+        'on_redirect'     => $onRedirect,
+        'track_redirects' => true
+    ]
+]);
+
+echo $res->getStatusCode();
+// 200
+
+echo $res->getHeaderLine('X-Guzzle-Redirect-History');
+// http://first-redirect, http://second-redirect, etc...
+
+echo $res->getHeaderLine('X-Guzzle-Redirect-Status-History');
+// 301, 302, etc...
+```
+
+----------------------------------------
+
+TITLE: Managing Middleware Stack Order in Guzzle PHP
+DESCRIPTION: This code shows how to manage the order of middleware in a HandlerStack. It demonstrates pushing and unshifting middleware onto the stack and how it affects the execution order.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/handlers-and-middleware.rst#2025-04-22_snippet_7
+
+LANGUAGE: php
+CODE:
+```
+use GuzzleHttp\Client;
+use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Middleware;
+use GuzzleHttp\Utils;
+use Psr\Http\Message\RequestInterface;
+
+$stack = new HandlerStack();
+$stack->setHandler(Utils::chooseHandler());
+
+$stack->push(Middleware::mapRequest(function (RequestInterface $r) {
+    echo 'A';
+    return $r;
+}));
+
+$stack->push(Middleware::mapRequest(function (RequestInterface $r) {
+    echo 'B';
+    return $r;
+}));
+
+$stack->push(Middleware::mapRequest(function (RequestInterface $r) {
+    echo 'C';
+    return $r;
+}));
+
+$client->request('GET', 'http://httpbin.org/');
+// echoes 'ABC';
+
+$stack->unshift(Middleware::mapRequest(function (RequestInterface $r) {
+    echo '0';
+    return $r;
+}));
+
+$client = new Client(['handler' => $stack]);
+$client->request('GET', 'http://httpbin.org/');
+// echoes '0ABC';
+```
+
+----------------------------------------
+
+TITLE: Certificate Configuration in Guzzle - PHP
+DESCRIPTION: Setting client-side SSL/TLS certificates with optional password protection.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/request-options.rst#2025-04-22_snippet_4
+
+LANGUAGE: php
+CODE:
+```
+$client->request('GET', '/', ['cert' => ['/path/server.pem', 'password']]);
+```
+
+----------------------------------------
+
+TITLE: Using Cookies with Guzzle
+DESCRIPTION: Demonstrates how to handle cookies in Guzzle requests using a specific cookie jar instance or a shared client-level cookie jar.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/quickstart.rst#2025-04-22_snippet_14
+
+LANGUAGE: php
+CODE:
+```
+// Use a specific cookie jar
+$jar = new \GuzzleHttp\Cookie\CookieJar;
+$r = $client->request('GET', 'http://httpbin.org/cookies', [
+    'cookies' => $jar
+]);
+```
+
+LANGUAGE: php
+CODE:
+```
+// Use a shared client cookie jar
+$client = new \GuzzleHttp\Client(['cookies' => true]);
+$r = $client->request('GET', 'http://httpbin.org/cookies');
+```
+
+----------------------------------------
+
+TITLE: Using HTTP Method Shortcuts with Guzzle Client
+DESCRIPTION: Demonstrates the convenience methods available on Guzzle client for different HTTP methods (GET, POST, HEAD, etc.) that create and send requests with a single method call.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/psr7.rst#2025-04-22_snippet_10
+
+LANGUAGE: php
+CODE:
+```
+$response = $client->patch('http://httpbin.org/patch', ['body' => 'content']);
+```
+
+----------------------------------------
+
+TITLE: Content Decoding Configuration in Guzzle
+DESCRIPTION: Examples of controlling content encoding behavior. Shows how to disable automatic decoding of compressed responses and how to specify custom Accept-Encoding headers.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/request-options.rst#2025-04-22_snippet_9
+
+LANGUAGE: php
+CODE:
+```
+// Request gzipped data, but do not decode it while downloading
+$client->request('GET', '/foo.js', [
+    'headers'        => ['Accept-Encoding' => 'gzip'],
+    'decode_content' => false
+]);
+```
+
+LANGUAGE: php
+CODE:
+```
+// Pass "gzip" as the Accept-Encoding header.
+$client->request('GET', '/foo.js', ['decode_content' => 'gzip']);
+```
+
+LANGUAGE: php
+CODE:
+```
+// Delegate choosing compression method to curl
+$client->request('GET', '/foo.js', [
+    'curl' => [
+        \CURLOPT_ENCODING => '',
+    ],
+]);
+```
+
+----------------------------------------
+
+TITLE: Using Middleware::mapRequest in Guzzle PHP
+DESCRIPTION: This code demonstrates how to use the Middleware::mapRequest helper to create a simpler middleware for modifying requests. It shows adding a header to each request using this method.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/handlers-and-middleware.rst#2025-04-22_snippet_5
+
+LANGUAGE: php
+CODE:
+```
+use Psr\Http\Message\RequestInterface;
+use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Handler\CurlHandler;
+use GuzzleHttp\Client;
+use GuzzleHttp\Middleware;
+
+$stack = new HandlerStack();
+$stack->setHandler(new CurlHandler());
+
+$stack->push(Middleware::mapRequest(function (RequestInterface $request) {
+    return $request->withHeader('X-Foo', 'bar');
+}));
+
+$client = new Client(['handler' => $stack]);
+```
+
+----------------------------------------
+
+TITLE: Using the batch Function in Guzzle 4.0.0
+DESCRIPTION: The GuzzleHttp\batch() function allows sending requests in parallel without writing asynchronous code. This was added in version 4.0.0 as a convenience method for handling parallel requests.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/CHANGELOG.md#2025-04-22_snippet_0
+
+LANGUAGE: php
+CODE:
+```
+GuzzleHttp\batch()
+```
+
+----------------------------------------
+
+TITLE: Setting Read Timeout for Streamed Responses in Guzzle
+DESCRIPTION: Shows how to configure a read timeout for streamed responses in Guzzle. This timeout applies to individual read operations on a streamed body, preventing reads from blocking indefinitely.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/request-options.rst#2025-04-22_snippet_23
+
+LANGUAGE: php
+CODE:
+```
+$response = $client->request('GET', '/stream', [
+    'stream' => true,
+    'read_timeout' => 10,
+]);
+
+$body = $response->getBody();
+
+// Returns false on timeout
+$data = $body->read(1024);
+
+// Returns false on timeout
+$line = fgets($body->detach());
+```
+
+----------------------------------------
+
+TITLE: Using Tap Middleware to Monitor Requests in Guzzle
+DESCRIPTION: Demonstrates how to use Guzzle's tap middleware to inspect and echo parts of an HTTP request before it's sent. This is useful for debugging and monitoring purposes when you need to see the exact content being sent over the wire.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/request-options.rst#2025-04-22_snippet_16
+
+LANGUAGE: php
+CODE:
+```
+use GuzzleHttp\Middleware;
+
+// Create a middleware that echoes parts of the request.
+$tapMiddleware = Middleware::tap(function ($request) {
+    echo $request->getHeaderLine('Content-Type');
+    // application/json
+    echo $request->getBody();
+    // {"foo":"bar"}
+});
+
+// The $handler variable is the handler passed in the
+// options to the client constructor.
+$response = $client->request('PUT', '/put', [
+    'json'    => ['foo' => 'bar'],
+    'handler' => $tapMiddleware($handler)
+]);
+```
+
+----------------------------------------
+
+TITLE: Serializing JSON Payloads in Guzzle 4.1.0
+DESCRIPTION: The 'json' request option allows for easy serialization of JSON payloads in HTTP requests. This option was added in version 4.1.0.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/CHANGELOG.md#2025-04-22_snippet_1
+
+LANGUAGE: php
+CODE:
+```
+// Example usage of the json request option
+$client->request('POST', '/api', [
+    'json' => ['foo' => 'bar']
+]);
+```
+
+----------------------------------------
+
+TITLE: Tracking HTTP Requests with Guzzle History Middleware in PHP
+DESCRIPTION: Shows how to use Guzzle's History Middleware to track and analyze HTTP requests made by a client. It demonstrates setting up the middleware, making requests, and iterating over the recorded transactions.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/testing.rst#2025-04-22_snippet_1
+
+LANGUAGE: php
+CODE:
+```
+use GuzzleHttp\Client;
+use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Middleware;
+
+$container = [];
+$history = Middleware::history($container);
+
+$handlerStack = HandlerStack::create();
+// or $handlerStack = HandlerStack::create($mock); if using the Mock handler.
+
+// Add the history middleware to the handler stack.
+$handlerStack->push($history);
+
+$client = new Client(['handler' => $handlerStack]);
+
+$client->request('GET', 'http://httpbin.org/get');
+$client->request('HEAD', 'http://httpbin.org/get');
+
+// Count the number of transactions
+echo count($container);
+//> 2
+
+// Iterate over the requests and responses
+foreach ($container as $transaction) {
+    echo $transaction['request']->getMethod();
+    //> GET, HEAD
+    if ($transaction['response']) {
+        echo $transaction['response']->getStatusCode();
+        //> 200, 200
+    } elseif ($transaction['error']) {
+        echo $transaction['error'];
+        //> exception
+    }
+    var_dump($transaction['options']);
+    //> dumps the request options of the sent request.
+}
+```
+
+----------------------------------------
+
+TITLE: Debugging HTTP Requests with Guzzle
+DESCRIPTION: Example of enabling debug output for HTTP requests. When enabled, outputs detailed cURL or stream wrapper information to STDOUT or a specified stream.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/request-options.rst#2025-04-22_snippet_8
+
+LANGUAGE: php
+CODE:
+```
+$client->request('GET', '/get', ['debug' => true]);
+```
+
+----------------------------------------
+
+TITLE: Safely Parsing JSON with Guzzle's Wrapper Function
+DESCRIPTION: The GuzzleHttp\json_decode() wrapper function provides safe JSON parsing functionality. This was added in version 4.1.0 as a utility function.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/CHANGELOG.md#2025-04-22_snippet_2
+
+LANGUAGE: php
+CODE:
+```
+GuzzleHttp\json_decode()
+```
+
+----------------------------------------
+
+TITLE: TLS Protocol Configuration in Guzzle - PHP
+DESCRIPTION: Setting minimum TLS protocol version for requests.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/request-options.rst#2025-04-22_snippet_7
+
+LANGUAGE: php
+CODE:
+```
+$client->request('GET', '/foo', ['crypto_method' => STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT]);
+```
+
+----------------------------------------
+
+TITLE: Form Parameters in Guzzle POST Requests
+DESCRIPTION: Example of sending form parameters in a POST request with application/x-www-form-urlencoded content type.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/request-options.rst#2025-04-22_snippet_11
+
+LANGUAGE: php
+CODE:
+```
+$client->request('POST', '/post', [
+    'form_params' => [
+        'foo' => 'bar',
+        'baz' => ['hi', 'there!']
+    ]
+]);
+```
+
+----------------------------------------
+
+TITLE: Creating PSR-7 Response Objects in PHP
+DESCRIPTION: Demonstrates how to create a PSR-7 Response object using GuzzleHttp\Psr7\Response class. Shows both creating a basic response with default values and customizing status, headers, body, and protocol version.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/psr7.rst#2025-04-22_snippet_1
+
+LANGUAGE: php
+CODE:
+```
+use GuzzleHttp\Psr7\Response;
+
+// The constructor requires no arguments.
+$response = new Response();
+echo $response->getStatusCode(); // 200
+echo $response->getProtocolVersion(); // 1.1
+
+// You can supply any number of optional arguments.
+$status = 200;
+$headers = ['X-Foo' => 'Bar'];
+$body = 'hello!';
+$protocol = '1.1';
+$response = new Response($status, $headers, $body, $protocol);
+```
+
+----------------------------------------
+
+TITLE: Creating Streams with GuzzleHttp\Psr7\Utils::streamFor in PHP
+DESCRIPTION: Demonstrates how to create a stream from a string using GuzzleHttp\Psr7\Utils::streamFor method. The example shows reading from the stream, getting contents, checking if the stream has reached the end, and getting the current position.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/psr7.rst#2025-04-22_snippet_18
+
+LANGUAGE: php
+CODE:
+```
+use GuzzleHttp\Psr7;
+
+$stream = Psr7\Utils::streamFor('string data');
+echo $stream;
+// string data
+echo $stream->read(3);
+// str
+echo $stream->getContents();
+// ing data
+var_export($stream->eof());
+// true
+var_export($stream->tell());
+// 11
+```
+
+----------------------------------------
+
+TITLE: Manually Setting Cookies in a Guzzle Cookie Jar
+DESCRIPTION: Shows how to manually set cookies into a Guzzle cookie jar using the fromArray method, and how to retrieve cookie values and properties.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/quickstart.rst#2025-04-22_snippet_15
+
+LANGUAGE: php
+CODE:
+```
+$jar = \GuzzleHttp\Cookie\CookieJar::fromArray(
+    [
+        'some_cookie' => 'foo',
+        'other_cookie' => 'barbaz1234'
+    ],
+    'example.org'
+);
+```
+
+LANGUAGE: php
+CODE:
+```
+$cookie = $jar->getCookieByName('some_cookie');
+
+$cookie->getValue(); // 'foo'
+$cookie->getDomain(); // 'example.org'
+$cookie->getExpires(); // expiration date as a Unix timestamp
+```
+
+----------------------------------------
+
+TITLE: Retrieving HTTP Header Values from PSR-7 Messages
+DESCRIPTION: Demonstrates how to retrieve values for a specific header using getHeader() method, which returns an array of values. Also shows that retrieving a non-existent header returns an empty array.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/psr7.rst#2025-04-22_snippet_3
+
+LANGUAGE: php
+CODE:
+```
+$request->getHeader('X-Foo'); // ['bar']
+
+// Retrieving a missing header returns an empty array.
+$request->getHeader('X-Bar'); // []
+```
+
+----------------------------------------
+
+TITLE: Creating Streams from Iterators in PHP using GuzzleHttp\Psr7
+DESCRIPTION: Shows how to create a stream from an iterator using GuzzleHttp\Psr7\Utils::streamFor. The example uses a generator function that yields a specified number of dots, then creates a stream from this iterator and reads from it.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/psr7.rst#2025-04-22_snippet_19
+
+LANGUAGE: php
+CODE:
+```
+use GuzzleHttp\Psr7;
+
+$generator = function ($bytes) {
+    for ($i = 0; $i < $bytes; $i++) {
+        yield '.';
+    }
+};
+
+$iter = $generator(1024);
+$stream = Psr7\Utils::streamFor($iter);
+echo $stream->read(3); // ...
+```
+
+----------------------------------------
+
+TITLE: Working with Response Bodies
+DESCRIPTION: Shows different ways to work with response bodies including casting to a string, rewinding the body stream, and reading portions of the body.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/psr7.rst#2025-04-22_snippet_17
+
+LANGUAGE: php
+CODE:
+```
+$body = $response->getBody();
+echo $body;
+// Cast to a string: { ... }
+$body->seek(0);
+// Rewind the body
+$body->read(1024);
+// Read bytes of the body
+```
+
+----------------------------------------
+
+TITLE: Parsing Complex HTTP Headers with Guzzle
+DESCRIPTION: Demonstrates how to parse complex HTTP headers that contain key-value pairs (like Link headers) using Guzzle's Header::parse utility function.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/psr7.rst#2025-04-22_snippet_5
+
+LANGUAGE: php
+CODE:
+```
+use GuzzleHttp\Psr7;
+
+$request = new Psr7\Request('GET', '/', [
+    'Link' => '<http:/.../front.jpeg>; rel="front"; type="image/jpeg"'
+]);
+
+$parsed = Psr7\Header::parse($request->getHeader('Link'));
+var_export($parsed);
+```
+
+----------------------------------------
+
+TITLE: Retrieving Stream Metadata in PHP using GuzzleHttp\Psr7
+DESCRIPTION: Demonstrates how to retrieve metadata from a stream using the getMetadata() method. The example shows creating a stream from a file resource, then accessing various metadata such as the URI, and checking if the stream is readable, writable, and seekable.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/psr7.rst#2025-04-22_snippet_20
+
+LANGUAGE: php
+CODE:
+```
+use GuzzleHttp\Psr7;
+
+$resource = Psr7\Utils::tryFopen('/path/to/file', 'r');
+$stream = Psr7\Utils::streamFor($resource);
+echo $stream->getMetadata('uri');
+// /path/to/file
+var_export($stream->isReadable());
+// true
+var_export($stream->isWritable());
+// false
+var_export($stream->isSeekable());
+// true
+```
+
+----------------------------------------
+
+TITLE: Reading Data from PSR-7 Stream Bodies
+DESCRIPTION: Demonstrates how to read data incrementally from a PSR-7 stream using read() method and how to check if the end of the stream has been reached with eof().
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/psr7.rst#2025-04-22_snippet_8
+
+LANGUAGE: php
+CODE:
+```
+use GuzzleHttp\Stream\Stream;
+$response = $client->request('GET', 'http://httpbin.org/get');
+
+echo $response->getBody()->read(4);
+echo $response->getBody()->read(4);
+echo $response->getBody()->read(1024);
+var_export($response->eof());
+```
+
+----------------------------------------
+
+TITLE: Guzzle 6.0 Middleware-Based Request Modification
+DESCRIPTION: Example showing the new middleware approach in Guzzle 6.0 for modifying requests. Uses handler stacks and PSR-7 immutable messages instead of event listeners.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/UPGRADING.md#2025-04-22_snippet_2
+
+LANGUAGE: php
+CODE:
+```
+use GuzzleHttp\Middleware;
+// Create a handler stack that has all of the default middlewares attached
+$handler = GuzzleHttp\HandlerStack::create();
+// Push the handler onto the handler stack
+$handler->push(Middleware::mapRequest(function (RequestInterface $request) {
+    // Notice that we have to return a request object
+    return $request->withHeader('X-Foo', 'Bar');
+}));
+// Inject the handler into the client
+$client = new GuzzleHttp\Client(['handler' => $handler]);
+```
+
+----------------------------------------
+
+TITLE: Using Guzzle Test Server for Integration Testing in PHP
+DESCRIPTION: Demonstrates how to use the Guzzle test server for integration testing of HTTP handlers. It shows enqueueing responses, making requests, and inspecting received requests.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/testing.rst#2025-04-22_snippet_4
+
+LANGUAGE: php
+CODE:
+```
+use GuzzleHttp\Client;
+use GuzzleHttp\Psr7\Response;
+use GuzzleHttp\Tests\Server;
+
+// Start the server and queue a response
+Server::enqueue([
+    new Response(200, ['Content-Length' => 0])
+]);
+
+$client = new Client(['base_uri' => Server::$url]);
+echo $client->request('GET', '/foo')->getStatusCode();
+// 200
+
+foreach (Server::received() as $response) {
+    echo $response->getStatusCode();
+}
+
+Server::flush();
+echo count(Server::received());
+// 0
+```
+
+----------------------------------------
+
+TITLE: Tracking Redirects in Guzzle Requests
+DESCRIPTION: Demonstrates how to track redirect history in Guzzle by enabling the 'track_redirects' option. The example shows how to configure the client, make a request, and process the redirect history from response headers.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/faq.rst#2025-04-22_snippet_6
+
+LANGUAGE: php
+CODE:
+```
+// First you configure Guzzle with redirect tracking and make a request
+$client = new Client([
+    RequestOptions::ALLOW_REDIRECTS => [
+        'max'             => 10,        // allow at most 10 redirects.
+        'strict'          => true,      // use "strict" RFC compliant redirects.
+        'referer'         => true,      // add a Referer header
+        'track_redirects' => true,
+    ],
+]);
+$initialRequest = '/redirect/3'; // Store the request URI for later use
+$response = $client->request('GET', $initialRequest); // Make your request
+
+// Retrieve both Redirect History headers
+$redirectUriHistory = $response->getHeader('X-Guzzle-Redirect-History')[0]; // retrieve Redirect URI history
+$redirectCodeHistory = $response->getHeader('X-Guzzle-Redirect-Status-History')[0]; // retrieve Redirect HTTP Status history
+
+// Add the initial URI requested to the (beginning of) URI history
+array_unshift($redirectUriHistory, $initialRequest);
+
+// Add the final HTTP status code to the end of HTTP response history
+array_push($redirectCodeHistory, $response->getStatusCode());
+
+// (Optional) Combine the items of each array into a single result set
+$fullRedirectReport = [];
+foreach ($redirectUriHistory as $key => $value) {
+    $fullRedirectReport[$key] = ['location' => $value, 'code' => $redirectCodeHistory[$key]];
+}
+echo json_encode($fullRedirectReport);
+```
+
+----------------------------------------
+
+TITLE: Setting POST Fields and Files in Guzzle 4.0 (PHP)
+DESCRIPTION: Demonstrates how to set POST fields and add files to a request body using the new PostBody interface in Guzzle 4.0. This replaces the previous methods on the request object.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/UPGRADING.md#2025-04-22_snippet_6
+
+LANGUAGE: PHP
+CODE:
+```
+$request = $client->createRequest('POST', '/');
+$request->getBody()->setField('foo', 'bar');
+$request->getBody()->addFile(new PostFile('file_key', fopen('/path/to/content', 'r')));
+```
+
+----------------------------------------
+
+TITLE: Accessing the Host Component of Request URIs
+DESCRIPTION: Demonstrates how to access the host component of a request URI using the getHost() method of the UriInterface or via the Host header.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/psr7.rst#2025-04-22_snippet_12
+
+LANGUAGE: php
+CODE:
+```
+$request = new Request('GET', 'http://httpbin.org');
+echo $request->getUri()->getHost(); // httpbin.org
+echo $request->getHeader('Host'); // httpbin.org
+```
+
+----------------------------------------
+
+TITLE: Disabling Expect Header in Guzzle Requests
+DESCRIPTION: Shows how to disable the Expect: 100-Continue header in Guzzle requests to avoid 417 errors with servers that don't support this header. Demonstrates both per-request and client-wide configuration.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/docs/faq.rst#2025-04-22_snippet_5
+
+LANGUAGE: php
+CODE:
+```
+$client = new GuzzleHttp\Client();
+
+// Disable the expect header on a single request
+$response = $client->request('PUT', '/', ['expect' => false]);
+
+// Disable the expect header on all client requests
+$client = new GuzzleHttp\Client(['expect' => false]);
+```
+
+----------------------------------------
+
+TITLE: Updated Client Request Handling in Guzzle 4.x
+DESCRIPTION: Demonstrates the changes in how HTTP requests are created and sent in Guzzle 4.x compared to 3.x. Shows both direct response retrieval and request object creation patterns.
+SOURCE: https://github.com/guzzle/guzzle/blob/7.9/UPGRADING.md#2025-04-22_snippet_5
+
+LANGUAGE: PHP
+CODE:
+```
+// 3.0
+$request = $client->get('/');
+$response = $request->send();
+
+// 4.0
+$response = $client->get('/');
+
+// or, to mirror the previous behavior
+$request = $client->createRequest('GET', '/');
+$response = $client->send($request);
+```

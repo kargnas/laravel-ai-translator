@@ -452,7 +452,7 @@ Make sure to set your chosen AI provider's API key in your `.env` file.
 
 ## Supported File Types
 
-Currently, this package only supports PHP language files used by Laravel. JSON language files are not supported, and there are no plans to add support for them in the future.
+This package primarily works with PHP language files used by Laravel. Starting from version 1.7.8, JSON language files can also be translated using the `ai-translator:translate-json` command.
 
 ### Why PHP files only?
 

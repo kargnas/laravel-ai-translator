@@ -136,15 +136,15 @@ These custom styles offer creative ways to customize your translations, adding a
    composer require kargnas/laravel-ai-translator
    ```
 
-2. Add the OpenAI API key to your `.env` file:
+2. Add the Claude API key to your `.env` file:
 
    ```
-   OPENAI_API_KEY=your-openai-api-key-here
+   ANTHROPIC_API_KEY=your-anthropic-api-key-here
    ```
 
-   You can obtain an API key from the [OpenAI website](https://platform.openai.com/account/api-keys).
+   You can obtain an API key from the [Anthropic Console](https://console.anthropic.com/settings/keys).
 
-(If you want to use Anthropic's Claude or Google's Gemini instead, see step 4 below for configuration instructions.)
+(If you want to use OpenAI's GPT or Google's Gemini instead, see step 4 below for configuration instructions.)
 
 3. (Optional) Publish the configuration file:
 
@@ -154,13 +154,15 @@ These custom styles offer creative ways to customize your translations, adding a
 
    This step is optional but recommended if you want to customize the package's behavior. It will create a `config/ai-translator.php` file where you can modify various settings.
 
-4. (Optional) If you want to use Anthropic's Claude or Google's Gemini instead of OpenAI's GPT, update the `config/ai-translator.php` file:
+4. (Optional) The package is configured to use Claude by default. If you want to use OpenAI's GPT or Google's Gemini instead, update the `config/ai-translator.php` file:
+
+   For OpenAI GPT:
 
    ```php
    'ai' => [
-       'provider' => 'anthropic',
-       'model' => 'claude-3-7-sonnet-20250219',
-       'api_key' => env('ANTHROPIC_API_KEY'),
+       'provider' => 'openai',
+       'model' => 'gpt-4o',
+       'api_key' => env('OPENAI_API_KEY'),
    ],
    ```
 
@@ -174,15 +176,18 @@ These custom styles offer creative ways to customize your translations, adding a
    ],
    ```
 
-   Then, add the Anthropic or Gemini API key to your `.env` file:
+   Then, add the OpenAI or Gemini API key to your `.env` file:
 
    ```
-   ANTHROPIC_API_KEY=your-anthropic-api-key-here
+   OPENAI_API_KEY=your-openai-api-key-here
    GEMINI_API_KEY=your-gemini-api-key-here
    ```
 
-   You can obtain an Anthropic API key from the [Anthropic website](https://www.anthropic.com).
-   For best results, we recommend using the Claude-3-7-sonnet model for your translations rather than OpenAI GPT. This model provides more accurate and natural translations.
+   You can obtain API keys from:
+   - OpenAI: [OpenAI Platform](https://platform.openai.com/account/api-keys)
+   - Gemini: [Google AI Studio](https://aistudio.google.com/app/apikey)
+
+   **We strongly recommend using Claude for the best translation quality and accuracy.**
 
 5. You're now ready to use the Laravel AI Translator!
 
@@ -345,7 +350,7 @@ This will create a `config/ai-translator.php` file where you can modify the foll
   ```php
   'ai' => [
       'provider' => 'anthropic',
-      'model' => 'claude-3-7-sonnet-latest',
+      'model' => 'claude-sonnet-4-20250514',
       'api_key' => env('ANTHROPIC_API_KEY'),
   ],
   ```
@@ -354,6 +359,7 @@ This will create a `config/ai-translator.php` file where you can modify the foll
 
   | Provider    | Model                            | Extended Thinking | Context Window | Max Tokens |
   | ----------- | -------------------------------- | ----------------- | -------------- | ---------- |
+  | `anthropic` | `claude-sonnet-4-20250514`       | ✅                | 200K           | 8K/64K\*   |
   | `anthropic` | `claude-3-7-sonnet-latest`       | ✅                | 200K           | 8K/64K\*   |
   | `anthropic` | `claude-3-7-sonnet-latest`       | ❌                | 200K           | 8K         |
   | `anthropic` | `claude-3-haiku-20240307`        | ❌                | 200K           | 8K         |
@@ -369,12 +375,13 @@ This will create a `config/ai-translator.php` file where you can modify the foll
   - Anthropic: See [Anthropic Models Documentation](https://docs.anthropic.com/en/docs/about-claude/models)
   - OpenAI: See [OpenAI Models Documentation](https://platform.openai.com/docs/models)
 
-  > **⭐️ Strong Recommendation**: We highly recommend using Anthropic's Claude models, particularly `claude-3-7-sonnet-latest`. Here's why:
+  > **⭐️ Strong Recommendation**: We highly recommend using Anthropic's Claude models, particularly `claude-sonnet-4-20250514` or `claude-3-7-sonnet-latest`. Here's why:
   >
   > - More accurate and natural translations
   > - Better understanding of context and nuances
   > - More consistent output quality
   > - More cost-effective for the quality provided
+  > - Claude 4.0 offers even better reasoning and translation quality
   >
   > While OpenAI integration is available, we strongly advise against using it for translations. Our extensive testing has shown that Claude models consistently produce superior results for localization tasks.
 
@@ -403,7 +410,7 @@ This will create a `config/ai-translator.php` file where you can modify the foll
      ```php
      'ai' => [
         'provider' => 'anthropic', // or 'openai' or 'gemini'
-        'model' => 'claude-3-7-sonnet-latest', // see model list above
+        'model' => 'claude-sonnet-4-20250514', // see model list above
         'api_key' => env('ANTHROPIC_API_KEY'), // or env('OPENAI_API_KEY') or env('GEMINI_API_KEY')
      ],
      ```
@@ -424,7 +431,7 @@ return [
 
     'ai' => [
         'provider' => 'anthropic',
-        'model' => 'claude-3-7-sonnet-latest',
+        'model' => 'claude-sonnet-4-20250514',
         'api_key' => env('ANTHROPIC_API_KEY'),
     ],
 

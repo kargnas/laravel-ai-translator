@@ -94,3 +94,6 @@ Laravel package for AI-powered translations supporting multiple AI providers (Op
 - Support for variables, pluralization, and HTML
 - Custom language styles (e.g., regional dialects)
 - Token usage tracking and reporting
+
+### Version Notes
+- When tagging versions, use `commit version 1.7.13` instead of `v1.7.13`

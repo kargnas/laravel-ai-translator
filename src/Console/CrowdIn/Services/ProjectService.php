@@ -4,12 +4,13 @@ namespace Kargnas\LaravelAiTranslator\Console\CrowdIn\Services;
 
 use CrowdinApiClient\Model\Project;
 use Illuminate\Console\Command;
-use Illuminate\Support\Collection;
 
 class ProjectService
 {
     protected CrowdinApiService $apiService;
+
     protected Command $command;
+
     protected ?array $selectedProject = null;
 
     public function __construct(CrowdinApiService $apiService, Command $command)
@@ -33,7 +34,7 @@ class ProjectService
             ]);
             $projects = $projects->merge(collect($response));
             $page++;
-        } while (!$response->isEmpty());
+        } while (! $response->isEmpty());
 
         return $projects->map(function (Project $project) {
             return $project->getData();
@@ -48,11 +49,12 @@ class ProjectService
         $projects = $this->getAllProjects();
 
         if (empty($projects)) {
-            $this->command->error("No projects found in your Crowdin account.");
+            $this->command->error('No projects found in your Crowdin account.');
+
             return false;
         }
 
-        if (!empty($projectId)) {
+        if (! empty($projectId)) {
             foreach ($projects as $project) {
                 if ($project['id'] === (int) $projectId) {
                     $this->selectedProject = $project;
@@ -62,6 +64,7 @@ class ProjectService
 
             if (empty($this->selectedProject)) {
                 $this->command->error("Project with ID {$projectId} not found.");
+
                 return false;
             }
         } else {
@@ -86,7 +89,8 @@ class ProjectService
             }
 
             if (empty($this->selectedProject)) {
-                $this->command->error("Failed to find selected project.");
+                $this->command->error('Failed to find selected project.');
+
                 return false;
             }
         }

@@ -3,13 +3,11 @@
 namespace Kargnas\LaravelAiTranslator\Console;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Log;
 use Kargnas\LaravelAiTranslator\AI\AIProvider;
-use Kargnas\LaravelAiTranslator\AI\Language\LanguageConfig;
-use Kargnas\LaravelAiTranslator\AI\Language\LanguageRules;
+use Kargnas\LaravelAiTranslator\AI\Printer\TokenUsagePrinter;
 use Kargnas\LaravelAiTranslator\Enums\TranslationStatus;
 use Kargnas\LaravelAiTranslator\Models\LocalizedString;
-use Illuminate\Support\Facades\Log;
-use Kargnas\LaravelAiTranslator\AI\Printer\TokenUsagePrinter;
 
 class TestTranslateCommand extends Command
 {
@@ -32,7 +30,7 @@ class TestTranslateCommand extends Command
         'yellow' => "\033[38;5;220m",
         'purple' => "\033[38;5;141m",
         'red' => "\033[38;5;196m",
-        'reset' => "\033[0m"
+        'reset' => "\033[0m",
     ];
 
     // Last displayed progress info
@@ -55,7 +53,7 @@ class TestTranslateCommand extends Command
         $showXml = $this->option('show-xml');
         $showThinking = true; // 항상 thinking 내용 표시
 
-        if (!$text) {
+        if (! $text) {
             $text = $this->ask('Enter text to translate');
         }
 
@@ -74,7 +72,7 @@ class TestTranslateCommand extends Command
             'output_tokens' => 0,
             'cache_creation_input_tokens' => 0,
             'cache_read_input_tokens' => 0,
-            'total_tokens' => 0
+            'total_tokens' => 0,
         ];
 
         // AIProvider 생성
@@ -88,15 +86,15 @@ class TestTranslateCommand extends Command
         );
 
         // 토큰 사용량 추적 콜백
-        $onTokenUsage = function (array $usage) use ($debug, $provider) {
+        $onTokenUsage = function (array $usage) use ($provider) {
             // 토큰 사용량을 한 줄로 표시 (실시간 업데이트)
             $this->output->write("\033[2K\r");
             $this->output->write(
-                "<fg=magenta>Tokens:</> " .
-                "Input: <fg=green>{$usage['input_tokens']}</> | " .
-                "Output: <fg=green>{$usage['output_tokens']}</> | " .
-                "Cache created: <fg=blue>{$usage['cache_creation_input_tokens']}</> | " .
-                "Cache read: <fg=blue>{$usage['cache_read_input_tokens']}</> | " .
+                '<fg=magenta>Tokens:</> '.
+                "Input: <fg=green>{$usage['input_tokens']}</> | ".
+                "Output: <fg=green>{$usage['output_tokens']}</> | ".
+                "Cache created: <fg=blue>{$usage['cache_creation_input_tokens']}</> | ".
+                "Cache read: <fg=blue>{$usage['cache_read_input_tokens']}</> | ".
                 "Total: <fg=yellow>{$usage['total_tokens']}</>"
             );
 
@@ -115,15 +113,15 @@ class TestTranslateCommand extends Command
 
             switch ($status) {
                 case TranslationStatus::STARTED:
-                    $this->line("\n" . str_repeat('─', 80));
+                    $this->line("\n".str_repeat('─', 80));
                     $this->line("\033[1;44;37m 번역시작 \033[0m \033[1;43;30m {$item->key} \033[0m");
-                    $this->line("\033[90m원본:\033[0m " . substr($originalText, 0, 100) .
+                    $this->line("\033[90m원본:\033[0m ".substr($originalText, 0, 100).
                         (strlen($originalText) > 100 ? '...' : ''));
                     break;
 
                 case TranslationStatus::COMPLETED:
-                    $this->line("\033[1;32m번역:\033[0m \033[1m" . substr($item->translated, 0, 100) .
-                        (strlen($item->translated) > 100 ? '...' : '') . "\033[0m");
+                    $this->line("\033[1;32m번역:\033[0m \033[1m".substr($item->translated, 0, 100).
+                        (strlen($item->translated) > 100 ? '...' : '')."\033[0m");
                     break;
             }
         };
@@ -132,7 +130,7 @@ class TestTranslateCommand extends Command
         $onThinking = function ($delta) use ($showThinking) {
             // Display thinking content in gray
             if ($showThinking) {
-                echo $this->colors['gray'] . $delta . $this->colors['reset'];
+                echo $this->colors['gray'].$delta.$this->colors['reset'];
             }
         };
 
@@ -141,7 +139,7 @@ class TestTranslateCommand extends Command
             if ($showThinking) {
                 $this->thinkingBlockCount++;
                 $this->line('');
-                $this->line($this->colors['purple'] . "🧠 AI Thinking Block #" . $this->thinkingBlockCount . " Started..." . $this->colors['reset']);
+                $this->line($this->colors['purple'].'🧠 AI Thinking Block #'.$this->thinkingBlockCount.' Started...'.$this->colors['reset']);
             }
         };
 
@@ -149,7 +147,7 @@ class TestTranslateCommand extends Command
         $onThinkingEnd = function ($content = null) use ($showThinking) {
             if ($showThinking) {
                 $this->line('');
-                $this->line($this->colors['purple'] . "🧠 AI Thinking Block #" . $this->thinkingBlockCount . " Completed" . $this->colors['reset']);
+                $this->line($this->colors['purple'].'🧠 AI Thinking Block #'.$this->thinkingBlockCount.' Completed'.$this->colors['reset']);
             }
         };
 
@@ -172,7 +170,7 @@ class TestTranslateCommand extends Command
 
             // Show raw XML response if requested
             if ($showXml) {
-                $this->line("\n" . str_repeat('─', 80));
+                $this->line("\n".str_repeat('─', 80));
                 $this->line("\033[1;44;37m Raw XML Response \033[0m");
                 $this->line($this->rawXmlResponse);
             }
@@ -181,10 +179,11 @@ class TestTranslateCommand extends Command
 
             return 0;
         } catch (\Exception $e) {
-            $this->error("Error: " . $e->getMessage());
+            $this->error('Error: '.$e->getMessage());
             if ($debug) {
                 Log::error($e);
             }
+
             return 1;
         }
     }

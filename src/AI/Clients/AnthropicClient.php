@@ -2,8 +2,8 @@
 
 namespace Kargnas\LaravelAiTranslator\AI\Clients;
 
-use Illuminate\Support\Facades\Http;
 use Illuminate\Http\Client\Response;
+use Illuminate\Support\Facades\Http;
 
 /**
  * HTTP client for calling Anthropic (Claude) server
@@ -12,7 +12,9 @@ use Illuminate\Http\Client\Response;
 class AnthropicClient
 {
     protected string $baseUrl = 'https://api.anthropic.com/v1';
+
     protected string $apiKey;
+
     protected string $apiVersion = '2023-06-01';
 
     public function __construct(string $apiKey, string $apiVersion = '2023-06-01')
@@ -29,21 +31,22 @@ class AnthropicClient
     /**
      * Performs a regular HTTP request.
      *
-     * @param string $method HTTP method
-     * @param string $endpoint API endpoint
-     * @param array $data Request data
+     * @param  string  $method  HTTP method
+     * @param  string  $endpoint  API endpoint
+     * @param  array  $data  Request data
      * @return array Response data
+     *
      * @throws \Exception When API error occurs
      */
     public function request(string $method, string $endpoint, array $data = []): array
     {
         $response = Http::withHeaders([
-                    'x-api-key' => $this->apiKey,
-                    'anthropic-version' => $this->apiVersion,
-                    'content-type' => 'application/json',
-                ])->$method("{$this->baseUrl}/{$endpoint}", $data);
+            'x-api-key' => $this->apiKey,
+            'anthropic-version' => $this->apiVersion,
+            'content-type' => 'application/json',
+        ])->$method("{$this->baseUrl}/{$endpoint}", $data);
 
-        if (!$response->successful()) {
+        if (! $response->successful()) {
             $statusCode = $response->status();
             $errorBody = $response->body();
             throw new \Exception("Anthropic API error: HTTP {$statusCode}, Response: {$errorBody}");
@@ -55,9 +58,10 @@ class AnthropicClient
     /**
      * Performs a message generation request in streaming mode.
      *
-     * @param array $data Request data
-     * @param callable $onChunk Callback function to be called for each chunk
+     * @param  array  $data  Request data
+     * @param  callable  $onChunk  Callback function to be called for each chunk
      * @return array Final response data
+     *
      * @throws \Exception When API error occurs
      */
     public function createMessageStream(array $data, callable $onChunk): array
@@ -72,11 +76,11 @@ class AnthropicClient
             'stop_reason' => null,
             'usage' => [
                 'input_tokens' => 0,
-                'output_tokens' => 0
+                'output_tokens' => 0,
             ],
             'cache_creation_input_tokens' => 0,
             'cache_read_input_tokens' => 0,
-            'thinking' => ''
+            'thinking' => '',
         ];
 
         $data['stream'] = true;
@@ -89,14 +93,14 @@ class AnthropicClient
             // Execute streaming request
             $this->requestStream('post', 'messages', $data, function ($rawChunk, $parsedData) use ($onChunk, &$finalResponse, &$currentBlockIndex, &$contentBlocks) {
                 // Skip if parsedData is null or not an array
-                if (!is_array($parsedData)) {
+                if (! is_array($parsedData)) {
                     return;
                 }
 
                 // 디버그 로깅 - 개발 모드에서 API 응답 구조 확인
                 if (config('app.debug', false) || config('ai-translator.debug', false)) {
                     $eventType = $parsedData['type'] ?? 'unknown';
-                    if (in_array($eventType, ['message_start', 'message_stop', 'message_delta']) && !isset($parsedData['__logged'])) {
+                    if (in_array($eventType, ['message_start', 'message_stop', 'message_delta']) && ! isset($parsedData['__logged'])) {
                         \Log::debug("Anthropic API Raw Event: {$eventType}", json_decode(json_encode($parsedData), true));
                         $parsedData['__logged'] = true;
                     }
@@ -142,27 +146,27 @@ class AnthropicClient
                     }
                 }
                 // Handle content_block_start event
-                else if ($eventType === 'content_block_start') {
+                elseif ($eventType === 'content_block_start') {
                     if (isset($parsedData['index']) && isset($parsedData['content_block'])) {
                         $currentBlockIndex = $parsedData['index'];
                         $contentBlocks[$currentBlockIndex] = $parsedData['content_block'];
 
                         // Initialize thinking block
                         if (isset($parsedData['content_block']['type']) && $parsedData['content_block']['type'] === 'thinking') {
-                            if (!isset($contentBlocks[$currentBlockIndex]['thinking'])) {
+                            if (! isset($contentBlocks[$currentBlockIndex]['thinking'])) {
                                 $contentBlocks[$currentBlockIndex]['thinking'] = '';
                             }
                         }
                         // Initialize text block
-                        else if (isset($parsedData['content_block']['type']) && $parsedData['content_block']['type'] === 'text') {
-                            if (!isset($contentBlocks[$currentBlockIndex]['text'])) {
+                        elseif (isset($parsedData['content_block']['type']) && $parsedData['content_block']['type'] === 'text') {
+                            if (! isset($contentBlocks[$currentBlockIndex]['text'])) {
                                 $contentBlocks[$currentBlockIndex]['text'] = '';
                             }
                         }
                     }
                 }
                 // Handle content_block_delta event
-                else if ($eventType === 'content_block_delta' && isset($parsedData['index']) && isset($parsedData['delta'])) {
+                elseif ($eventType === 'content_block_delta' && isset($parsedData['index']) && isset($parsedData['delta'])) {
                     $index = $parsedData['index'];
                     $deltaType = $parsedData['delta']['type'] ?? '';
 
@@ -175,14 +179,14 @@ class AnthropicClient
                         }
                     }
                     // Process text_delta
-                    else if ($deltaType === 'text_delta' && isset($parsedData['delta']['text'])) {
+                    elseif ($deltaType === 'text_delta' && isset($parsedData['delta']['text'])) {
                         if (isset($contentBlocks[$index]) && isset($contentBlocks[$index]['type']) && $contentBlocks[$index]['type'] === 'text') {
                             $contentBlocks[$index]['text'] .= $parsedData['delta']['text'];
                         }
                     }
                 }
                 // Handle content_block_stop event
-                else if ($eventType === 'content_block_stop' && isset($parsedData['index'])) {
+                elseif ($eventType === 'content_block_stop' && isset($parsedData['index'])) {
                     $index = $parsedData['index'];
                     if (isset($contentBlocks[$index])) {
                         $block = $contentBlocks[$index];
@@ -192,16 +196,16 @@ class AnthropicClient
                             if ($block['type'] === 'text' && isset($block['text'])) {
                                 $finalResponse['content'][] = [
                                     'type' => 'text',
-                                    'text' => $block['text']
+                                    'text' => $block['text'],
                                 ];
-                            } else if ($block['type'] === 'thinking' && isset($block['thinking'])) {
+                            } elseif ($block['type'] === 'thinking' && isset($block['thinking'])) {
                                 // thinking is stored separately
                             }
                         }
                     }
                 }
                 // Handle message_delta event
-                else if ($eventType === 'message_delta') {
+                elseif ($eventType === 'message_delta') {
                     if (isset($parsedData['delta'])) {
                         if (isset($parsedData['delta']['stop_reason'])) {
                             $finalResponse['stop_reason'] = $parsedData['delta']['stop_reason'];
@@ -219,7 +223,7 @@ class AnthropicClient
                     }
                 }
                 // Handle message_stop event
-                else if ($eventType === 'message_stop') {
+                elseif ($eventType === 'message_stop') {
                     // 토큰 사용량 정보 추출 - 메시지 안에 있는 경우
                     if (isset($parsedData['message']) && isset($parsedData['message']['usage'])) {
                         $finalResponse['usage'] = $parsedData['message']['usage'];
@@ -260,11 +264,11 @@ class AnthropicClient
     /**
      * Performs a streaming HTTP request.
      *
-     * @param string $method HTTP method
-     * @param string $endpoint API endpoint
-     * @param array $data Request data
-     * @param callable $onChunk Callback function to be called for each chunk
-     * @return void
+     * @param  string  $method  HTTP method
+     * @param  string  $endpoint  API endpoint
+     * @param  array  $data  Request data
+     * @param  callable  $onChunk  Callback function to be called for each chunk
+     *
      * @throws \Exception When API error occurs
      */
     public function requestStream(string $method, string $endpoint, array $data, callable $onChunk): void
@@ -272,8 +276,8 @@ class AnthropicClient
         // Set up streaming request
         $url = "{$this->baseUrl}/{$endpoint}";
         $headers = [
-            'x-api-key: ' . $this->apiKey,
-            'anthropic-version: ' . $this->apiVersion,
+            'x-api-key: '.$this->apiKey,
+            'anthropic-version: '.$this->apiVersion,
             'content-type: application/json',
             'accept: application/json',
         ];

@@ -4,17 +4,17 @@ namespace Kargnas\LaravelAiTranslator\Console;
 
 use Illuminate\Console\Command;
 use Kargnas\LaravelAiTranslator\Console\CrowdIn\Services\CrowdinApiService;
-use Kargnas\LaravelAiTranslator\Console\CrowdIn\Services\ProjectService;
-use Kargnas\LaravelAiTranslator\Console\CrowdIn\Services\LanguageService;
-use Kargnas\LaravelAiTranslator\Console\CrowdIn\Services\FileService;
-use Kargnas\LaravelAiTranslator\Console\CrowdIn\Services\TranslationService;
 use Kargnas\LaravelAiTranslator\Console\CrowdIn\Services\CrowdinAsyncApiService;
+use Kargnas\LaravelAiTranslator\Console\CrowdIn\Services\FileService;
+use Kargnas\LaravelAiTranslator\Console\CrowdIn\Services\LanguageService;
+use Kargnas\LaravelAiTranslator\Console\CrowdIn\Services\ProjectService;
+use Kargnas\LaravelAiTranslator\Console\CrowdIn\Services\TranslationService;
 use Kargnas\LaravelAiTranslator\Console\CrowdIn\Traits\ConsoleOutputTrait;
 use Kargnas\LaravelAiTranslator\Console\CrowdIn\Traits\TokenUsageTrait;
 
 /**
  * Command to translate strings in Crowdin using AI technology
- * 
+ *
  * Environment variables:
  * - CROWDIN_API_KEY: Your Crowdin API token (required if not provided via --token option)
  */
@@ -36,10 +36,15 @@ class TranslateCrowdin extends Command
     protected $description = 'Translate strings in Crowdin using AI technology';
 
     protected CrowdinApiService $apiService;
+
     protected ProjectService $projectService;
+
     protected LanguageService $languageService;
+
     protected FileService $fileService;
+
     protected TranslationService $translationService;
+
     protected CrowdinAsyncApiService $asyncApiService;
 
     /**
@@ -54,14 +59,14 @@ class TranslateCrowdin extends Command
 
             // Validate and get token
             if (empty($token)) {
-                $this->warn("No API token provided. You can:");
-                $this->line("1. Set CROWDIN_API_KEY in your .env file");
-                $this->line("2. Use --token option");
-                $this->line("3. Enter it interactively");
+                $this->warn('No API token provided. You can:');
+                $this->line('1. Set CROWDIN_API_KEY in your .env file');
+                $this->line('2. Use --token option');
+                $this->line('3. Enter it interactively');
                 $token = $this->secret('Enter your Crowdin API token');
 
                 if (empty($token)) {
-                    throw new \RuntimeException("API token is required to connect to Crowdin.");
+                    throw new \RuntimeException('API token is required to connect to Crowdin.');
                 }
             }
 
@@ -72,13 +77,13 @@ class TranslateCrowdin extends Command
             $this->initializeServices($token, $organization);
 
             // Select project
-            if (!$this->projectService->selectProject($this->option('project'))) {
+            if (! $this->projectService->selectProject($this->option('project'))) {
                 return 1;
             }
 
             // Select languages
             if (
-                !$this->languageService->selectLanguages(
+                ! $this->languageService->selectLanguages(
                     $this->option('source-language'),
                     $this->option('target-language')
                 )
@@ -95,6 +100,7 @@ class TranslateCrowdin extends Command
             return 0;
         } catch (\Exception $e) {
             $this->displayError($e);
+
             return 1;
         }
     }

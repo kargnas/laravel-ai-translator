@@ -25,7 +25,7 @@ trait ConsoleOutputTrait
         'blue_bg' => "\033[44m",
         'purple_bg' => "\033[45m",
         'cyan_bg' => "\033[46m",
-        'white_bg' => "\033[47m"
+        'white_bg' => "\033[47m",
     ];
 
     /**
@@ -33,9 +33,9 @@ trait ConsoleOutputTrait
      */
     protected function displayHeader(): void
     {
-        $this->line("\n" . $this->colors['blue_bg'] . $this->colors['white'] . $this->colors['bold'] . " Crowdin AI Translator " . $this->colors['reset']);
-        $this->line($this->colors['gray'] . "Translating strings using AI technology" . $this->colors['reset']);
-        $this->line(str_repeat('─', 80) . "\n");
+        $this->line("\n".$this->colors['blue_bg'].$this->colors['white'].$this->colors['bold'].' Crowdin AI Translator '.$this->colors['reset']);
+        $this->line($this->colors['gray'].'Translating strings using AI technology'.$this->colors['reset']);
+        $this->line(str_repeat('─', 80)."\n");
     }
 
     /**
@@ -43,9 +43,9 @@ trait ConsoleOutputTrait
      */
     protected function displayError(\Exception $e): void
     {
-        $this->error("Translation process failed: " . $e->getMessage());
+        $this->error('Translation process failed: '.$e->getMessage());
         if (config('app.debug')) {
-            $this->line($this->colors['gray'] . $e->getTraceAsString() . $this->colors['reset']);
+            $this->line($this->colors['gray'].$e->getTraceAsString().$this->colors['reset']);
         }
     }
 
@@ -54,10 +54,10 @@ trait ConsoleOutputTrait
      */
     protected function displayDirectoryInfo(string $name, int $id, int $fileCount, int $directoryCount, int $totalDirectories): void
     {
-        $this->line($this->colors['purple'] . "\n📁 Directory: " .
-            $this->colors['reset'] . $this->colors['bold'] . "{$name}" .
-            $this->colors['reset'] . " ({$id})");
-        $this->line($this->colors['gray'] . "    {$fileCount} files found" . $this->colors['reset']);
+        $this->line($this->colors['purple']."\n📁 Directory: ".
+            $this->colors['reset'].$this->colors['bold']."{$name}".
+            $this->colors['reset']." ({$id})");
+        $this->line($this->colors['gray']."    {$fileCount} files found".$this->colors['reset']);
     }
 
     /**
@@ -65,9 +65,9 @@ trait ConsoleOutputTrait
      */
     protected function displayFileInfo(string $name, int $id, int $fileCount): void
     {
-        $this->line($this->colors['purple'] . "  📄 File: " .
-            $this->colors['reset'] . $this->colors['bold'] . "{$name}" .
-            $this->colors['reset'] . " ({$id})");
+        $this->line($this->colors['purple'].'  📄 File: '.
+            $this->colors['reset'].$this->colors['bold']."{$name}".
+            $this->colors['reset']." ({$id})");
     }
 
     /**
@@ -75,7 +75,7 @@ trait ConsoleOutputTrait
      */
     protected function displayTranslationSummary(array $targetLanguage, int $directoryCount, int $fileCount, int $stringCount, int $translatedCount): void
     {
-        $this->line("\n" . str_repeat('─', 80));
+        $this->line("\n".str_repeat('─', 80));
         $this->info(" Translation Complete: {$targetLanguage['name']} ");
         $this->line("Directories scanned: {$directoryCount}");
         $this->line("Files processed: {$fileCount}");
@@ -83,7 +83,7 @@ trait ConsoleOutputTrait
         $this->line("Strings translated and saved to Crowdin: {$translatedCount}");
 
         if ($translatedCount > 0) {
-            $this->info("✓ All translations have been successfully saved to Crowdin");
+            $this->info('✓ All translations have been successfully saved to Crowdin');
         }
     }
 }

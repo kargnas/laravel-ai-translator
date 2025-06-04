@@ -24,26 +24,28 @@ class TranslateStringsParallel extends TranslateStrings
         $nonInteractive = $this->option('non-interactive');
         $availableLocales = $this->getExistingLocales();
 
-        if (!$nonInteractive && empty($specifiedLocales)) {
+        if (! $nonInteractive && empty($specifiedLocales)) {
             $locales = $availableLocales;
-            $this->info($this->colors['green'] . '✓ Selected locales: ' .
-                $this->colors['reset'] . $this->colors['bold'] . implode(', ', $locales) .
+            $this->info($this->colors['green'].'✓ Selected locales: '.
+                $this->colors['reset'].$this->colors['bold'].implode(', ', $locales).
                 $this->colors['reset']);
         } else {
-            $locales = !empty($specifiedLocales)
+            $locales = ! empty($specifiedLocales)
                 ? $this->validateAndFilterLocales($specifiedLocales, $availableLocales)
                 : $availableLocales;
         }
 
         if (empty($locales)) {
             $this->error('No valid locales specified or found for translation.');
+
             return;
         }
 
         $queue = [];
         foreach ($locales as $locale) {
             if ($locale === $this->sourceLocale || in_array($locale, config('ai-translator.skip_locales', []))) {
-                $this->warn('Skipping locale ' . $locale . '.');
+                $this->warn('Skipping locale '.$locale.'.');
+
                 continue;
             }
             $queue[] = $locale;
@@ -52,17 +54,17 @@ class TranslateStringsParallel extends TranslateStrings
         $maxProcesses = (int) ($this->option('max-processes') ?? 100); // This doesn't work
         $running = [];
 
-        while (!empty($queue) || !empty($running)) {
-            while (count($running) < $maxProcesses && !empty($queue)) {
+        while (! empty($queue) || ! empty($running)) {
+            while (count($running) < $maxProcesses && ! empty($queue)) {
                 $locale = array_shift($queue);
                 $process = new Process($this->buildLocaleCommand($locale, $maxContextItems), base_path());
                 $process->start();
                 $running[$locale] = $process;
-                $this->info('▶ Started translation for ' . $locale);
+                $this->info('▶ Started translation for '.$locale);
             }
 
             foreach ($running as $locale => $process) {
-                if (!$process->isRunning()) {
+                if (! $process->isRunning()) {
                     $this->output->write($process->getOutput());
                     $error = $process->getErrorOutput();
                     if ($error) {
@@ -75,7 +77,7 @@ class TranslateStringsParallel extends TranslateStrings
             usleep(100000);
         }
 
-        $this->line(PHP_EOL . $this->colors['green_bg'] . $this->colors['white'] . $this->colors['bold'] . ' All translations completed ' . $this->colors['reset']);
+        $this->line(PHP_EOL.$this->colors['green_bg'].$this->colors['white'].$this->colors['bold'].' All translations completed '.$this->colors['reset']);
     }
 
     private function buildLocaleCommand(string $locale, int $maxContextItems): array
@@ -84,15 +86,15 @@ class TranslateStringsParallel extends TranslateStrings
             'php',
             'artisan',
             'ai-translator:translate',
-            '--source=' . $this->sourceLocale,
-            '--locale=' . $locale,
-            '--chunk=' . $this->chunkSize,
-            '--max-context=' . $maxContextItems,
+            '--source='.$this->sourceLocale,
+            '--locale='.$locale,
+            '--chunk='.$this->chunkSize,
+            '--max-context='.$maxContextItems,
             '--non-interactive',
         ];
 
-        if (!empty($this->referenceLocales)) {
-            $cmd[] = '--reference=' . implode(',', $this->referenceLocales);
+        if (! empty($this->referenceLocales)) {
+            $cmd[] = '--reference='.implode(',', $this->referenceLocales);
         }
         if ($this->option('force-big-files')) {
             $cmd[] = '--force-big-files';

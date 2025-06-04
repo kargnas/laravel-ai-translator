@@ -75,6 +75,7 @@ class XMLParser
             if ($this->debug) {
                 Log::debug('XMLParser: Empty XML response');
             }
+
             return;
         }
 
@@ -106,13 +107,13 @@ class XMLParser
             }
 
             // Store parsed data
-            if (!isset($this->parsedData['key'])) {
+            if (! isset($this->parsedData['key'])) {
                 $this->parsedData['key'] = [];
             }
-            if (!isset($this->parsedData['trx'])) {
+            if (! isset($this->parsedData['trx'])) {
                 $this->parsedData['trx'] = [];
             }
-            if ($comment !== null && !isset($this->parsedData['comment'])) {
+            if ($comment !== null && ! isset($this->parsedData['comment'])) {
                 $this->parsedData['comment'] = [];
             }
 
@@ -131,7 +132,7 @@ class XMLParser
                 $debugInfo = [
                     'key' => $key,
                     'trx_length' => strlen($trx),
-                    'trx_preview' => mb_substr($trx, 0, 30)
+                    'trx_preview' => mb_substr($trx, 0, 30),
                 ];
                 if ($comment !== null) {
                     $debugInfo['comment'] = $comment;
@@ -162,13 +163,13 @@ class XMLParser
         $xml = $this->unescapeSpecialChars($xml);
 
         // Add root tag if missing
-        if (!preg_match('/^\s*<\?xml|^\s*<translations/i', $xml)) {
-            $xml = '<translations>' . $xml . '</translations>';
+        if (! preg_match('/^\s*<\?xml|^\s*<translations/i', $xml)) {
+            $xml = '<translations>'.$xml.'</translations>';
         }
 
         // Add XML declaration if missing
         if (strpos($xml, '<?xml') === false) {
-            $xml = '<?xml version="1.0" encoding="UTF-8"?>' . $xml;
+            $xml = '<?xml version="1.0" encoding="UTF-8"?>'.$xml;
         }
 
         return $xml;
@@ -210,38 +211,38 @@ class XMLParser
                     ]);
                 }
 
-                    // Process each item
-                    foreach ($matches as $i => $match) {
-                        if (count($match) < 3) {
-                            continue; // Pattern match failed
-                        }
+                // Process each item
+                foreach ($matches as $i => $match) {
+                    if (count($match) < 3) {
+                        continue; // Pattern match failed
+                    }
 
-                        $key = $this->cleanContent($match[1]);
-                        $trxContent = $match[2];
+                    $key = $this->cleanContent($match[1]);
+                    $trxContent = $match[2];
 
-                        // Check if key already processed
-                        $keyExists = false;
-                        if (isset($this->parsedData['key'])) {
-                            foreach ($this->parsedData['key'] as $existingKeyData) {
-                                if ($existingKeyData['content'] === $key) {
-                                    $keyExists = true;
-                                    break;
-                                }
+                    // Check if key already processed
+                    $keyExists = false;
+                    if (isset($this->parsedData['key'])) {
+                        foreach ($this->parsedData['key'] as $existingKeyData) {
+                            if ($existingKeyData['content'] === $key) {
+                                $keyExists = true;
+                                break;
                             }
                         }
+                    }
 
-                        if ($keyExists) {
-                            continue; // Skip already processed key
-                        }
+                    if ($keyExists) {
+                        continue; // Skip already processed key
+                    }
 
-                        // Extract CDATA content
-                        $trxProcessed = $this->processTrxContent($trxContent);
+                    // Extract CDATA content
+                    $trxProcessed = $this->processTrxContent($trxContent);
 
-                        // Add to parsed data
-                    if (!isset($this->parsedData['key'])) {
+                    // Add to parsed data
+                    if (! isset($this->parsedData['key'])) {
                         $this->parsedData['key'] = [];
                     }
-                    if (!isset($this->parsedData['trx'])) {
+                    if (! isset($this->parsedData['trx'])) {
                         $this->parsedData['trx'] = [];
                     }
 
@@ -289,10 +290,10 @@ class XMLParser
                 }
 
                 // Add to parsed data
-                if (!isset($this->parsedData['key'])) {
+                if (! isset($this->parsedData['key'])) {
                     $this->parsedData['key'] = [];
                 }
-                if (!isset($this->parsedData['trx'])) {
+                if (! isset($this->parsedData['trx'])) {
                     $this->parsedData['trx'] = [];
                 }
 
@@ -397,7 +398,7 @@ class XMLParser
      */
     private function notifyAllProcessedItems(): void
     {
-        if (!$this->nodeCompleteCallback) {
+        if (! $this->nodeCompleteCallback) {
             return;
         }
 
@@ -420,14 +421,14 @@ class XMLParser
         }
 
         // Process if <key> tags exist
-        if (!empty($this->parsedData['key'])) {
+        if (! empty($this->parsedData['key'])) {
             foreach ($this->parsedData['key'] as $keyData) {
                 call_user_func($this->nodeCompleteCallback, 'key', $keyData['content'], []);
             }
         }
 
         // Process if <trx> tags exist
-        if (!empty($this->parsedData['trx'])) {
+        if (! empty($this->parsedData['trx'])) {
             foreach ($this->parsedData['trx'] as $trxData) {
                 call_user_func($this->nodeCompleteCallback, 'trx', $trxData['content'], []);
             }

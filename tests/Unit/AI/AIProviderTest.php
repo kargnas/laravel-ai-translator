@@ -1,17 +1,13 @@
 <?php
 
 use Kargnas\LaravelAiTranslator\AI\AIProvider;
-use Kargnas\LaravelAiTranslator\AI\Clients\OpenAIClient;
-use Kargnas\LaravelAiTranslator\AI\Clients\AnthropicClient;
-use Kargnas\LaravelAiTranslator\AI\Language\Language;
-use Mockery\MockInterface;
 
 function providerKeys(): array
 {
     return [
-        'openai' => !empty(env('OPENAI_API_KEY')),
-        'anthropic' => !empty(env('ANTHROPIC_API_KEY')),
-        'gemini' => !empty(env('GEMINI_API_KEY')),
+        'openai' => ! empty(env('OPENAI_API_KEY')),
+        'anthropic' => ! empty(env('ANTHROPIC_API_KEY')),
+        'gemini' => ! empty(env('GEMINI_API_KEY')),
     ];
 }
 
@@ -23,7 +19,7 @@ beforeEach(function () {
 });
 
 test('environment variables are loaded from .env.testing', function () {
-    if (!($this->hasOpenAI || $this->hasAnthropic || $this->hasGemini)) {
+    if (! ($this->hasOpenAI || $this->hasAnthropic || $this->hasGemini)) {
         $this->markTestSkipped('API keys not found in environment. Skipping test.');
     }
 
@@ -44,7 +40,7 @@ test('environment variables are loaded from .env.testing', function () {
 });
 
 test('can translate strings using OpenAI', function () {
-    if (!$this->hasOpenAI) {
+    if (! $this->hasOpenAI) {
         $this->markTestSkipped('OpenAI API key not found in environment. Skipping test.');
     }
 
@@ -64,7 +60,7 @@ test('can translate strings using OpenAI', function () {
 });
 
 test('can translate strings using Anthropic', function () {
-    if (!$this->hasAnthropic) {
+    if (! $this->hasAnthropic) {
         $this->markTestSkipped('Anthropic API key not found in environment. Skipping test.');
     }
 
@@ -84,7 +80,7 @@ test('can translate strings using Anthropic', function () {
 });
 
 test('can translate strings using Gemini', function () {
-    if (!$this->hasGemini) {
+    if (! $this->hasGemini) {
         $this->markTestSkipped('Gemini API key not found in environment. Skipping test.');
     }
 
@@ -117,6 +113,6 @@ test('throws exception for unsupported provider', function () {
     $method = new \ReflectionMethod($provider, 'getTranslatedObjects');
     $method->setAccessible(true);
 
-    expect(fn() => $method->invoke($provider))
+    expect(fn () => $method->invoke($provider))
         ->toThrow(\Exception::class, 'Provider unsupported is not supported.');
 });

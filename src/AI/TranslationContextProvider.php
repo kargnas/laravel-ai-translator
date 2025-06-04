@@ -17,10 +17,10 @@ class TranslationContextProvider
     /**
      * Get global translation context for improving consistency
      *
-     * @param string $sourceLocale Source language locale code
-     * @param string $targetLocale Target language locale code
-     * @param string $currentFilePath Current file being translated
-     * @param int $maxContextItems Maximum number of context items to include (to prevent context overflow)
+     * @param  string  $sourceLocale  Source language locale code
+     * @param  string  $targetLocale  Target language locale code
+     * @param  string  $currentFilePath  Current file being translated
+     * @param  int  $maxContextItems  Maximum number of context items to include (to prevent context overflow)
      * @return array Context data organized by file with both source and target strings
      */
     public function getGlobalTranslationContext(
@@ -37,7 +37,7 @@ class TranslationContextProvider
         $targetLocaleDir = $this->getLanguageDirectory($langDirectory, $targetLocale);
 
         // Return empty array if source directory doesn't exist
-        if (!is_dir($sourceLocaleDir)) {
+        if (! is_dir($sourceLocaleDir)) {
             return [];
         }
 
@@ -58,6 +58,7 @@ class TranslationContextProvider
         usort($sourceFiles, function ($a, $b) use ($currentFileName) {
             $similarityA = similar_text($currentFileName, basename($a));
             $similarityB = similar_text($currentFileName, basename($b));
+
             return $similarityB <=> $similarityA;
         });
 
@@ -69,7 +70,7 @@ class TranslationContextProvider
 
             try {
                 // Confirm target file path
-                $targetFile = $targetLocaleDir . '/' . basename($sourceFile);
+                $targetFile = $targetLocaleDir.'/'.basename($sourceFile);
                 $hasTargetFile = file_exists($targetFile);
 
                 // Get original strings from source file
@@ -93,7 +94,7 @@ class TranslationContextProvider
 
                 // Prioritize high-priority items from longer files
                 if (count($sourceStrings) > $maxPerFile) {
-                    if ($hasTargetFile && !empty($targetStrings)) {
+                    if ($hasTargetFile && ! empty($targetStrings)) {
                         // If target exists, apply both source and target prioritization
                         $prioritizedItems = $this->getPrioritizedStrings($sourceStrings, $targetStrings, $maxPerFile);
                         $sourceStrings = $prioritizedItems['source'];
@@ -107,26 +108,26 @@ class TranslationContextProvider
                 // Construct translation context - include both source and target strings
                 $fileContext = [];
                 foreach ($sourceStrings as $key => $sourceValue) {
-                    if ($hasTargetFile && !empty($targetStrings)) {
+                    if ($hasTargetFile && ! empty($targetStrings)) {
                         // If target file exists, include both source and target
                         $targetValue = $targetStrings[$key] ?? null;
                         if ($targetValue !== null) {
                             $fileContext[$key] = [
                                 'source' => $sourceValue,
-                                'target' => $targetValue
+                                'target' => $targetValue,
                             ];
                         }
                     } else {
                         // If target file doesn't exist, include source only
                         $fileContext[$key] = [
                             'source' => $sourceValue,
-                            'target' => null
+                            'target' => null,
                         ];
                     }
                 }
 
-                if (!empty($fileContext)) {
-                    // Remove .php extension from filename and save as root key
+                if (! empty($fileContext)) {
+                    // Remove extension from filename and save as root key
                     $rootKey = pathinfo(basename($sourceFile), PATHINFO_FILENAME);
                     $context[$rootKey] = $fileContext;
                     $totalContextItems += count($fileContext);
@@ -144,8 +145,8 @@ class TranslationContextProvider
     /**
      * Determines the directory path for a specified language.
      *
-     * @param string $langDirectory Base directory path for language files
-     * @param string $locale Language locale code
+     * @param  string  $langDirectory  Base directory path for language files
+     * @param  string  $locale  Language locale code
      * @return string Language-specific directory path
      */
     protected function getLanguageDirectory(string $langDirectory, string $locale): string
@@ -165,9 +166,9 @@ class TranslationContextProvider
     /**
      * Selects high-priority items from source and target strings.
      *
-     * @param array $sourceStrings Source string array
-     * @param array $targetStrings Target string array
-     * @param int $maxItems Maximum number of items
+     * @param  array  $sourceStrings  Source string array
+     * @param  array  $targetStrings  Target string array
+     * @param  int  $maxItems  Maximum number of items
      * @return array High-priority source and target strings
      */
     protected function getPrioritizedStrings(array $sourceStrings, array $targetStrings, int $maxItems): array
@@ -186,7 +187,7 @@ class TranslationContextProvider
 
         // 2. Add remaining items
         foreach ($commonKeys as $key) {
-            if (!isset($prioritizedSource[$key]) && count($prioritizedSource) < $maxItems) {
+            if (! isset($prioritizedSource[$key]) && count($prioritizedSource) < $maxItems) {
                 $prioritizedSource[$key] = $sourceStrings[$key];
                 $prioritizedTarget[$key] = $targetStrings[$key];
             }
@@ -198,7 +199,7 @@ class TranslationContextProvider
 
         return [
             'source' => $prioritizedSource,
-            'target' => $prioritizedTarget
+            'target' => $prioritizedTarget,
         ];
     }
 
@@ -218,7 +219,7 @@ class TranslationContextProvider
 
         // 2. Add remaining items
         foreach ($sourceStrings as $key => $value) {
-            if (!isset($prioritizedSource[$key]) && count($prioritizedSource) < $maxItems) {
+            if (! isset($prioritizedSource[$key]) && count($prioritizedSource) < $maxItems) {
                 $prioritizedSource[$key] = $value;
             }
 

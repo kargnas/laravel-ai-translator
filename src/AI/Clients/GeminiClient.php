@@ -5,6 +5,7 @@ namespace Kargnas\LaravelAiTranslator\AI\Clients;
 class GeminiClient
 {
     protected string $apiKey;
+
     protected $client;
 
     public function __construct(string $apiKey)
@@ -40,12 +41,12 @@ class GeminiClient
                             [
                                 'content' => [
                                     'parts' => [
-                                        ['text' => $response->text()]
+                                        ['text' => $response->text()],
                                     ],
-                                    'role' => 'model'
-                                ]
-                            ]
-                        ]
+                                    'role' => 'model',
+                                ],
+                            ],
+                        ],
                     ]);
                     $onChunk($chunk);
                 }
@@ -77,12 +78,12 @@ class GeminiClient
                 [
                     'content' => [
                         'parts' => [
-                            ['text' => $response->text()]
+                            ['text' => $response->text()],
                         ],
-                        'role' => 'model'
-                    ]
-                ]
-            ]
+                        'role' => 'model',
+                    ],
+                ],
+            ],
         ];
     }
 }

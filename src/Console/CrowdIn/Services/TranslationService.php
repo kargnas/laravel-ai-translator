@@ -2,34 +2,36 @@
 
 namespace Kargnas\LaravelAiTranslator\Console\CrowdIn\Services;
 
-use Carbon\Carbon;
+use CrowdinApiClient\Model\File;
+use CrowdinApiClient\Model\LanguageTranslation;
+use CrowdinApiClient\Model\SourceString;
+use CrowdinApiClient\Model\StringTranslationApproval;
 use Illuminate\Console\Command;
 use Illuminate\Support\Collection;
 use Kargnas\LaravelAiTranslator\AI\AIProvider;
 use Kargnas\LaravelAiTranslator\AI\TranslationContextProvider;
 use Kargnas\LaravelAiTranslator\Enums\PromptType;
-use CrowdinApiClient\Model\File;
-use CrowdinApiClient\Model\SourceString;
-use CrowdinApiClient\Model\LanguageTranslation;
-use CrowdinApiClient\Model\StringTranslation;
-use CrowdinApiClient\Model\StringTranslationApproval;
-use GuzzleHttp\Promise as GuzzlePromise;
-use GuzzleHttp\Pool;
-use React\Promise\Promise;
-use function React\Async\async;
-use function React\Async\await;
+
 use function React\Promise\all;
 
 class TranslationService
 {
     protected ProjectService $projectService;
+
     protected LanguageService $languageService;
+
     protected FileService $fileService;
+
     protected CrowdinAsyncApiService $asyncApiService;
+
     protected Command $command;
+
     protected int $chunkSize;
+
     protected int $maxContextItems;
+
     protected bool $showPrompt;
+
     protected Collection $untranslatedStrings;
 
     public function __construct(
@@ -69,20 +71,20 @@ class TranslationService
 
             try {
                 // First try to get directories
-                $this->command->line("Fetching directories...");
+                $this->command->line('Fetching directories...');
                 $directories = $this->fileService->getAllDirectories();
-                $this->command->line("Found " . count($directories) . " directories");
+                $this->command->line('Found '.count($directories).' directories');
 
                 if (empty($directories)) {
                     // If no directories found, try to get files from root
-                    $this->command->line("No directories found, searching for files in root...");
+                    $this->command->line('No directories found, searching for files in root...');
                     $files = collect($this->fileService->getAllFiles(0));
 
                     if ($files->isNotEmpty()) {
-                        $this->command->line("Found " . $files->count() . " files in root");
+                        $this->command->line('Found '.$files->count().' files in root');
                         $this->processFiles($files, $targetLanguage, $fileCount, $stringCount, $translatedCount);
                     } else {
-                        $this->command->warn("No files found in the project.");
+                        $this->command->warn('No files found in the project.');
                     }
                 } else {
                     foreach ($directories as $directory) {
@@ -101,10 +103,11 @@ class TranslationService
                     }
                 }
             } catch (\Exception $e) {
-                $this->command->error("Error during translation process: " . $e->getMessage());
+                $this->command->error('Error during translation process: '.$e->getMessage());
                 if (config('app.debug')) {
                     $this->command->line($e->getTraceAsString());
                 }
+
                 continue;
             }
         }
@@ -138,8 +141,8 @@ class TranslationService
                 ->chunk($this->chunkSize)
                 ->each(function ($chunk, $chunkIndex) use ($file, $targetLanguage, $untranslatedStrings, $referenceApprovals, &$translatedCount) {
                     $chunkSize = $chunk->count();
-                    $this->command->info("✎ Translating chunk " .
-                        ($chunkIndex + 1) . "/" . ceil($untranslatedStrings->count() / $this->chunkSize) .
+                    $this->command->info('✎ Translating chunk '.
+                        ($chunkIndex + 1).'/'.ceil($untranslatedStrings->count() / $this->chunkSize).
                         " ({$chunkSize} strings)");
 
                     // Get global translation context
@@ -156,7 +159,7 @@ class TranslationService
                         // Process translation results
                         $this->processTranslationResults($translated, $untranslatedStrings, $targetLanguage);
                     } catch (\Exception $e) {
-                        $this->command->error("Translation failed: " . $e->getMessage());
+                        $this->command->error('Translation failed: '.$e->getMessage());
                     }
                 });
         }
@@ -176,19 +179,19 @@ class TranslationService
             $refTranslations = $this->fileService->getAllLanguageTranslations($file->getId(), $refLocale);
 
             $referenceApprovals[$refLocale] = $allStrings->mapWithKeys(function (SourceString $sourceString) use ($approvals, $refTranslations) {
-                $approved = $approvals->map(fn(StringTranslationApproval $ap) => $ap->getData())
+                $approved = $approvals->map(fn (StringTranslationApproval $ap) => $ap->getData())
                     ->where('stringId', $sourceString->getId())
                     ->first();
 
-                if (!$approved) {
+                if (! $approved) {
                     return [];
                 }
 
-                $approvedTranslation = $refTranslations->map(fn(LanguageTranslation $t) => $t->getData())
+                $approvedTranslation = $refTranslations->map(fn (LanguageTranslation $t) => $t->getData())
                     ->where('translationId', $approved['translationId'])
                     ->first();
 
-                if (!$approvedTranslation) {
+                if (! $approvedTranslation) {
                     return [];
                 }
 
@@ -211,10 +214,10 @@ class TranslationService
                 return false;
             }
 
-            $approved = $approvals->filter(fn(StringTranslationApproval $ap) => $ap->getStringId() == $sourceString->getId());
+            $approved = $approvals->filter(fn (StringTranslationApproval $ap) => $ap->getStringId() == $sourceString->getId());
 
             if ($approved->count() > 0) {
-                $translation = $allTranslations->filter(fn(LanguageTranslation $t) => $t->getTranslationId() == $approved->first()->getTranslationId())->first();
+                $translation = $allTranslations->filter(fn (LanguageTranslation $t) => $t->getTranslationId() == $approved->first()->getTranslationId())->first();
 
                 if ($translation) {
                     return false;
@@ -230,6 +233,7 @@ class TranslationService
             if (empty($data['identifier'])) {
                 $data['identifier'] = $data['text'];
             }
+
             return $data;
         });
     }
@@ -243,7 +247,7 @@ class TranslationService
             return [];
         }
 
-        $contextProvider = new TranslationContextProvider();
+        $contextProvider = new TranslationContextProvider;
         $globalContext = $contextProvider->getGlobalTranslationContext(
             $this->projectService->getSelectedProject()['sourceLanguage']['name'],
             $targetLanguage['name'],
@@ -251,9 +255,9 @@ class TranslationService
             $this->maxContextItems
         );
 
-        if (!empty($globalContext)) {
-            $contextItemCount = collect($globalContext)->map(fn($items) => count($items))->sum();
-            $this->command->info("    ℹ Using context: " . count($globalContext) . " files, " . $contextItemCount . " items");
+        if (! empty($globalContext)) {
+            $contextItemCount = collect($globalContext)->map(fn ($items) => count($items))->sum();
+            $this->command->info('    ℹ Using context: '.count($globalContext).' files, '.$contextItemCount.' items');
         }
 
         return $globalContext;
@@ -268,15 +272,15 @@ class TranslationService
             filename: $file->getName(),
             strings: $chunk->mapWithKeys(function ($string) use ($referenceApprovals) {
                 $context = $string['context'] ?? null;
-                $context = preg_replace("/[\.\s\->]/", "", $context);
+                $context = preg_replace("/[\.\s\->]/", '', $context);
 
-                if (preg_replace("/[\.\s\->]/", "", $string['identifier']) === $context) {
+                if (preg_replace("/[\.\s\->]/", '', $string['identifier']) === $context) {
                     $context = null;
                 }
 
                 /** @var Collection $references */
                 $references = $referenceApprovals->map(function ($items) use ($string) {
-                    return $items[$string['identifier']] ?? "";
+                    return $items[$string['identifier']] ?? '';
                 })->filter(function ($value) {
                     return strlen($value) > 0;
                 });
@@ -301,11 +305,11 @@ class TranslationService
         });
 
         $translator->setOnThinkingStart(function () {
-            $this->command->line("    🧠 AI Thinking...");
+            $this->command->line('    🧠 AI Thinking...');
         });
 
         $translator->setOnThinkingEnd(function () {
-            $this->command->line("    Thinking completed.");
+            $this->command->line('    Thinking completed.');
         });
 
         // Set up translation progress callback
@@ -314,10 +318,10 @@ class TranslationService
                 $totalCount = $chunk->count();
                 $completedCount = count($translatedItems);
 
-                $this->command->line("  ⟳ " .
-                    $item->key .
-                    " → " .
-                    $item->translated .
+                $this->command->line('  ⟳ '.
+                    $item->key.
+                    ' → '.
+                    $item->translated.
                     " ({$completedCount}/{$totalCount})");
             }
         });
@@ -331,8 +335,8 @@ class TranslationService
                     default => '❓ Unknown Prompt'
                 };
 
-                print ("\n    {$typeText}:\n");
-                print ("    " . str_replace("\n", "\n    ", $prompt) . "\n");
+                echo "\n    {$typeText}:\n";
+                echo '    '.str_replace("\n", "\n    ", $prompt)."\n";
             });
         }
 
@@ -351,7 +355,7 @@ class TranslationService
         // Check all translations simultaneously
         foreach ($translations as $item) {
             $targetString = $this->untranslatedStrings->where('identifier', $item->key)->first();
-            if (!$targetString) {
+            if (! $targetString) {
                 continue;
             }
 
@@ -361,8 +365,8 @@ class TranslationService
                     'query' => [
                         'stringId' => $targetString['id'],
                         'languageId' => $targetLanguage['id'],
-                        'limit' => 100
-                    ]
+                        'limit' => 100,
+                    ],
                 ]
             );
         }
@@ -394,7 +398,7 @@ class TranslationService
                 // API call failure is treated as non-duplicate
                 $nonDuplicates[] = $item;
                 \Log::warning("Failed to check duplicates for {$key}", [
-                    'error' => $result['reason']->getMessage()
+                    'error' => $result['reason']->getMessage(),
                 ]);
             }
         }
@@ -404,8 +408,9 @@ class TranslationService
             'nonDuplicates' => $nonDuplicates,
             'stringMap' => collect($translations)->mapWithKeys(function ($item) {
                 $targetString = $this->untranslatedStrings->where('identifier', $item->key)->first();
+
                 return [$item->key => $targetString['id'] ?? null];
-            })->filter()->toArray()
+            })->filter()->toArray(),
         ];
     }
 
@@ -420,7 +425,7 @@ class TranslationService
 
         // 1. Get existing translations for each item
         foreach ($translations as $item) {
-            if (!isset($stringMap[$item->key])) {
+            if (! isset($stringMap[$item->key])) {
                 continue;
             }
 
@@ -430,8 +435,8 @@ class TranslationService
                     'query' => [
                         'stringId' => $stringMap[$item->key],
                         'languageId' => $targetLanguage['id'],
-                        'limit' => 100
-                    ]
+                        'limit' => 100,
+                    ],
                 ]
             );
         }
@@ -443,7 +448,7 @@ class TranslationService
             if ($result['state'] === 'fulfilled') {
                 $response = json_decode($result['value']->getBody(), true);
                 $userTranslations = collect($response['data'] ?? [])
-                    ->filter(fn($t) => $t['data']['user']['id'] === $currentUserId);
+                    ->filter(fn ($t) => $t['data']['user']['id'] === $currentUserId);
 
                 foreach ($userTranslations as $translation) {
                     $deletionPromises[] = $this->asyncApiService->getClient()->deleteAsync(
@@ -458,9 +463,9 @@ class TranslationService
         }
 
         // 3. Execute all deletion requests in parallel
-        if (!empty($deletionPromises)) {
+        if (! empty($deletionPromises)) {
             $deletionResults = \GuzzleHttp\Promise\Utils::settle($deletionPromises)->wait();
-            $successCount = count(array_filter($deletionResults, fn($r) => $r['state'] === 'fulfilled'));
+            $successCount = count(array_filter($deletionResults, fn ($r) => $r['state'] === 'fulfilled'));
             $this->command->line("    ✓ Successfully deleted {$successCount} translation(s)");
         }
 
@@ -472,16 +477,16 @@ class TranslationService
      */
     private function addNewTranslations(array $translations, array $targetLanguage, array $stringMap): array
     {
-        $validTranslations = array_filter($translations, fn($item) => isset($stringMap[$item->key]));
+        $validTranslations = array_filter($translations, fn ($item) => isset($stringMap[$item->key]));
         $results = [];
-        
+
         // Set concurrency limit for parallel execution
         $concurrencyLimit = 10; // Maximum number of requests to execute simultaneously
         $chunks = array_chunk($validTranslations, $concurrencyLimit);
-        
+
         foreach ($chunks as $chunk) {
             $promises = [];
-            
+
             // Create requests for each chunk
             foreach ($chunk as $item) {
                 $promises[$item->key] = $this->asyncApiService->getClient()->postAsync(
@@ -490,15 +495,15 @@ class TranslationService
                         'json' => [
                             'stringId' => $stringMap[$item->key],
                             'languageId' => $targetLanguage['id'],
-                            'text' => $item->translated
-                        ]
+                            'text' => $item->translated,
+                        ],
                     ]
                 );
             }
-            
+
             // Execute promises for this chunk in parallel
             $promiseResults = \GuzzleHttp\Promise\Utils::settle($promises)->wait();
-            
+
             // Process results
             foreach ($promiseResults as $key => $result) {
                 if ($result['state'] === 'fulfilled') {
@@ -527,51 +532,52 @@ class TranslationService
     {
         $this->untranslatedStrings = $untranslatedStrings;
         $this->command->newLine();
-        $this->command->info("🔄 Processing translations...");
+        $this->command->info('🔄 Processing translations...');
 
         try {
             // 1. Check for duplicates
-            $this->command->line("    Checking for duplicates...");
+            $this->command->line('    Checking for duplicates...');
             $checkResult = $this->checkDuplicateTranslations($translated, $targetLanguage);
             $duplicateCount = count($checkResult['duplicates']);
 
             if (empty($checkResult['nonDuplicates'])) {
-                $this->command->line("    ℹ All translations are duplicates");
+                $this->command->line('    ℹ All translations are duplicates');
+
                 return;
             }
 
             // 2. Remove existing translations
-            $this->command->line("    Removing existing translations...");
+            $this->command->line('    Removing existing translations...');
             $this->deleteExistingTranslations($checkResult['nonDuplicates'], $targetLanguage, $checkResult['stringMap']);
 
             // 3. Add new translations
-            $this->command->line("    Adding new translations...");
+            $this->command->line('    Adding new translations...');
             $addResults = $this->addNewTranslations($checkResult['nonDuplicates'], $targetLanguage, $checkResult['stringMap']);
             $successCount = count(array_filter($addResults));
 
             // 4. Summary of results
             $this->command->newLine();
-            $this->command->info("✓ Translation Summary:");
-            $this->command->line("    - Total processed: " . count($translated));
+            $this->command->info('✓ Translation Summary:');
+            $this->command->line('    - Total processed: '.count($translated));
             $this->command->line("    - Duplicates skipped: {$duplicateCount}");
             $this->command->line("    - Successfully added: {$successCount}");
-            $this->command->line("    - Failed: " . (count($checkResult['nonDuplicates']) - $successCount));
+            $this->command->line('    - Failed: '.(count($checkResult['nonDuplicates']) - $successCount));
 
-            \Log::info("Translation process completed", [
+            \Log::info('Translation process completed', [
                 'total' => count($translated),
                 'duplicates' => $duplicateCount,
                 'success' => $successCount,
-                'failed' => (count($checkResult['nonDuplicates']) - $successCount)
+                'failed' => (count($checkResult['nonDuplicates']) - $successCount),
             ]);
         } catch (\Exception $e) {
-            $errorMessage = "Translation processing failed";
+            $errorMessage = 'Translation processing failed';
             $errorDetails = $e->getMessage();
 
             \Log::error($errorMessage, [
                 'error' => $errorDetails,
                 'file' => __FILE__,
                 'line' => __LINE__,
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
 
             throw new \RuntimeException("{$errorMessage}\nDetails: {$errorDetails}");

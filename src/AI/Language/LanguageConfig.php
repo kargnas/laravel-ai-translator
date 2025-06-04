@@ -238,6 +238,7 @@ class LanguageConfig
 
         // Try base code if full code not found
         $baseCode = substr($code, 0, 2);
+
         return static::$localeNames[$baseCode] ?? null;
     }
 
@@ -247,6 +248,7 @@ class LanguageConfig
         foreach (static::$localeNames as $code => $name) {
             $languages[$code] = Language::fromCode($code);
         }
+
         return $languages;
     }
 

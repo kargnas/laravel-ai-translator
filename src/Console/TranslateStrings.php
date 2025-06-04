@@ -7,10 +7,9 @@ use Kargnas\LaravelAiTranslator\AI\AIProvider;
 use Kargnas\LaravelAiTranslator\AI\Language\LanguageConfig;
 use Kargnas\LaravelAiTranslator\AI\Printer\TokenUsagePrinter;
 use Kargnas\LaravelAiTranslator\AI\TranslationContextProvider;
+use Kargnas\LaravelAiTranslator\Enums\PromptType;
 use Kargnas\LaravelAiTranslator\Enums\TranslationStatus;
 use Kargnas\LaravelAiTranslator\Transformers\PHPLangTransformer;
-use Kargnas\LaravelAiTranslator\Utility;
-use Kargnas\LaravelAiTranslator\Enums\PromptType;
 
 /**
  * Artisan command that translates PHP language files using LLMs with support for multiple locales,
@@ -34,12 +33,17 @@ class TranslateStrings extends Command
      * Translation settings
      */
     protected string $sourceLocale;
+
     protected string $sourceDirectory;
+
     protected int $chunkSize;
+
     protected array $referenceLocales = [];
 
     protected int $defaultChunkSize = 100;
+
     protected int $defaultMaxContextItems = 1000;
+
     protected int $warningStringCount = 500;
 
     /**
@@ -48,7 +52,7 @@ class TranslateStrings extends Command
     protected array $tokenUsage = [
         'input_tokens' => 0,
         'output_tokens' => 0,
-        'total_tokens' => 0
+        'total_tokens' => 0,
     ];
 
     /**
@@ -72,7 +76,7 @@ class TranslateStrings extends Command
         'blue_bg' => "\033[44m",
         'purple_bg' => "\033[45m",
         'cyan_bg' => "\033[46m",
-        'white_bg' => "\033[47m"
+        'white_bg' => "\033[47m",
     ];
 
     /**
@@ -86,8 +90,8 @@ class TranslateStrings extends Command
         $sourceLocale = config('ai-translator.source_locale');
 
         $this->setDescription(
-            "Translates PHP language files using AI technology\n" .
-            "  Source Directory: {$sourceDirectory}\n" .
+            "Translates PHP language files using AI technology\n".
+            "  Source Directory: {$sourceDirectory}\n".
             "  Default Source Locale: {$sourceLocale}"
         );
     }
@@ -109,12 +113,12 @@ class TranslateStrings extends Command
         // Select source language
         if ($nonInteractive || $this->option('source')) {
             $this->sourceLocale = $this->option('source') ?? config('ai-translator.source_locale', 'en');
-            $this->info($this->colors['green'] . "✓ Selected source locale: " .
-                $this->colors['reset'] . $this->colors['bold'] . $this->sourceLocale .
+            $this->info($this->colors['green'].'✓ Selected source locale: '.
+                $this->colors['reset'].$this->colors['bold'].$this->sourceLocale.
                 $this->colors['reset']);
         } else {
             $this->sourceLocale = $this->choiceLanguages(
-                $this->colors['yellow'] . "Choose a source language to translate from" . $this->colors['reset'],
+                $this->colors['yellow'].'Choose a source language to translate from'.$this->colors['reset'],
                 false,
                 'en'
             );
@@ -125,19 +129,19 @@ class TranslateStrings extends Command
             $this->referenceLocales = $this->option('reference')
                 ? explode(',', (string) $this->option('reference'))
                 : [];
-            if (!empty($this->referenceLocales)) {
-                $this->info($this->colors['green'] . "✓ Selected reference locales: " .
-                    $this->colors['reset'] . $this->colors['bold'] . implode(', ', $this->referenceLocales) .
+            if (! empty($this->referenceLocales)) {
+                $this->info($this->colors['green'].'✓ Selected reference locales: '.
+                    $this->colors['reset'].$this->colors['bold'].implode(', ', $this->referenceLocales).
                     $this->colors['reset']);
             }
-        } else if ($this->option('reference')) {
+        } elseif ($this->option('reference')) {
             $this->referenceLocales = explode(',', $this->option('reference'));
-            $this->info($this->colors['green'] . "✓ Selected reference locales: " .
-                $this->colors['reset'] . $this->colors['bold'] . implode(', ', $this->referenceLocales) .
+            $this->info($this->colors['green'].'✓ Selected reference locales: '.
+                $this->colors['reset'].$this->colors['bold'].implode(', ', $this->referenceLocales).
                 $this->colors['reset']);
-        } else if ($this->ask($this->colors['yellow'] . 'Do you want to add reference languages? (y/n)' . $this->colors['reset'], 'n') === 'y') {
+        } elseif ($this->ask($this->colors['yellow'].'Do you want to add reference languages? (y/n)'.$this->colors['reset'], 'n') === 'y') {
             $this->referenceLocales = $this->choiceLanguages(
-                $this->colors['yellow'] . "Choose reference languages for translation guidance. Select languages with high-quality translations. Multiple selections with comma separator (e.g. '1,2')" . $this->colors['reset'],
+                $this->colors['yellow']."Choose reference languages for translation guidance. Select languages with high-quality translations. Multiple selections with comma separator (e.g. '1,2')".$this->colors['reset'],
                 true
             );
         }
@@ -145,12 +149,12 @@ class TranslateStrings extends Command
         // Set chunk size
         if ($nonInteractive || $this->option('chunk')) {
             $this->chunkSize = (int) ($this->option('chunk') ?? $this->defaultChunkSize);
-            $this->info($this->colors['green'] . "✓ Chunk size: " .
-                $this->colors['reset'] . $this->colors['bold'] . $this->chunkSize .
+            $this->info($this->colors['green'].'✓ Chunk size: '.
+                $this->colors['reset'].$this->colors['bold'].$this->chunkSize.
                 $this->colors['reset']);
         } else {
             $this->chunkSize = (int) $this->ask(
-                $this->colors['yellow'] . "Enter the chunk size for translation. Translate strings in a batch. The higher, the cheaper." . $this->colors['reset'],
+                $this->colors['yellow'].'Enter the chunk size for translation. Translate strings in a batch. The higher, the cheaper.'.$this->colors['reset'],
                 $this->defaultChunkSize
             );
         }
@@ -158,12 +162,12 @@ class TranslateStrings extends Command
         // Set context items count
         if ($nonInteractive || $this->option('max-context')) {
             $maxContextItems = (int) ($this->option('max-context') ?? $this->defaultMaxContextItems);
-            $this->info($this->colors['green'] . "✓ Maximum context items: " .
-                $this->colors['reset'] . $this->colors['bold'] . $maxContextItems .
+            $this->info($this->colors['green'].'✓ Maximum context items: '.
+                $this->colors['reset'].$this->colors['bold'].$maxContextItems.
                 $this->colors['reset']);
         } else {
             $maxContextItems = (int) $this->ask(
-                $this->colors['yellow'] . "Maximum number of context items to include for consistency (set 0 to disable)" . $this->colors['reset'],
+                $this->colors['yellow'].'Maximum number of context items to include for consistency (set 0 to disable)'.$this->colors['reset'],
                 $this->defaultMaxContextItems
             );
         }
@@ -179,17 +183,17 @@ class TranslateStrings extends Command
      */
     protected function displayHeader(): void
     {
-        $this->line("\n" . $this->colors['blue_bg'] . $this->colors['white'] . $this->colors['bold'] . " Laravel AI Translator " . $this->colors['reset']);
-        $this->line($this->colors['gray'] . "Translating PHP language files using AI technology" . $this->colors['reset']);
-        $this->line(str_repeat('─', 80) . "\n");
+        $this->line("\n".$this->colors['blue_bg'].$this->colors['white'].$this->colors['bold'].' Laravel AI Translator '.$this->colors['reset']);
+        $this->line($this->colors['gray'].'Translating PHP language files using AI technology'.$this->colors['reset']);
+        $this->line(str_repeat('─', 80)."\n");
     }
 
     /**
      * 언어 선택 헬퍼 메서드
      *
-     * @param string $question 질문
-     * @param bool $multiple 다중 선택 여부
-     * @param string|null $default 기본값
+     * @param  string  $question  질문
+     * @param  bool  $multiple  다중 선택 여부
+     * @param  string|null  $default  기본값
      * @return array|string 선택된 언어(들)
      */
     public function choiceLanguages(string $question, bool $multiple, ?string $default = null): array|string
@@ -205,12 +209,12 @@ class TranslateStrings extends Command
         );
 
         if (is_array($selectedLocales)) {
-            $this->info($this->colors['green'] . "✓ Selected locales: " .
-                $this->colors['reset'] . $this->colors['bold'] . implode(', ', $selectedLocales) .
+            $this->info($this->colors['green'].'✓ Selected locales: '.
+                $this->colors['reset'].$this->colors['bold'].implode(', ', $selectedLocales).
                 $this->colors['reset']);
         } else {
-            $this->info($this->colors['green'] . "✓ Selected locale: " .
-                $this->colors['reset'] . $this->colors['bold'] . $selectedLocales .
+            $this->info($this->colors['green'].'✓ Selected locale: '.
+                $this->colors['reset'].$this->colors['bold'].$selectedLocales.
                 $this->colors['reset']);
         }
 
@@ -220,7 +224,7 @@ class TranslateStrings extends Command
     /**
      * 번역 실행
      *
-     * @param int $maxContextItems 최대 컨텍스트 항목 수
+     * @param  int  $maxContextItems  최대 컨텍스트 항목 수
      */
     public function translate(int $maxContextItems = 100): void
     {
@@ -231,12 +235,13 @@ class TranslateStrings extends Command
         $availableLocales = $this->getExistingLocales();
 
         // 지정된 로케일이 있으면 검증하고 사용, 없으면 모든 로케일 사용
-        $locales = !empty($specifiedLocales)
+        $locales = ! empty($specifiedLocales)
             ? $this->validateAndFilterLocales($specifiedLocales, $availableLocales)
             : $availableLocales;
 
         if (empty($locales)) {
-            $this->error("No valid locales specified or found for translation.");
+            $this->error('No valid locales specified or found for translation.');
+
             return;
         }
 
@@ -247,20 +252,22 @@ class TranslateStrings extends Command
         foreach ($locales as $locale) {
             // 소스 언어와 같거나 스킵 목록에 있는 언어는 건너뜀
             if ($locale === $this->sourceLocale || in_array($locale, config('ai-translator.skip_locales', []))) {
-                $this->warn('Skipping locale ' . $locale . '.');
+                $this->warn('Skipping locale '.$locale.'.');
+
                 continue;
             }
 
             $targetLanguageName = LanguageConfig::getLanguageName($locale);
 
-            if (!$targetLanguageName) {
+            if (! $targetLanguageName) {
                 $this->error("Language name not found for locale: {$locale}. Please add it to the config file.");
+
                 continue;
             }
 
             $this->line(str_repeat('─', 80));
             $this->line(str_repeat('─', 80));
-            $this->line("\n" . $this->colors['blue_bg'] . $this->colors['white'] . $this->colors['bold'] . " Starting {$targetLanguageName} ({$locale}) " . $this->colors['reset']);
+            $this->line("\n".$this->colors['blue_bg'].$this->colors['white'].$this->colors['bold']." Starting {$targetLanguageName} ({$locale}) ".$this->colors['reset']);
 
             $localeFileCount = 0;
             $localeStringCount = 0;
@@ -270,10 +277,11 @@ class TranslateStrings extends Command
             $files = $this->getStringFilePaths($this->sourceLocale);
 
             foreach ($files as $file) {
-                $outputFile = $this->getOutputDirectoryLocale($locale) . '/' . basename($file);
+                $outputFile = $this->getOutputDirectoryLocale($locale).'/'.basename($file);
 
                 if (in_array(basename($file), config('ai-translator.skip_files', []))) {
-                    $this->warn('Skipping file  ' . basename($file) . '.');
+                    $this->warn('Skipping file  '.basename($file).'.');
+
                     continue;
                 }
 
@@ -293,13 +301,14 @@ class TranslateStrings extends Command
                 $sourceStringList = collect($sourceStringList)
                     ->filter(function ($value, $key) use ($targetStringTransformer) {
                         // Skip already translated ones
-                        return !$targetStringTransformer->isTranslated($key);
+                        return ! $targetStringTransformer->isTranslated($key);
                     })
                     ->toArray();
 
                 // Skip if no items to translate
                 if (count($sourceStringList) === 0) {
-                    $this->info($this->colors['green'] . "  ✓ " . $this->colors['reset'] . "All strings are already translated. Skipping.");
+                    $this->info($this->colors['green'].'  ✓ '.$this->colors['reset'].'All strings are already translated. Skipping.');
+
                     continue;
                 }
 
@@ -307,15 +316,16 @@ class TranslateStrings extends Command
                 $totalStringCount += count($sourceStringList);
 
                 // Check if there are many strings to translate
-                if (count($sourceStringList) > $this->warningStringCount && !$this->option('force-big-files')) {
+                if (count($sourceStringList) > $this->warningStringCount && ! $this->option('force-big-files')) {
                     if (
-                        !$this->confirm(
-                            $this->colors['yellow'] . "⚠️ Warning: " . $this->colors['reset'] .
-                            "File has " . count($sourceStringList) . " strings to translate. This could be expensive. Continue?",
+                        ! $this->confirm(
+                            $this->colors['yellow'].'⚠️ Warning: '.$this->colors['reset'].
+                            'File has '.count($sourceStringList).' strings to translate. This could be expensive. Continue?',
                             true
                         )
                     ) {
-                        $this->warn("Translation stopped by user.");
+                        $this->warn('Translation stopped by user.');
+
                         return;
                     }
                 }
@@ -331,9 +341,9 @@ class TranslateStrings extends Command
                     ->chunk($this->chunkSize)
                     ->each(function ($chunk) use ($locale, $file, $targetStringTransformer, $referenceStringList, $maxContextItems, &$localeTranslatedCount, &$totalTranslatedCount, &$chunkCount, $totalChunks) {
                         $chunkCount++;
-                        $this->info($this->colors['yellow'] . "  ⏺ Processing chunk " .
-                            $this->colors['reset'] . "{$chunkCount}/{$totalChunks}" .
-                            $this->colors['gray'] . " (" . $chunk->count() . " strings)" .
+                        $this->info($this->colors['yellow'].'  ⏺ Processing chunk '.
+                            $this->colors['reset']."{$chunkCount}/{$totalChunks}".
+                            $this->colors['gray'].' ('.$chunk->count().' strings)'.
                             $this->colors['reset']);
 
                         // Get global translation context
@@ -360,7 +370,7 @@ class TranslateStrings extends Command
                             }
 
                             // Display number of saved items
-                            $this->info($this->colors['green'] . "  ✓ " . $this->colors['reset'] . "{$localeTranslatedCount} strings saved.");
+                            $this->info($this->colors['green'].'  ✓ '.$this->colors['reset']."{$localeTranslatedCount} strings saved.");
 
                             // Calculate and display cost
                             $this->displayCostEstimation($translator);
@@ -370,7 +380,7 @@ class TranslateStrings extends Command
                             $this->updateTokenUsageTotals($usage);
 
                         } catch (\Exception $e) {
-                            $this->error("Translation failed: " . $e->getMessage());
+                            $this->error('Translation failed: '.$e->getMessage());
                         }
                     });
             }
@@ -380,10 +390,10 @@ class TranslateStrings extends Command
         }
 
         // 전체 번역 완료 메시지
-        $this->line("\n" . $this->colors['green_bg'] . $this->colors['white'] . $this->colors['bold'] . " All translations completed " . $this->colors['reset']);
-        $this->line($this->colors['yellow'] . "Total files processed: " . $this->colors['reset'] . $fileCount);
-        $this->line($this->colors['yellow'] . "Total strings found: " . $this->colors['reset'] . $totalStringCount);
-        $this->line($this->colors['yellow'] . "Total strings translated: " . $this->colors['reset'] . $totalTranslatedCount);
+        $this->line("\n".$this->colors['green_bg'].$this->colors['white'].$this->colors['bold'].' All translations completed '.$this->colors['reset']);
+        $this->line($this->colors['yellow'].'Total files processed: '.$this->colors['reset'].$fileCount);
+        $this->line($this->colors['yellow'].'Total strings found: '.$this->colors['reset'].$totalStringCount);
+        $this->line($this->colors['yellow'].'Total strings translated: '.$this->colors['reset'].$totalTranslatedCount);
     }
 
     /**
@@ -402,15 +412,15 @@ class TranslateStrings extends Command
      */
     protected function displayFileInfo(string $sourceFile, string $locale, string $outputFile): void
     {
-        $this->line("\n" . $this->colors['purple_bg'] . $this->colors['white'] . $this->colors['bold'] . " File Translation " . $this->colors['reset']);
-        $this->line($this->colors['yellow'] . "  File: " .
-            $this->colors['reset'] . $this->colors['bold'] . basename($sourceFile) .
+        $this->line("\n".$this->colors['purple_bg'].$this->colors['white'].$this->colors['bold'].' File Translation '.$this->colors['reset']);
+        $this->line($this->colors['yellow'].'  File: '.
+            $this->colors['reset'].$this->colors['bold'].basename($sourceFile).
             $this->colors['reset']);
-        $this->line($this->colors['yellow'] . "  Language: " .
-            $this->colors['reset'] . $this->colors['bold'] . $locale .
+        $this->line($this->colors['yellow'].'  Language: '.
+            $this->colors['reset'].$this->colors['bold'].$locale.
             $this->colors['reset']);
-        $this->line($this->colors['gray'] . "  Source: " . $sourceFile . $this->colors['reset']);
-        $this->line($this->colors['gray'] . "  Target: " . $outputFile . $this->colors['reset']);
+        $this->line($this->colors['gray'].'  Source: '.$sourceFile.$this->colors['reset']);
+        $this->line($this->colors['gray'].'  Target: '.$outputFile.$this->colors['reset']);
     }
 
     /**
@@ -418,18 +428,18 @@ class TranslateStrings extends Command
      */
     protected function displayTranslationSummary(string $locale, int $fileCount, int $stringCount, int $translatedCount): void
     {
-        $this->line("\n" . str_repeat('─', 80));
-        $this->line($this->colors['green_bg'] . $this->colors['white'] . $this->colors['bold'] . " Translation Complete: {$locale} " . $this->colors['reset']);
-        $this->line($this->colors['yellow'] . "Files processed: " . $this->colors['reset'] . $fileCount);
-        $this->line($this->colors['yellow'] . "Strings found: " . $this->colors['reset'] . $stringCount);
-        $this->line($this->colors['yellow'] . "Strings translated: " . $this->colors['reset'] . $translatedCount);
+        $this->line("\n".str_repeat('─', 80));
+        $this->line($this->colors['green_bg'].$this->colors['white'].$this->colors['bold']." Translation Complete: {$locale} ".$this->colors['reset']);
+        $this->line($this->colors['yellow'].'Files processed: '.$this->colors['reset'].$fileCount);
+        $this->line($this->colors['yellow'].'Strings found: '.$this->colors['reset'].$stringCount);
+        $this->line($this->colors['yellow'].'Strings translated: '.$this->colors['reset'].$translatedCount);
 
         // Display accumulated token usage
         if ($this->tokenUsage['total_tokens'] > 0) {
-            $this->line("\n" . $this->colors['blue_bg'] . $this->colors['white'] . $this->colors['bold'] . " Total Token Usage " . $this->colors['reset']);
-            $this->line($this->colors['yellow'] . "Input Tokens: " . $this->colors['reset'] . $this->colors['green'] . $this->tokenUsage['input_tokens'] . $this->colors['reset']);
-            $this->line($this->colors['yellow'] . "Output Tokens: " . $this->colors['reset'] . $this->colors['green'] . $this->tokenUsage['output_tokens'] . $this->colors['reset']);
-            $this->line($this->colors['yellow'] . "Total Tokens: " . $this->colors['reset'] . $this->colors['bold'] . $this->colors['purple'] . $this->tokenUsage['total_tokens'] . $this->colors['reset']);
+            $this->line("\n".$this->colors['blue_bg'].$this->colors['white'].$this->colors['bold'].' Total Token Usage '.$this->colors['reset']);
+            $this->line($this->colors['yellow'].'Input Tokens: '.$this->colors['reset'].$this->colors['green'].$this->tokenUsage['input_tokens'].$this->colors['reset']);
+            $this->line($this->colors['yellow'].'Output Tokens: '.$this->colors['reset'].$this->colors['green'].$this->tokenUsage['output_tokens'].$this->colors['reset']);
+            $this->line($this->colors['yellow'].'Total Tokens: '.$this->colors['reset'].$this->colors['bold'].$this->colors['purple'].$this->tokenUsage['total_tokens'].$this->colors['reset']);
         }
     }
 
@@ -444,12 +454,13 @@ class TranslateStrings extends Command
         $currentFileName = basename($file);
 
         return collect($allReferenceLocales)
-            ->filter(fn($referenceLocale) => $referenceLocale !== $this->sourceLocale)
-            ->map(function ($referenceLocale) use ($langDirectory, $file, $currentFileName) {
+            ->filter(fn ($referenceLocale) => $referenceLocale !== $this->sourceLocale)
+            ->map(function ($referenceLocale) use ($currentFileName) {
                 $referenceLocaleDir = $this->getOutputDirectoryLocale($referenceLocale);
 
-                if (!is_dir($referenceLocaleDir)) {
-                    $this->line($this->colors['gray'] . "    ℹ Reference directory not found: {$referenceLocale}" . $this->colors['reset']);
+                if (! is_dir($referenceLocaleDir)) {
+                    $this->line($this->colors['gray']."    ℹ Reference directory not found: {$referenceLocale}".$this->colors['reset']);
+
                     return null;
                 }
 
@@ -457,17 +468,19 @@ class TranslateStrings extends Command
                 $referenceFiles = glob("{$referenceLocaleDir}/*.php");
 
                 if (empty($referenceFiles)) {
-                    $this->line($this->colors['gray'] . "    ℹ Reference file not found: {$referenceLocale}" . $this->colors['reset']);
+                    $this->line($this->colors['gray']."    ℹ Reference file not found: {$referenceLocale}".$this->colors['reset']);
+
                     return null;
                 }
 
-                $this->line($this->colors['blue'] . "    ℹ Loading reference: " .
-                    $this->colors['reset'] . "{$referenceLocale} - " . count($referenceFiles) . " files");
+                $this->line($this->colors['blue'].'    ℹ Loading reference: '.
+                    $this->colors['reset']."{$referenceLocale} - ".count($referenceFiles).' files');
 
                 // 유사한 이름의 파일을 먼저 처리하여 컨텍스트 관련성 향상
                 usort($referenceFiles, function ($a, $b) use ($currentFileName) {
                     $similarityA = similar_text($currentFileName, basename($a));
                     $similarityB = similar_text($currentFileName, basename($b));
+
                     return $similarityB <=> $similarityA;
                 });
 
@@ -491,7 +504,8 @@ class TranslateStrings extends Command
                         $allReferenceStrings = array_merge($allReferenceStrings, $referenceStringList);
                         $processedFiles++;
                     } catch (\Exception $e) {
-                        $this->line($this->colors['gray'] . "    ⚠ Reference file loading failed: " . basename($referenceFile) . $this->colors['reset']);
+                        $this->line($this->colors['gray'].'    ⚠ Reference file loading failed: '.basename($referenceFile).$this->colors['reset']);
+
                         continue;
                     }
                 }
@@ -526,7 +540,7 @@ class TranslateStrings extends Command
 
         // 2. 나머지 항목 추가
         foreach ($strings as $key => $value) {
-            if (!isset($prioritized[$key]) && count($prioritized) < $maxItems) {
+            if (! isset($prioritized[$key]) && count($prioritized) < $maxItems) {
                 $prioritized[$key] = $value;
             }
 
@@ -547,7 +561,7 @@ class TranslateStrings extends Command
             return [];
         }
 
-        $contextProvider = new TranslationContextProvider();
+        $contextProvider = new TranslationContextProvider;
         $globalContext = $contextProvider->getGlobalTranslationContext(
             $this->sourceLocale,
             $locale,
@@ -555,13 +569,13 @@ class TranslateStrings extends Command
             $maxContextItems
         );
 
-        if (!empty($globalContext)) {
-            $contextItemCount = collect($globalContext)->map(fn($items) => count($items))->sum();
-            $this->info($this->colors['blue'] . "    ℹ Using global context: " .
-                $this->colors['reset'] . count($globalContext) . " files, " .
-                $contextItemCount . " items");
+        if (! empty($globalContext)) {
+            $contextItemCount = collect($globalContext)->map(fn ($items) => count($items))->sum();
+            $this->info($this->colors['blue'].'    ℹ Using global context: '.
+                $this->colors['reset'].count($globalContext).' files, '.
+                $contextItemCount.' items');
         } else {
-            $this->line($this->colors['gray'] . "    ℹ No global context available" . $this->colors['reset']);
+            $this->line($this->colors['gray'].'    ℹ No global context available'.$this->colors['reset']);
         }
 
         return $globalContext;
@@ -578,7 +592,7 @@ class TranslateStrings extends Command
         array $globalContext
     ): AIProvider {
         // 파일 정보 표시
-        $outputFile = $this->getOutputDirectoryLocale($locale) . '/' . basename($file);
+        $outputFile = $this->getOutputDirectoryLocale($locale).'/'.basename($file);
         $this->displayFileInfo($file, $locale, $outputFile);
 
         // 레퍼런스 정보를 적절한 형식으로 변환
@@ -601,15 +615,15 @@ class TranslateStrings extends Command
         );
 
         $translator->setOnThinking(function ($thinking) {
-            echo $this->colors['gray'] . $thinking . $this->colors['reset'];
+            echo $this->colors['gray'].$thinking.$this->colors['reset'];
         });
 
         $translator->setOnThinkingStart(function () {
-            $this->line($this->colors['gray'] . "    " . "🧠 AI Thinking..." . $this->colors['reset']);
+            $this->line($this->colors['gray'].'    '.'🧠 AI Thinking...'.$this->colors['reset']);
         });
 
         $translator->setOnThinkingEnd(function () {
-            $this->line($this->colors['gray'] . "    " . "Thinking completed." . $this->colors['reset']);
+            $this->line($this->colors['gray'].'    '.'Thinking completed.'.$this->colors['reset']);
         });
 
         // 번역 진행 상황 표시를 위한 콜백 설정
@@ -618,11 +632,11 @@ class TranslateStrings extends Command
                 $totalCount = $chunk->count();
                 $completedCount = count($translatedItems);
 
-                $this->line($this->colors['cyan'] . "  ⟳ " .
-                    $this->colors['reset'] . $item->key .
-                    $this->colors['gray'] . " → " .
-                    $this->colors['reset'] . $item->translated .
-                    $this->colors['gray'] . " ({$completedCount}/{$totalCount})" .
+                $this->line($this->colors['cyan'].'  ⟳ '.
+                    $this->colors['reset'].$item->key.
+                    $this->colors['gray'].' → '.
+                    $this->colors['reset'].$item->translated.
+                    $this->colors['gray']." ({$completedCount}/{$totalCount})".
                     $this->colors['reset']);
             }
         });
@@ -635,10 +649,10 @@ class TranslateStrings extends Command
             $totalTokens = $usage['total_tokens'] ?? 0;
 
             // 실시간 토큰 사용량 표시
-            $this->line($this->colors['gray'] . "    Tokens: " .
-                "Input=" . $this->colors['green'] . $inputTokens . $this->colors['gray'] . ", " .
-                "Output=" . $this->colors['green'] . $outputTokens . $this->colors['gray'] . ", " .
-                "Total=" . $this->colors['purple'] . $totalTokens . $this->colors['gray'] .
+            $this->line($this->colors['gray'].'    Tokens: '.
+                'Input='.$this->colors['green'].$inputTokens.$this->colors['gray'].', '.
+                'Output='.$this->colors['green'].$outputTokens.$this->colors['gray'].', '.
+                'Total='.$this->colors['purple'].$totalTokens.$this->colors['gray'].
                 $this->colors['reset']);
         });
 
@@ -650,8 +664,8 @@ class TranslateStrings extends Command
                     PromptType::USER => '👤 User Prompt',
                 };
 
-                print ("\n    {$typeText}:\n");
-                print ($this->colors['gray'] . "    " . str_replace("\n", $this->colors['reset'] . "\n    " . $this->colors['gray'], $prompt) . $this->colors['reset'] . "\n");
+                echo "\n    {$typeText}:\n";
+                echo $this->colors['gray'].'    '.str_replace("\n", $this->colors['reset']."\n    ".$this->colors['gray'], $prompt).$this->colors['reset']."\n";
             });
         }
 
@@ -681,8 +695,9 @@ class TranslateStrings extends Command
         $directories = array_diff(scandir($root), ['.', '..']);
         // 디렉토리만 필터링
         $directories = array_filter($directories, function ($directory) use ($root) {
-            return is_dir($root . '/' . $directory);
+            return is_dir($root.'/'.$directory);
         });
+
         return collect($directories)->values()->toArray();
     }
 
@@ -691,7 +706,7 @@ class TranslateStrings extends Command
      */
     public function getOutputDirectoryLocale(string $locale): string
     {
-        return config('ai-translator.source_directory') . '/' . $locale;
+        return config('ai-translator.source_directory').'/'.$locale;
     }
 
     /**
@@ -700,15 +715,16 @@ class TranslateStrings extends Command
     public function getStringFilePaths(string $locale): array
     {
         $files = [];
-        $root = $this->sourceDirectory . '/' . $locale;
+        $root = $this->sourceDirectory.'/'.$locale;
         $directories = array_diff(scandir($root), ['.', '..']);
         foreach ($directories as $directory) {
             // PHP 파일만 필터링
             if (pathinfo($directory, PATHINFO_EXTENSION) !== 'php') {
                 continue;
             }
-            $files[] = $root . '/' . $directory;
+            $files[] = $root.'/'.$directory;
         }
+
         return $files;
     }
 
@@ -728,9 +744,9 @@ class TranslateStrings extends Command
             }
         }
 
-        if (!empty($invalidLocales)) {
-            $this->warn("The following locales are invalid or not available: " . implode(', ', $invalidLocales));
-            $this->info("Available locales: " . implode(', ', $availableLocales));
+        if (! empty($invalidLocales)) {
+            $this->warn('The following locales are invalid or not available: '.implode(', ', $invalidLocales));
+            $this->info('Available locales: '.implode(', ', $availableLocales));
         }
 
         return $validLocales;

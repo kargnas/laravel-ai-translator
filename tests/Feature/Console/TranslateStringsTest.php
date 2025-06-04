@@ -2,23 +2,24 @@
 
 namespace Tests\Feature\Console;
 
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Config;
 use Kargnas\LaravelAiTranslator\Console\TranslateStrings;
-use Symfony\Component\Console\Output\ConsoleOutput;
-use Illuminate\Support\Facades\Artisan;
 use Symfony\Component\Console\Output\BufferedOutput;
+
 use function Pest\Laravel\artisan;
 
-function checkApiKeysExistForFeature(): bool {
-    return !empty(env('OPENAI_API_KEY')) && !empty(env('ANTHROPIC_API_KEY'));
+function checkApiKeysExistForFeature(): bool
+{
+    return ! empty(env('OPENAI_API_KEY')) && ! empty(env('ANTHROPIC_API_KEY'));
 }
 
 beforeEach(function () {
     // Check if API keys exist
     $this->hasApiKeys = checkApiKeysExistForFeature();
-    
+
     // Set up test language file directory
-    $this->testLangPath = __DIR__ . '/../../Fixtures/lang';
+    $this->testLangPath = __DIR__.'/../../Fixtures/lang';
 
     // For testing purpose, we use claude-3-haiku-20240307 model. (It's faster and cheaper than other models.)
     Config::set('ai-translator.model', 'claude-3-haiku-20240307');
@@ -27,17 +28,17 @@ beforeEach(function () {
 
     // Clean up existing translation files first
     foreach (['ko', 'zh', 'zh_CN', 'zh_TW'] as $locale) {
-        $dir = $this->testLangPath . '/' . $locale;
+        $dir = $this->testLangPath.'/'.$locale;
         if (is_dir($dir)) {
-            array_map('unlink', glob($dir . '/*.*'));
+            array_map('unlink', glob($dir.'/*.*'));
             rmdir($dir);
         }
     }
 
     // Create test directories (auto-generated directories)
     foreach (['ko', 'zh', 'zh_CN', 'zh_TW'] as $locale) {
-        if (!is_dir($this->testLangPath . '/' . $locale)) {
-            mkdir($this->testLangPath . '/' . $locale, 0755, true);
+        if (! is_dir($this->testLangPath.'/'.$locale)) {
+            mkdir($this->testLangPath.'/'.$locale, 0755, true);
         }
     }
 });
@@ -57,7 +58,7 @@ test('command exists', function () {
 });
 
 test('can get existing locales', function () {
-    $command = new TranslateStrings();
+    $command = new TranslateStrings;
     $command->setLaravel(app());
 
     // sourceDirectory 설정
@@ -71,7 +72,7 @@ test('can get existing locales', function () {
 });
 
 test('can get string file paths', function () {
-    $command = new TranslateStrings();
+    $command = new TranslateStrings;
     $command->setLaravel(app());
 
     // Set sourceDirectory
@@ -86,36 +87,36 @@ test('can get string file paths', function () {
         ->toHaveCount(2);
 
     // Check if both test.php and empty.php exist in the files array
-    expect($files)->toContain($this->testLangPath . '/en/test.php');
-    expect($files)->toContain($this->testLangPath . '/en/empty.php');
+    expect($files)->toContain($this->testLangPath.'/en/test.php');
+    expect($files)->toContain($this->testLangPath.'/en/empty.php');
 });
 
 test('handles show prompt option', function () {
-    if (!$this->hasApiKeys) {
+    if (! $this->hasApiKeys) {
         $this->markTestSkipped('API keys not found in environment. Skipping test.');
     }
-    
+
     artisan('ai-translator:translate', [
         '--source' => 'en',
         '--locale' => ['ko'],
         '--non-interactive' => true,
-        '--show-prompt' => true
+        '--show-prompt' => true,
     ])->assertSuccessful();
 });
 
 test('captures console output', function () {
-    if (!$this->hasApiKeys) {
+    if (! $this->hasApiKeys) {
         $this->markTestSkipped('API keys not found in environment. Skipping test.');
     }
-    
+
     // Capture console output using BufferedOutput
-    $output = new BufferedOutput();
+    $output = new BufferedOutput;
 
     Artisan::call('ai-translator:translate', [
         '--source' => 'en',
         '--locale' => ['ko'],
         '--non-interactive' => true,
-        '--show-prompt' => true
+        '--show-prompt' => true,
     ], $output);
 
     // Get captured output content
@@ -133,10 +134,10 @@ test('captures console output', function () {
 });
 
 test('verifies Chinese translations format with dot notation', function () {
-    if (!$this->hasApiKeys) {
+    if (! $this->hasApiKeys) {
         $this->markTestSkipped('API keys not found in environment. Skipping test.');
     }
-    
+
     Config::set('ai-translator.dot_notation', true);
 
     // Execute Chinese Simplified translation
@@ -147,7 +148,7 @@ test('verifies Chinese translations format with dot notation', function () {
     ]);
 
     // Check translated file
-    $translatedFile = $this->testLangPath . '/zh_CN/test.php';
+    $translatedFile = $this->testLangPath.'/zh_CN/test.php';
     expect(file_exists($translatedFile))->toBeTrue();
 
     // Load translated content
@@ -175,10 +176,10 @@ test('verifies Chinese translations format with dot notation', function () {
 });
 
 test('verifies Chinese translations format with nested arrays', function () {
-    if (!$this->hasApiKeys) {
+    if (! $this->hasApiKeys) {
         $this->markTestSkipped('API keys not found in environment. Skipping test.');
     }
-    
+
     Config::set('ai-translator.dot_notation', false);
 
     // Execute Chinese Simplified translation
@@ -189,7 +190,7 @@ test('verifies Chinese translations format with nested arrays', function () {
     ]);
 
     // Check translated file
-    $translatedFile = $this->testLangPath . '/zh_CN/test.php';
+    $translatedFile = $this->testLangPath.'/zh_CN/test.php';
     expect(file_exists($translatedFile))->toBeTrue();
 
     // Load translated content
@@ -226,10 +227,10 @@ test('verifies Chinese translations format with nested arrays', function () {
 });
 
 test('compares Chinese variants translations', function () {
-    if (!$this->hasApiKeys) {
+    if (! $this->hasApiKeys) {
         $this->markTestSkipped('API keys not found in environment. Skipping test.');
     }
-    
+
     // Translate zh_CN with dot notation
     Config::set('ai-translator.dot_notation', true);
     Artisan::call('ai-translator:translate', [
@@ -247,8 +248,8 @@ test('compares Chinese variants translations', function () {
     ]);
 
     // Load translation files
-    $zhCNTranslations = require $this->testLangPath . '/zh_CN/test.php';
-    $zhTWTranslations = require $this->testLangPath . '/zh_TW/test.php';
+    $zhCNTranslations = require $this->testLangPath.'/zh_CN/test.php';
+    $zhTWTranslations = require $this->testLangPath.'/zh_TW/test.php';
 
     // Verify zh_CN (dot notation format)
     expect($zhCNTranslations)

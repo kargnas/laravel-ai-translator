@@ -2,7 +2,6 @@
 
 namespace Kargnas\LaravelAiTranslator\Models;
 
-
 use AdrienBrault\Instructrice\Attribute\Prompt;
 
 class LocalizedString

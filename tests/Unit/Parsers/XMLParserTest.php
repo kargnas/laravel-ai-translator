@@ -10,7 +10,7 @@ test('can parse translation items', function () {
         </item>
     </translations>';
 
-    $parser = new XMLParser();
+    $parser = new XMLParser;
     $parser->parse($xml);
     $result = $parser->getParsedData();
 
@@ -32,7 +32,7 @@ test('can parse multiple translation items', function () {
         </item>
     </translations>';
 
-    $parser = new XMLParser();
+    $parser = new XMLParser;
     $parser->parse($xml);
     $result = $parser->getParsedData();
 
@@ -52,7 +52,7 @@ test('can handle special characters in CDATA', function () {
         </item>
     </translations>';
 
-    $parser = new XMLParser();
+    $parser = new XMLParser;
     $parser->parse($xml);
     $result = $parser->getParsedData();
 
@@ -68,7 +68,7 @@ test('can handle empty translation items', function () {
         </item>
     </translations>';
 
-    $parser = new XMLParser();
+    $parser = new XMLParser;
     $parser->parse($xml);
     $result = $parser->getParsedData();
 
@@ -86,7 +86,7 @@ Third line with special chars: & < > "]]></trx>
         </item>
     </translations>';
 
-    $parser = new XMLParser();
+    $parser = new XMLParser;
     $parser->parse($xml);
     $result = $parser->getParsedData();
 
@@ -103,7 +103,7 @@ test('can handle comments in XML', function () {
         </item>
     </translations>';
 
-    $parser = new XMLParser();
+    $parser = new XMLParser;
     $parser->parse($xml);
     $result = $parser->getParsedData();
 

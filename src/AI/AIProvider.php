@@ -4,14 +4,13 @@ namespace Kargnas\LaravelAiTranslator\AI;
 
 use Illuminate\Support\Facades\Log;
 use Kargnas\LaravelAiTranslator\AI\Clients\AnthropicClient;
-use Kargnas\LaravelAiTranslator\AI\Clients\OpenAIClient;
 use Kargnas\LaravelAiTranslator\AI\Clients\GeminiClient;
+use Kargnas\LaravelAiTranslator\AI\Clients\OpenAIClient;
 use Kargnas\LaravelAiTranslator\AI\Language\Language;
-use Kargnas\LaravelAiTranslator\AI\Language\LanguageConfig;
 use Kargnas\LaravelAiTranslator\AI\Language\LanguageRules;
 use Kargnas\LaravelAiTranslator\AI\Parsers\AIResponseParser;
-use Kargnas\LaravelAiTranslator\Enums\TranslationStatus;
 use Kargnas\LaravelAiTranslator\Enums\PromptType;
+use Kargnas\LaravelAiTranslator\Enums\TranslationStatus;
 use Kargnas\LaravelAiTranslator\Exceptions\VerifyFailedException;
 use Kargnas\LaravelAiTranslator\Models\LocalizedString;
 
@@ -34,16 +33,24 @@ class AIProvider
      * 토큰 사용량 추적을 위한 속성들
      */
     protected int $inputTokens = 0;
+
     protected int $outputTokens = 0;
+
     protected int $totalTokens = 0;
 
     // Callback properties
     protected $onTranslated = null;
+
     protected $onThinking = null;
+
     protected $onProgress = null;
+
     protected $onThinkingStart = null;
+
     protected $onThinkingEnd = null;
+
     protected $onTokenUsage = null;
+
     protected $onPromptGenerated = null;
 
     /**
@@ -66,6 +73,7 @@ class AIProvider
         $prefix = $this->getFilePrefix();
         $this->strings = collect($this->strings)->mapWithKeys(function ($value, $key) use ($prefix) {
             $newKey = "{$prefix}.{$key}";
+
             return [$newKey => $value];
         })->toArray();
 
@@ -74,7 +82,7 @@ class AIProvider
             $this->sourceLanguageObj = Language::fromCode($sourceLanguage);
             $this->targetLanguageObj = Language::fromCode($targetLanguage);
         } catch (\InvalidArgumentException $e) {
-            throw new \InvalidArgumentException("Failed to initialize language: " . $e->getMessage());
+            throw new \InvalidArgumentException('Failed to initialize language: '.$e->getMessage());
         }
 
         // Get additional rules from LanguageRules
@@ -89,7 +97,7 @@ class AIProvider
         $this->totalTokens = 0;
 
         Log::info("AIProvider initiated: Source language = {$this->sourceLanguageObj->name} ({$this->sourceLanguageObj->code}), Target language = {$this->targetLanguageObj->name} ({$this->targetLanguageObj->code})");
-        Log::info("AIProvider additional rules: " . json_encode($this->additionalRules));
+        Log::info('AIProvider additional rules: '.json_encode($this->additionalRules));
     }
 
     protected function getFilePrefix(): string
@@ -110,11 +118,11 @@ class AIProvider
         // Check if there are any valid translations among the translated items
         foreach ($list as $item) {
             /** @var LocalizedString $item */
-            if (!empty($item->key) && isset($item->translated) && $sourceKeys->contains($item->key)) {
+            if (! empty($item->key) && isset($item->translated) && $sourceKeys->contains($item->key)) {
                 $hasValidTranslations = true;
 
                 // Output warning log if there is a comment
-                if (!empty($item->comment)) {
+                if (! empty($item->comment)) {
                     Log::warning("Translation comment for key '{$item->key}': {$item->comment}");
                 }
 
@@ -123,7 +131,7 @@ class AIProvider
         }
 
         // Throw exception only if there are no valid translations
-        if (!$hasValidTranslations) {
+        if (! $hasValidTranslations) {
             throw new VerifyFailedException('No valid translations found in the response.');
         }
 
@@ -141,7 +149,7 @@ class AIProvider
         $prefix = $this->getFilePrefix();
         foreach ($list as $item) {
             /** @var LocalizedString $item */
-            if (!empty($item->key)) {
+            if (! empty($item->key)) {
                 $item->key = preg_replace("/^{$prefix}\./", '', $item->key);
             }
         }
@@ -149,7 +157,7 @@ class AIProvider
 
     protected function getSystemPrompt($replaces = [])
     {
-        $systemPrompt = file_get_contents(config('ai-translator.ai.prompt_custom_system_file_path') ?? __DIR__ . '/prompt-system.txt');
+        $systemPrompt = file_get_contents(config('ai-translator.ai.prompt_custom_system_file_path') ?? __DIR__.'/prompt-system.txt');
 
         $translationContext = '';
 
@@ -182,7 +190,7 @@ class AIProvider
                     // Check reference information
                     $referenceKey = $key;
                     foreach ($this->references as $locale => $strings) {
-                        if (isset($strings[$referenceKey]) && !empty($strings[$referenceKey])) {
+                        if (isset($strings[$referenceKey]) && ! empty($strings[$referenceKey])) {
                             $text .= "\n    {$locale}=\"\"\"{$strings[$referenceKey]}\"\"\"";
                         }
                     }
@@ -196,13 +204,13 @@ class AIProvider
             $contextLength = strlen($translationContext);
             Log::debug("AIProvider: Generated context size - {$contextLength} bytes");
         } else {
-            Log::debug("AIProvider: No translation context available or empty");
+            Log::debug('AIProvider: No translation context available or empty');
         }
 
         $replaces = array_merge($replaces, [
             'sourceLanguage' => $this->sourceLanguageObj->name,
             'targetLanguage' => $this->targetLanguageObj->name,
-            'additionalRules' => count($this->additionalRules) > 0 ? "\nSpecial rules for {$this->targetLanguageObj->name}:\n" . implode("\n", $this->additionalRules) : '',
+            'additionalRules' => count($this->additionalRules) > 0 ? "\nSpecial rules for {$this->targetLanguageObj->name}:\n".implode("\n", $this->additionalRules) : '',
             'translationContextInSourceLanguage' => $translationContext,
         ]);
 
@@ -220,7 +228,7 @@ class AIProvider
 
     protected function getUserPrompt($replaces = [])
     {
-        $userPrompt = file_get_contents(config('ai-translator.ai.prompt_custom_user_file_path') ?? __DIR__ . '/prompt-user.txt');
+        $userPrompt = file_get_contents(config('ai-translator.ai.prompt_custom_user_file_path') ?? __DIR__.'/prompt-user.txt');
 
         $replaces = array_merge($replaces, [
             // Options
@@ -230,7 +238,7 @@ class AIProvider
             'sourceLanguage' => $this->sourceLanguageObj->name,
             'targetLanguage' => $this->targetLanguageObj->name,
             'filename' => $this->filename,
-            'parentKey' => basename($this->filename, '.php'),
+            'parentKey' => pathinfo($this->filename, PATHINFO_FILENAME),
             'keys' => collect($this->strings)->keys()->implode('`, `'),
             'strings' => collect($this->strings)->map(function ($string, $key) {
                 if (is_string($string)) {
@@ -240,6 +248,7 @@ class AIProvider
                     if (isset($string['context'])) {
                         $text .= "\n    - Context: \"\"\"{$string['context']}\"\"\"";
                     }
+
                     return $text;
                 }
             })->implode("\n"),
@@ -263,6 +272,7 @@ class AIProvider
     public function setOnTranslated(?callable $callback): self
     {
         $this->onTranslated = $callback;
+
         return $this;
     }
 
@@ -272,6 +282,7 @@ class AIProvider
     public function setOnThinking(?callable $callback): self
     {
         $this->onThinking = $callback;
+
         return $this;
     }
 
@@ -281,6 +292,7 @@ class AIProvider
     public function setOnProgress(?callable $callback): self
     {
         $this->onProgress = $callback;
+
         return $this;
     }
 
@@ -290,6 +302,7 @@ class AIProvider
     public function setOnThinkingStart(?callable $callback): self
     {
         $this->onThinkingStart = $callback;
+
         return $this;
     }
 
@@ -299,6 +312,7 @@ class AIProvider
     public function setOnThinkingEnd(?callable $callback): self
     {
         $this->onThinkingEnd = $callback;
+
         return $this;
     }
 
@@ -308,17 +322,19 @@ class AIProvider
     public function setOnTokenUsage(?callable $callback): self
     {
         $this->onTokenUsage = $callback;
+
         return $this;
     }
 
     /**
      * Set the callback to be called when a prompt is generated
      *
-     * @param callable $callback Callback function that receives prompt text and PromptType
+     * @param  callable  $callback  Callback function that receives prompt text and PromptType
      */
     public function setOnPromptGenerated(?callable $callback): self
     {
         $this->onPromptGenerated = $callback;
+
         return $this;
     }
 
@@ -349,7 +365,7 @@ class AIProvider
             } catch (VerifyFailedException $e) {
                 Log::error($e->getMessage());
             } catch (\Exception $e) {
-                Log::critical("AIProvider: Error during translation", [
+                Log::critical('AIProvider: Error during translation', [
                     'message' => $e->getMessage(),
                     'file' => $e->getFile(),
                     'line' => $e->getLine(),
@@ -402,7 +418,7 @@ class AIProvider
         $responseText = '';
 
         // Execute streaming request
-        if (!config('ai-translator.ai.disable_stream', false)) {
+        if (! config('ai-translator.ai.disable_stream', false)) {
             $response = $client->createChatStream(
                 $requestData,
                 function ($chunk, $data) use (&$responseText, $responseParser) {
@@ -456,7 +472,7 @@ class AIProvider
             [
                 'role' => 'user',
                 'parts' => [
-                    ['text' => $this->getSystemPrompt() . "\n\n" . $this->getUserPrompt()],
+                    ['text' => $this->getSystemPrompt()."\n\n".$this->getUserPrompt()],
                 ],
             ],
         ];
@@ -515,7 +531,7 @@ class AIProvider
                     'cache_control' => [
                         'type' => 'ephemeral',
                     ],
-                ]
+                ],
             ],
         ];
 
@@ -552,7 +568,7 @@ class AIProvider
         $currentThinkingContent = '';
 
         // Execute streaming request
-        if (!config('ai-translator.ai.disable_stream', false)) {
+        if (! config('ai-translator.ai.disable_stream', false)) {
             $response = $client->messages()->createStream(
                 $requestData,
                 function ($chunk, $data) use (&$responseText, $responseParser, &$inThinkingBlock, &$currentThinkingContent, $debugMode, &$detectedXml, &$translatedItems, &$processedKeys, $totalItems) {
@@ -560,7 +576,7 @@ class AIProvider
                     $this->trackTokenUsage($data);
 
                     // Skip if data is null or not an array
-                    if (!is_array($data)) {
+                    if (! is_array($data)) {
                         return;
                     }
 
@@ -624,7 +640,7 @@ class AIProvider
                         if ($currentItemCount > $previousItemCount) {
                             $newItems = array_slice($currentItems, $previousItemCount);
                             $translatedItems = $currentItems; // 전체 번역 결과 업데이트
-    
+
                             // 새 번역 항목 각각에 대해 콜백 호출
                             foreach ($newItems as $index => $newItem) {
                                 // Skip already processed keys
@@ -647,7 +663,7 @@ class AIProvider
                                             'status' => $newItem->translated ? TranslationStatus::COMPLETED : TranslationStatus::STARTED,
                                             'translated_count' => $translatedCount,
                                             'total_count' => $totalItems,
-                                            'translated_text' => $newItem->translated
+                                            'translated_text' => $newItem->translated,
                                         ]);
                                     }
                                 }
@@ -707,7 +723,7 @@ class AIProvider
 
             // 디버깅: 최종 응답 구조 로깅
             if ($debugMode) {
-                Log::debug("Final response structure", [
+                Log::debug('Final response structure', [
                     'has_usage' => isset($response['usage']),
                     'usage' => $response['usage'] ?? null,
                 ]);
@@ -755,13 +771,13 @@ class AIProvider
         }
 
         // Process final response
-        if (empty($responseParser->getTranslatedItems()) && !empty($responseText)) {
+        if (empty($responseParser->getTranslatedItems()) && ! empty($responseText)) {
             if ($debugMode) {
                 Log::debug('AIProvider: No items parsed from response, trying final parse', [
                     'response_length' => strlen($responseText),
                     'detected_xml_length' => strlen($detectedXml),
                     'response_text' => $responseText,
-                    'detected_xml' => $detectedXml
+                    'detected_xml' => $detectedXml,
                 ]);
             }
 
@@ -770,9 +786,9 @@ class AIProvider
             $finalItems = $responseParser->getTranslatedItems();
 
             // Process last parsed items with callback
-            if (!empty($finalItems) && $this->onTranslated) {
+            if (! empty($finalItems) && $this->onTranslated) {
                 foreach ($finalItems as $item) {
-                    if (!isset($processedKeys[$item->key])) {
+                    if (! isset($processedKeys[$item->key])) {
                         $processedKeys[$item->key] = true;
                         $translatedCount = count($processedKeys);
 
@@ -800,7 +816,7 @@ class AIProvider
             'output_tokens' => $this->outputTokens,
             'cache_creation_input_tokens' => null,
             'cache_read_input_tokens' => null,
-            'total_tokens' => $this->totalTokens
+            'total_tokens' => $this->totalTokens,
         ];
     }
 
@@ -823,7 +839,7 @@ class AIProvider
     /**
      * API 응답 데이터에서 토큰 사용량 정보를 추적합니다.
      *
-     * @param array $data API 응답 데이터
+     * @param  array  $data  API 응답 데이터
      */
     protected function trackTokenUsage(array $data): void
     {
@@ -881,10 +897,11 @@ class AIProvider
             }
         }
     }
+
     /**
      * usage 객체에서 토큰 정보를 추출합니다.
      *
-     * @param array $usage 토큰 사용량 정보
+     * @param  array  $usage  토큰 사용량 정보
      */
     protected function extractTokensFromUsage(array $usage): void
     {

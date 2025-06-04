@@ -4,9 +4,7 @@ namespace Kargnas\LaravelAiTranslator\AI\Clients;
 
 class AnthropicMessages
 {
-    public function __construct(protected AnthropicClient $client)
-    {
-    }
+    public function __construct(protected AnthropicClient $client) {}
 
     public function create(array $data)
     {
@@ -16,8 +14,8 @@ class AnthropicMessages
     /**
      * Creates a streaming response.
      *
-     * @param array $data Request data
-     * @param callable $onChunk Callback function to be called for each chunk
+     * @param  array  $data  Request data
+     * @param  callable  $onChunk  Callback function to be called for each chunk
      * @return array Final response data
      */
     public function createStream(array $data, callable $onChunk): array

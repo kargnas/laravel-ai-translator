@@ -3,14 +3,17 @@
 namespace Kargnas\LaravelAiTranslator\Console\CrowdIn\Services;
 
 use Illuminate\Console\Command;
-use Illuminate\Support\Collection;
 
 class LanguageService
 {
     protected ProjectService $projectService;
+
     protected Command $command;
+
     protected string $sourceLocale;
+
     protected array $targetLanguages = [];
+
     protected array $referenceLanguages = [];
 
     public function __construct(ProjectService $projectService, Command $command)
@@ -25,13 +28,14 @@ class LanguageService
     public function selectLanguages(?string $sourceLanguage = null, ?string $targetLanguage = null): bool
     {
         $project = $this->projectService->getSelectedProject();
-        if (!$project) {
-            $this->command->error("No project selected.");
+        if (! $project) {
+            $this->command->error('No project selected.');
+
             return false;
         }
 
         // Select source language
-        if (!empty($sourceLanguage)) {
+        if (! empty($sourceLanguage)) {
             foreach ($project['targetLanguages'] as $lang) {
                 if ($lang['name'] === $sourceLanguage) {
                     $project['sourceLanguage'] = $lang;
@@ -41,6 +45,7 @@ class LanguageService
 
             if (empty($project['sourceLanguage'])) {
                 $this->command->error("Source language {$sourceLanguage} not found in project.");
+
                 return false;
             }
         }
@@ -48,7 +53,7 @@ class LanguageService
         $this->sourceLocale = $project['sourceLanguage']['id'];
 
         // Select target languages
-        if (!empty($targetLanguage)) {
+        if (! empty($targetLanguage)) {
             $targetLang = null;
             foreach ($project['targetLanguages'] as $lang) {
                 if ($lang['id'] === $targetLanguage || $lang['name'] === $targetLanguage) {
@@ -61,6 +66,7 @@ class LanguageService
                 $this->targetLanguages = [$targetLang];
             } else {
                 $this->command->error("Target language {$targetLanguage} not found in project.");
+
                 return false;
             }
         } else {

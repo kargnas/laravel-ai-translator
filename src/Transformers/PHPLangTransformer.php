@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Config;
 class PHPLangTransformer
 {
     private array $content = [];
+
     private bool $useDotNotation;
 
     public function __construct(
@@ -26,6 +27,7 @@ class PHPLangTransformer
     public function isTranslated(string $key): bool
     {
         $flattened = $this->flattenArray($this->content);
+
         return array_key_exists($key, $flattened);
     }
 
@@ -45,6 +47,7 @@ class PHPLangTransformer
                 $result[$newKey] = $value;
             }
         }
+
         return $result;
     }
 
@@ -58,13 +61,14 @@ class PHPLangTransformer
                 if ($i === count($parts) - 1) {
                     $current[$part] = $value;
                 } else {
-                    if (!isset($current[$part]) || !is_array($current[$part])) {
+                    if (! isset($current[$part]) || ! is_array($current[$part])) {
                         $current[$part] = [];
                     }
                     $current = &$current[$part];
                 }
             }
         }
+
         return $result;
     }
 
@@ -82,7 +86,7 @@ class PHPLangTransformer
                 if ($i === count($parts) - 1) {
                     $current[$part] = $translated;
                 } else {
-                    if (!isset($current[$part]) || !is_array($current[$part])) {
+                    if (! isset($current[$part]) || ! is_array($current[$part])) {
                         $current[$part] = [];
                     }
                     $current = &$current[$part];
@@ -100,12 +104,12 @@ class PHPLangTransformer
 
         $lines = [
             "<?php\n",
-            "/**",
-            " * WARNING: This is an auto-generated file.",
-            " * Do not modify this file manually as your changes will be lost.",
+            '/**',
+            ' * WARNING: This is an auto-generated file.',
+            ' * Do not modify this file manually as your changes will be lost.',
             " * This file was automatically translated from {$this->sourceLanguage} at {$timestamp}.",
             " */\n",
-            "return " . $this->arrayExport($content, 0) . ";\n"
+            'return '.$this->arrayExport($content, 0).";\n",
         ];
 
         file_put_contents($this->filePath, implode("\n", $lines));
@@ -118,17 +122,17 @@ class PHPLangTransformer
 
         $items = [];
         foreach ($array as $key => $value) {
-            $formattedKey = is_int($key) ? $key : "'" . str_replace("'", "\\'", $key) . "'";
+            $formattedKey = is_int($key) ? $key : "'".str_replace("'", "\\'", $key)."'";
             if (is_array($value)) {
-                $items[] = $indent . "    {$formattedKey} => " . $this->arrayExport($value, $level + 1);
+                $items[] = $indent."    {$formattedKey} => ".$this->arrayExport($value, $level + 1);
             } else {
-                $formattedValue = "'" . str_replace("'", "\\'", $value) . "'";
-                $items[] = $indent . "    {$formattedKey} => {$formattedValue}";
+                $formattedValue = "'".str_replace("'", "\\'", $value)."'";
+                $items[] = $indent."    {$formattedKey} => {$formattedValue}";
             }
         }
 
         $output .= implode(",\n", $items);
-        $output .= "\n" . $indent . "]";
+        $output .= "\n".$indent.']';
 
         return $output;
     }

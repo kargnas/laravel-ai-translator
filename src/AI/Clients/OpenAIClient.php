@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Http;
 class OpenAIClient
 {
     protected string $baseUrl = 'https://api.openai.com/v1';
+
     protected string $apiKey;
 
     public function __construct(string $apiKey)
@@ -20,20 +21,21 @@ class OpenAIClient
     /**
      * 일반 HTTP 요청을 수행합니다.
      *
-     * @param string $method HTTP 메소드
-     * @param string $endpoint API 엔드포인트
-     * @param array $data 요청 데이터
+     * @param  string  $method  HTTP 메소드
+     * @param  string  $endpoint  API 엔드포인트
+     * @param  array  $data  요청 데이터
      * @return array 응답 데이터
+     *
      * @throws \Exception API 오류 발생 시
      */
     public function request(string $method, string $endpoint, array $data = []): array
     {
         $response = Http::withHeaders([
-                    'Authorization' => 'Bearer ' . $this->apiKey,
-                    'Content-Type' => 'application/json',
-                ])->$method("{$this->baseUrl}/{$endpoint}", $data);
+            'Authorization' => 'Bearer '.$this->apiKey,
+            'Content-Type' => 'application/json',
+        ])->$method("{$this->baseUrl}/{$endpoint}", $data);
 
-        if (!$response->successful()) {
+        if (! $response->successful()) {
             throw new \Exception("OpenAI API error: {$response->body()}");
         }
 
@@ -43,9 +45,10 @@ class OpenAIClient
     /**
      * 메시지 생성 요청을 스트리밍 모드로 수행합니다.
      *
-     * @param array $data 요청 데이터
-     * @param callable $onChunk 청크 데이터를 받을 때마다 호출될 콜백 함수
+     * @param  array  $data  요청 데이터
+     * @param  callable  $onChunk  청크 데이터를 받을 때마다 호출될 콜백 함수
      * @return array 최종 응답 데이터
+     *
      * @throws \Exception API 오류 발생 시
      */
     public function createChatStream(array $data, ?callable $onChunk = null): array
@@ -67,13 +70,13 @@ class OpenAIClient
                         'content' => '',
                     ],
                     'finish_reason' => null,
-                ]
+                ],
             ],
             'usage' => [
                 'prompt_tokens' => 0,
                 'completion_tokens' => 0,
                 'total_tokens' => 0,
-            ]
+            ],
         ];
 
         // 스트리밍 요청 실행
@@ -84,8 +87,9 @@ class OpenAIClient
                 $lines = explode("\n", $chunk);
                 foreach ($lines as $line) {
                     $line = trim($line);
-                    if (empty($line))
+                    if (empty($line)) {
                         continue;
+                    }
 
                     // SSE 형식 처리 (data: 로 시작하는 라인)
                     if (strpos($line, 'data: ') === 0) {
@@ -101,7 +105,7 @@ class OpenAIClient
 
                         if (json_last_error() === JSON_ERROR_NONE && $data) {
                             // 메타데이터 업데이트
-                            if (isset($data['id']) && !$finalResponse['id']) {
+                            if (isset($data['id']) && ! $finalResponse['id']) {
                                 $finalResponse['id'] = $data['id'];
                             }
 
@@ -110,7 +114,7 @@ class OpenAIClient
                             }
 
                             // 콘텐츠 처리
-                            if (isset($data['choices']) && is_array($data['choices']) && !empty($data['choices'])) {
+                            if (isset($data['choices']) && is_array($data['choices']) && ! empty($data['choices'])) {
                                 foreach ($data['choices'] as $choice) {
                                     if (isset($choice['delta']['content'])) {
                                         $content = $choice['delta']['content'];
@@ -130,7 +134,7 @@ class OpenAIClient
                                 $onChunk($line, $data);
                             }
                         }
-                    } else if (strpos($line, 'event: ') === 0) {
+                    } elseif (strpos($line, 'event: ') === 0) {
                         // 이벤트 처리 (필요한 경우)
                         continue;
                     }
@@ -144,11 +148,11 @@ class OpenAIClient
     /**
      * 스트리밍 HTTP 요청을 수행합니다.
      *
-     * @param string $method HTTP 메소드
-     * @param string $endpoint API 엔드포인트
-     * @param array $data 요청 데이터
-     * @param callable $onChunk 청크 데이터를 받을 때마다 호출될 콜백 함수
-     * @return void
+     * @param  string  $method  HTTP 메소드
+     * @param  string  $endpoint  API 엔드포인트
+     * @param  array  $data  요청 데이터
+     * @param  callable  $onChunk  청크 데이터를 받을 때마다 호출될 콜백 함수
+     *
      * @throws \Exception API 오류 발생 시
      */
     public function requestStream(string $method, string $endpoint, array $data, callable $onChunk): void
@@ -156,7 +160,7 @@ class OpenAIClient
         // 스트리밍 요청 설정
         $url = "{$this->baseUrl}/{$endpoint}";
         $headers = [
-            'Authorization: Bearer ' . $this->apiKey,
+            'Authorization: Bearer '.$this->apiKey,
             'Content-Type: application/json',
             'Accept: text/event-stream',
         ];
@@ -179,6 +183,7 @@ class OpenAIClient
         // 청크 데이터 처리를 위한 콜백 설정
         curl_setopt($ch, CURLOPT_WRITEFUNCTION, function ($ch, $data) use ($onChunk) {
             $onChunk($data);
+
             return strlen($data);
         });
 

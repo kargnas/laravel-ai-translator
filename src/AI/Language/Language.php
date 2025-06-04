@@ -10,8 +10,7 @@ class Language
         public string $code,
         public string $name,
         public int $pluralForms = 2,
-    ) {
-    }
+    ) {}
 
     public static function fromCode(string $code): self
     {
@@ -19,7 +18,7 @@ class Language
 
         // Get language name and validate
         $name = LanguageConfig::getLanguageName($code);
-        if (!$name) {
+        if (! $name) {
             // Try to find the language code from the name
             $allLanguages = LanguageConfig::getAllLanguages();
             foreach ($allLanguages as $langCode => $langName) {
@@ -30,7 +29,7 @@ class Language
                 }
             }
 
-            if (!$name) {
+            if (! $name) {
                 throw new \InvalidArgumentException("Invalid language code: {$code}");
             }
         }
@@ -65,6 +64,7 @@ class Language
     public function is(string $code): bool
     {
         $code = static::normalizeCode($code);
+
         return $this->code === $code || $this->getBaseCode() === $code;
     }
 

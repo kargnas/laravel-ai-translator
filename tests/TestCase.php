@@ -11,8 +11,8 @@ class TestCase extends Orchestra
     {
         parent::setUp();
 
-        if (file_exists(__DIR__ . '/../.env.testing')) {
-            $dotenv = \Dotenv\Dotenv::createImmutable(__DIR__ . '/..', '.env.testing');
+        if (file_exists(__DIR__.'/../.env.testing')) {
+            $dotenv = \Dotenv\Dotenv::createImmutable(__DIR__.'/..', '.env.testing');
             $dotenv->load();
         }
     }
@@ -24,8 +24,5 @@ class TestCase extends Orchestra
         ];
     }
 
-    protected function getEnvironmentSetUp($app): void
-    {
-
-    }
+    protected function getEnvironmentSetUp($app): void {}
 }

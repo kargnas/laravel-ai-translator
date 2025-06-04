@@ -13,9 +13,13 @@ class TokenUsagePrinter
      * 지원되는 모델 목록
      */
     public const MODEL_CLAUDE_3_OPUS = 'claude-3-opus-20240229';
+
     public const MODEL_CLAUDE_3_5_SONNET = 'claude-3-5-sonnet-20240620';
+
     public const MODEL_CLAUDE_3_HAIKU = 'claude-3-haiku-20240307';
+
     public const MODEL_CLAUDE_3_5_HAIKU = 'claude-3-5-haiku-20240307';
+
     public const MODEL_CLAUDE_3_7_SONNET = 'claude-3-7-sonnet-20240808';
 
     /**
@@ -27,35 +31,35 @@ class TokenUsagePrinter
             'output' => 75.0,
             'cache_write' => 18.75, // 25% 할증
             'cache_read' => 1.5,    // 10% (90% 할인)
-            'name' => 'Claude 3 Opus'
+            'name' => 'Claude 3 Opus',
         ],
         self::MODEL_CLAUDE_3_5_SONNET => [
             'input' => 3.0,
             'output' => 15.0,
             'cache_write' => 3.75,  // 25% 할증
             'cache_read' => 0.3,    // 10% (90% 할인)
-            'name' => 'Claude 3.5 Sonnet'
+            'name' => 'Claude 3.5 Sonnet',
         ],
         self::MODEL_CLAUDE_3_HAIKU => [
             'input' => 0.25,
             'output' => 1.25,
             'cache_write' => 0.30,  // 25% 할증
             'cache_read' => 0.03,   // 10% (90% 할인)
-            'name' => 'Claude 3 Haiku'
+            'name' => 'Claude 3 Haiku',
         ],
         self::MODEL_CLAUDE_3_5_HAIKU => [
             'input' => 0.25,
             'output' => 1.25,
             'cache_write' => 0.30,  // 25% 할증
             'cache_read' => 0.03,   // 10% (90% 할인)
-            'name' => 'Claude 3.5 Haiku'
+            'name' => 'Claude 3.5 Haiku',
         ],
         self::MODEL_CLAUDE_3_7_SONNET => [
             'input' => 3.0,
             'output' => 15.0,
             'cache_write' => 3.75,  // 25% 할증
             'cache_read' => 0.3,    // 10% (90% 할인)
-            'name' => 'Claude 3.7 Sonnet'
+            'name' => 'Claude 3.7 Sonnet',
         ],
     ];
 
@@ -75,7 +79,7 @@ class TokenUsagePrinter
         'bold' => "\033[1m",
         'yellow_bg' => "\033[48;5;220m",
         'black' => "\033[38;5;16m",
-        'line_clear' => "\033[2K\r"
+        'line_clear' => "\033[2K\r",
     ];
 
     /**
@@ -91,14 +95,14 @@ class TokenUsagePrinter
     /**
      * 생성자
      */
-    public function __construct(string $model = null)
+    public function __construct(?string $model = null)
     {
         // 모델이 지정되지 않으면 그대로 null 유지
         $this->currentModel = $model;
         $this->originalModel = $model;
 
         // 지정된 모델이 있지만 정확히 일치하지 않는 경우, 가장 유사한 모델 찾기
-        if ($this->currentModel !== null && !isset(self::MODEL_RATES[$this->currentModel])) {
+        if ($this->currentModel !== null && ! isset(self::MODEL_RATES[$this->currentModel])) {
             $this->currentModel = $this->findClosestModel($this->currentModel);
         }
     }
@@ -134,8 +138,8 @@ class TokenUsagePrinter
 
     /**
      * 가장 유사한 모델을 찾아 반환합니다.
-     * 
-     * @param string $modelName 모델 이름
+     *
+     * @param  string  $modelName  모델 이름
      * @return string 가장 유사한 등록된 모델 이름
      */
     protected function findClosestModel(string $modelName): string
@@ -195,9 +199,9 @@ class TokenUsagePrinter
 
     /**
      * 두 문자열 간의 유사도를 계산합니다.
-     * 
-     * @param string $str1 첫 번째 문자열
-     * @param string $str2 두 번째 문자열
+     *
+     * @param  string  $str1  첫 번째 문자열
+     * @param  string  $str2  두 번째 문자열
      * @return float 0~1 사이의 유사도 값 (1이 완전 일치)
      */
     protected function calculateSimilarity(string $str1, string $str2): float
@@ -222,6 +226,7 @@ class TokenUsagePrinter
         if ($model === null) {
             $this->currentModel = null;
             $this->originalModel = null;
+
             return $this;
         }
 
@@ -233,6 +238,7 @@ class TokenUsagePrinter
             // 정확히 일치하지 않으면 가장 유사한 모델 찾기
             $this->currentModel = $this->findClosestModel($model);
         }
+
         return $this;
     }
 
@@ -242,7 +248,7 @@ class TokenUsagePrinter
     protected function getModelRates(): array
     {
         // 모델이 지정되지 않았거나 존재하지 않으면 기본 모델 사용
-        if ($this->currentModel === null || !isset(self::MODEL_RATES[$this->currentModel])) {
+        if ($this->currentModel === null || ! isset(self::MODEL_RATES[$this->currentModel])) {
             return self::MODEL_RATES[self::MODEL_CLAUDE_3_5_SONNET];
         }
 
@@ -282,15 +288,15 @@ class TokenUsagePrinter
      */
     public function printTokenUsageSummary(Command $command, array $usage): void
     {
-        $command->line("\n" . str_repeat('─', 80));
-        $command->line($this->colors['blue_bg'] . $this->colors['white'] . $this->colors['bold'] . " Token Usage Summary " . $this->colors['reset']);
+        $command->line("\n".str_repeat('─', 80));
+        $command->line($this->colors['blue_bg'].$this->colors['white'].$this->colors['bold'].' Token Usage Summary '.$this->colors['reset']);
 
         // 토큰 사용량 테이블 출력
-        $command->line($this->colors['yellow'] . "Input Tokens" . $this->colors['reset'] . ": " . $this->colors['green'] . $usage['input_tokens'] . $this->colors['reset']);
-        $command->line($this->colors['yellow'] . "Output Tokens" . $this->colors['reset'] . ": " . $this->colors['green'] . $usage['output_tokens'] . $this->colors['reset']);
-        $command->line($this->colors['yellow'] . "Cache Created" . $this->colors['reset'] . ": " . $this->colors['blue'] . $usage['cache_creation_input_tokens'] . $this->colors['reset']);
-        $command->line($this->colors['yellow'] . "Cache Read" . $this->colors['reset'] . ": " . $this->colors['blue'] . $usage['cache_read_input_tokens'] . $this->colors['reset']);
-        $command->line($this->colors['yellow'] . "Total Tokens" . $this->colors['reset'] . ": " . $this->colors['bold'] . $this->colors['purple'] . $usage['total_tokens'] . $this->colors['reset']);
+        $command->line($this->colors['yellow'].'Input Tokens'.$this->colors['reset'].': '.$this->colors['green'].$usage['input_tokens'].$this->colors['reset']);
+        $command->line($this->colors['yellow'].'Output Tokens'.$this->colors['reset'].': '.$this->colors['green'].$usage['output_tokens'].$this->colors['reset']);
+        $command->line($this->colors['yellow'].'Cache Created'.$this->colors['reset'].': '.$this->colors['blue'].$usage['cache_creation_input_tokens'].$this->colors['reset']);
+        $command->line($this->colors['yellow'].'Cache Read'.$this->colors['reset'].': '.$this->colors['blue'].$usage['cache_read_input_tokens'].$this->colors['reset']);
+        $command->line($this->colors['yellow'].'Total Tokens'.$this->colors['reset'].': '.$this->colors['bold'].$this->colors['purple'].$usage['total_tokens'].$this->colors['reset']);
     }
 
     /**
@@ -298,17 +304,17 @@ class TokenUsagePrinter
      */
     public function printCostEstimation(Command $command, array $usage): void
     {
-        $command->line("\n" . str_repeat('─', 80));
+        $command->line("\n".str_repeat('─', 80));
 
         // 원래 모델 이름과 매칭된 모델이 다를 경우 정보 제공
-        $modelHeader = " Cost Estimation (" . $this->getModelName() . ") ";
+        $modelHeader = ' Cost Estimation ('.$this->getModelName().') ';
 
         // 원래 요청한 모델이 직접 매치되지 않은 경우
         if ($this->originalModel && $this->originalModel !== $this->currentModel) {
-            $modelHeader = " Cost Estimation (" . $this->getModelName() . " - mapped from '{$this->originalModel}') ";
+            $modelHeader = ' Cost Estimation ('.$this->getModelName()." - mapped from '{$this->originalModel}') ";
         }
 
-        $command->line($this->colors['blue_bg'] . $this->colors['white'] . $this->colors['bold'] . $modelHeader . $this->colors['reset']);
+        $command->line($this->colors['blue_bg'].$this->colors['white'].$this->colors['bold'].$modelHeader.$this->colors['reset']);
 
         // 기본 입출력 비용
         $inputCost = $usage['input_tokens'] * $this->getRateInput();
@@ -332,25 +338,25 @@ class TokenUsagePrinter
 
         // 모델 가격 정보
         $modelRates = $this->getModelRates();
-        $command->line($this->colors['gray'] . "Model Pricing:" . $this->colors['reset']);
-        $command->line($this->colors['gray'] . "  Input: $" . number_format($modelRates['input'], 2) . " per million tokens" . $this->colors['reset']);
-        $command->line($this->colors['gray'] . "  Output: $" . number_format($modelRates['output'], 2) . " per million tokens" . $this->colors['reset']);
-        $command->line($this->colors['gray'] . "  Cache Write: $" . number_format($modelRates['cache_write'], 2) . " per million tokens (25% premium)" . $this->colors['reset']);
-        $command->line($this->colors['gray'] . "  Cache Read: $" . number_format($modelRates['cache_read'], 2) . " per million tokens (90% discount)" . $this->colors['reset']);
+        $command->line($this->colors['gray'].'Model Pricing:'.$this->colors['reset']);
+        $command->line($this->colors['gray'].'  Input: $'.number_format($modelRates['input'], 2).' per million tokens'.$this->colors['reset']);
+        $command->line($this->colors['gray'].'  Output: $'.number_format($modelRates['output'], 2).' per million tokens'.$this->colors['reset']);
+        $command->line($this->colors['gray'].'  Cache Write: $'.number_format($modelRates['cache_write'], 2).' per million tokens (25% premium)'.$this->colors['reset']);
+        $command->line($this->colors['gray'].'  Cache Read: $'.number_format($modelRates['cache_read'], 2).' per million tokens (90% discount)'.$this->colors['reset']);
 
         // 비용 출력
-        $command->line("\n" . $this->colors['yellow'] . "Your Cost Breakdown" . $this->colors['reset'] . ":");
-        $command->line("  Regular Input Cost: $" . number_format($inputCost, 6));
-        $command->line("  Cache Creation Cost: $" . number_format($cacheCreationCost, 6) . " (25% premium over regular input)");
-        $command->line("  Cache Read Cost: $" . number_format($cacheReadCost, 6) . " (90% discount from regular input)");
-        $command->line("  Output Cost: $" . number_format($outputCost, 6));
-        $command->line("  Total Cost: $" . number_format($totalCost, 6));
+        $command->line("\n".$this->colors['yellow'].'Your Cost Breakdown'.$this->colors['reset'].':');
+        $command->line('  Regular Input Cost: $'.number_format($inputCost, 6));
+        $command->line('  Cache Creation Cost: $'.number_format($cacheCreationCost, 6).' (25% premium over regular input)');
+        $command->line('  Cache Read Cost: $'.number_format($cacheReadCost, 6).' (90% discount from regular input)');
+        $command->line('  Output Cost: $'.number_format($outputCost, 6));
+        $command->line('  Total Cost: $'.number_format($totalCost, 6));
 
         // 비용 절약 정보 추가
         if ($usage['cache_read_input_tokens'] > 0) {
-            $command->line("\n" . $this->colors['green'] . $this->colors['bold'] . "Cache Savings" . $this->colors['reset']);
-            $command->line("  Cost without Caching: $" . number_format($noCacheTotalCost, 6));
-            $command->line("  Saved Amount: $" . number_format($savedCost, 6) . " (" . number_format($savedPercentage, 2) . "% reduction)");
+            $command->line("\n".$this->colors['green'].$this->colors['bold'].'Cache Savings'.$this->colors['reset']);
+            $command->line('  Cost without Caching: $'.number_format($noCacheTotalCost, 6));
+            $command->line('  Saved Amount: $'.number_format($savedCost, 6).' ('.number_format($savedPercentage, 2).'% reduction)');
         }
     }
 
@@ -359,8 +365,8 @@ class TokenUsagePrinter
      */
     public function printModelComparison(Command $command, array $usage): void
     {
-        $command->line("\n" . str_repeat('─', 80));
-        $command->line($this->colors['blue_bg'] . $this->colors['white'] . $this->colors['bold'] . " Model Cost Comparison " . $this->colors['reset']);
+        $command->line("\n".str_repeat('─', 80));
+        $command->line($this->colors['blue_bg'].$this->colors['white'].$this->colors['bold'].' Model Cost Comparison '.$this->colors['reset']);
 
         $currentModel = $this->currentModel;
         $comparison = [];
@@ -387,7 +393,7 @@ class TokenUsagePrinter
                 'input_cost' => $inputCost,
                 'output_cost' => $outputCost,
                 'cache_write_cost' => $cacheCreationCost,
-                'cache_read_cost' => $cacheReadCost
+                'cache_read_cost' => $cacheReadCost,
             ];
         }
 
@@ -395,8 +401,8 @@ class TokenUsagePrinter
         $this->currentModel = $currentModel;
 
         // 테이블 헤더
-        $command->line("");
-        $command->line($this->colors['bold'] . "MODEL" . str_repeat(' ', 20) . "TOTAL COST" . str_repeat(' ', 5) . "SAVINGS vs CURRENT" . $this->colors['reset']);
+        $command->line('');
+        $command->line($this->colors['bold'].'MODEL'.str_repeat(' ', 20).'TOTAL COST'.str_repeat(' ', 5).'SAVINGS vs CURRENT'.$this->colors['reset']);
         $command->line(str_repeat('─', 80));
 
         // 현재 모델의 비용
@@ -413,34 +419,34 @@ class TokenUsagePrinter
             // 모델 이름 형식
             $modelName = str_pad($data['name'], 25, ' ');
             if ($isCurrentModel) {
-                $modelName = $this->colors['green'] . "➤ " . $modelName . $this->colors['reset'];
+                $modelName = $this->colors['green'].'➤ '.$modelName.$this->colors['reset'];
             } else {
-                $modelName = "  " . $modelName;
+                $modelName = '  '.$modelName;
             }
 
             // 비용 형식
-            $costStr = "$" . str_pad(number_format($data['total_cost'], 6), 12, ' ', STR_PAD_LEFT);
+            $costStr = '$'.str_pad(number_format($data['total_cost'], 6), 12, ' ', STR_PAD_LEFT);
 
             // 현재 모델과의 비용 차이
             $savingsAmount = $currentModelCost - $data['total_cost'];
             $savingsPercent = $currentModelCost > 0 ? ($savingsAmount / $currentModelCost) * 100 : 0;
 
-            $savingsStr = "";
-            if (!$isCurrentModel && $currentModelCost > 0) {
+            $savingsStr = '';
+            if (! $isCurrentModel && $currentModelCost > 0) {
                 if ($savingsAmount > 0) {
                     // 비용 절감
-                    $savingsStr = $this->colors['green'] . str_pad(number_format($savingsAmount, 6), 10, ' ', STR_PAD_LEFT) .
-                        " (" . number_format($savingsPercent, 1) . "% less)" . $this->colors['reset'];
+                    $savingsStr = $this->colors['green'].str_pad(number_format($savingsAmount, 6), 10, ' ', STR_PAD_LEFT).
+                        ' ('.number_format($savingsPercent, 1).'% less)'.$this->colors['reset'];
                 } else {
                     // 비용 증가
-                    $savingsStr = $this->colors['red'] . str_pad(number_format(abs($savingsAmount), 6), 10, ' ', STR_PAD_LEFT) .
-                        " (" . number_format(abs($savingsPercent), 1) . "% more)" . $this->colors['reset'];
+                    $savingsStr = $this->colors['red'].str_pad(number_format(abs($savingsAmount), 6), 10, ' ', STR_PAD_LEFT).
+                        ' ('.number_format(abs($savingsPercent), 1).'% more)'.$this->colors['reset'];
                 }
             } else {
-                $savingsStr = str_pad("—", 25, ' ');
+                $savingsStr = str_pad('—', 25, ' ');
             }
 
-            $command->line($modelName . $costStr . "  " . $savingsStr);
+            $command->line($modelName.$costStr.'  '.$savingsStr);
         }
     }
 

@@ -4,7 +4,6 @@ namespace Kargnas\LaravelAiTranslator;
 
 use Kargnas\LaravelAiTranslator\AI\Language\Language;
 
-
 class Utility
 {
     /**
@@ -14,9 +13,8 @@ class Utility
      * is subject to the new BSD license (https://framework.zend.com/license)
      * Copyright (c) 2005-2010 - Zend Technologies USA Inc. (http://www.zend.com)
      *
-     * @param string $locale
-     * @param int $number
-     * @return int
+     * @param  string  $locale
+     * @param  int  $number
      */
     public static function getPluralForms($locale): ?int
     {
@@ -326,9 +324,9 @@ class Utility
 
         if ($result = $compare($locale)) {
             return $result;
-        } else if ($result = $compare(substr($locale, 0, 2))) {
+        } elseif ($result = $compare(substr($locale, 0, 2))) {
             return $result;
-        } else if ($result = $compare(substr($locale, 0, 3))) {
+        } elseif ($result = $compare(substr($locale, 0, 3))) {
             return $result;
         } else {
             return null;

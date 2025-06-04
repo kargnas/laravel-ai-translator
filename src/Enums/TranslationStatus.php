@@ -5,7 +5,9 @@ namespace Kargnas\LaravelAiTranslator\Enums;
 class TranslationStatus
 {
     public const STARTED = 'started';
+
     public const IN_PROGRESS = 'inprogress';
+
     public const COMPLETED = 'completed';
 
     /**
@@ -24,9 +26,6 @@ class TranslationStatus
 
     /**
      * Check if the given status is valid
-     *
-     * @param string $status
-     * @return bool
      */
     public static function isValid(string $status): bool
     {

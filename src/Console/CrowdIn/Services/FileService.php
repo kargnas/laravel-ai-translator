@@ -2,19 +2,15 @@
 
 namespace Kargnas\LaravelAiTranslator\Console\CrowdIn\Services;
 
-use CrowdinApiClient\Model\Directory;
-use CrowdinApiClient\Model\File;
-use CrowdinApiClient\Model\LanguageTranslation;
-use CrowdinApiClient\Model\SourceString;
-use CrowdinApiClient\Model\StringTranslation;
-use CrowdinApiClient\Model\StringTranslationApproval;
 use Illuminate\Console\Command;
 use Illuminate\Support\Collection;
 
 class FileService
 {
     protected CrowdinApiService $apiService;
+
     protected ProjectService $projectService;
+
     protected Command $command;
 
     public function __construct(CrowdinApiService $apiService, ProjectService $projectService, Command $command)
@@ -30,7 +26,7 @@ class FileService
     public function getAllDirectories(): array
     {
         try {
-            $this->command->line("Fetching directories...");
+            $this->command->line('Fetching directories...');
 
             $directories = collect([]);
             $page = 1;
@@ -50,10 +46,12 @@ class FileService
                 $page++;
             } while (count($response) === $limit);
 
-            $this->command->line("Found " . $directories->count() . " directories");
+            $this->command->line('Found '.$directories->count().' directories');
+
             return $directories->toArray();
         } catch (\Exception $e) {
-            $this->command->warn("No directories found or error occurred: " . $e->getMessage());
+            $this->command->warn('No directories found or error occurred: '.$e->getMessage());
+
             return [];
         }
     }
@@ -85,10 +83,12 @@ class FileService
                 $page++;
             } while (count($response) === $limit);
 
-            $this->command->line("    Found " . $files->count() . " files");
+            $this->command->line('    Found '.$files->count().' files');
+
             return $files->toArray();
         } catch (\Exception $e) {
-            $this->command->warn("    No files found or error occurred: " . $e->getMessage());
+            $this->command->warn('    No files found or error occurred: '.$e->getMessage());
+
             return [];
         }
     }
@@ -120,10 +120,12 @@ class FileService
                 $page++;
             } while (count($response) === $limit);
 
-            $this->command->line("      Found " . $sourceStrings->count() . " source strings");
+            $this->command->line('      Found '.$sourceStrings->count().' source strings');
+
             return $sourceStrings;
         } catch (\Exception $e) {
-            $this->command->warn("      No source strings found or error occurred: " . $e->getMessage());
+            $this->command->warn('      No source strings found or error occurred: '.$e->getMessage());
+
             return collect([]);
         }
     }
@@ -159,10 +161,12 @@ class FileService
                 $page++;
             } while (count($response) === $limit);
 
-            $this->command->line("      Found " . $translations->count() . " translations");
+            $this->command->line('      Found '.$translations->count().' translations');
+
             return $translations;
         } catch (\Exception $e) {
-            $this->command->warn("      No translations found or error occurred: " . $e->getMessage());
+            $this->command->warn('      No translations found or error occurred: '.$e->getMessage());
+
             return collect([]);
         }
     }
@@ -187,7 +191,7 @@ class FileService
             );
             $approvals = $approvals->merge(collect($response));
             $page++;
-        } while (!$response->isEmpty());
+        } while (! $response->isEmpty());
 
         return $approvals;
     }
@@ -214,9 +218,11 @@ class FileService
                 $this->projectService->getProjectId(),
                 $translationId
             );
+
             return $result === null ? true : $result;
         } catch (\Exception $e) {
-            $this->command->warn("Failed to delete translation {$translationId}: " . $e->getMessage());
+            $this->command->warn("Failed to delete translation {$translationId}: ".$e->getMessage());
+
             return false;
         }
     }
@@ -238,7 +244,7 @@ class FileService
             ]);
             $translations = $translations->merge(collect($response));
             $page++;
-        } while (!$response->isEmpty());
+        } while (! $response->isEmpty());
 
         return $translations;
     }

@@ -8,8 +8,11 @@ use Illuminate\Console\Command;
 class CrowdinApiService
 {
     protected Crowdin $crowdin;
+
     protected Command $command;
+
     protected string $token;
+
     protected ?string $organization;
 
     public function __construct(Command $command, string $token, ?string $organization = null)
@@ -29,7 +32,7 @@ class CrowdinApiService
         try {
             $config = ['access_token' => $this->token];
 
-            if (!empty($this->organization)) {
+            if (! empty($this->organization)) {
                 $config['organization'] = $this->organization;
             }
 
@@ -38,7 +41,7 @@ class CrowdinApiService
             // Verify connection by making a test API call
             $this->crowdin->project->list(['limit' => 1]);
         } catch (\Exception $e) {
-            $errorMsg = "Failed to initialize Crowdin client: " . $e->getMessage();
+            $errorMsg = 'Failed to initialize Crowdin client: '.$e->getMessage();
             if (str_contains(strtolower($e->getMessage()), 'unauthorized')) {
                 $errorMsg .= "\nPlease check your API token and organization settings.";
             }

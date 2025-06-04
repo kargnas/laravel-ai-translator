@@ -13,7 +13,7 @@ class PHPLangTransformerTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->testFilePath = sys_get_temp_dir() . '/test_lang.php';
+        $this->testFilePath = sys_get_temp_dir().'/test_lang.php';
         Config::set('ai-translator', [
             'dot_notation' => false,
         ]);
@@ -46,7 +46,7 @@ class PHPLangTransformerTest extends TestCase
             'message' => 'Hello World',
         ];
 
-        file_put_contents($this->testFilePath, '<?php return ' . var_export($content, true) . ';');
+        file_put_contents($this->testFilePath, '<?php return '.var_export($content, true).';');
 
         $transformer = new PHPLangTransformer($this->testFilePath);
         $flattened = $transformer->flatten();
@@ -66,7 +66,7 @@ class PHPLangTransformerTest extends TestCase
         Config::set('ai-translator.dot_notation', true);
 
         $content = ['message' => 'Hello'];
-        file_put_contents($this->testFilePath, '<?php return ' . var_export($content, true) . ';');
+        file_put_contents($this->testFilePath, '<?php return '.var_export($content, true).';');
 
         $transformer = new PHPLangTransformer($this->testFilePath);
         $transformer->updateString('message', '안녕하세요');
@@ -90,7 +90,7 @@ class PHPLangTransformerTest extends TestCase
                 'copyright' => 'All rights reserved',
             ],
         ];
-        file_put_contents($this->testFilePath, '<?php return ' . var_export($content, true) . ';');
+        file_put_contents($this->testFilePath, '<?php return '.var_export($content, true).';');
 
         $transformer = new PHPLangTransformer($this->testFilePath);
 
@@ -122,7 +122,7 @@ class PHPLangTransformerTest extends TestCase
                 'blog' => 'My Blog',
             ],
         ];
-        file_put_contents($this->testFilePath, '<?php return ' . var_export($content, true) . ';');
+        file_put_contents($this->testFilePath, '<?php return '.var_export($content, true).';');
 
         $transformer = new PHPLangTransformer($this->testFilePath);
         $transformer->updateString('title.blog', '내 블로그');
@@ -136,7 +136,7 @@ class PHPLangTransformerTest extends TestCase
         Config::set('ai-translator.dot_notation', false);
 
         $content = ['existing' => 'value'];
-        file_put_contents($this->testFilePath, '<?php return ' . var_export($content, true) . ';');
+        file_put_contents($this->testFilePath, '<?php return '.var_export($content, true).';');
 
         $transformer = new PHPLangTransformer($this->testFilePath);
         $transformer->updateString('new.nested.key', 'New Value');
@@ -158,7 +158,7 @@ class PHPLangTransformerTest extends TestCase
         Config::set('ai-translator.dot_notation', false);
 
         $content = ['message' => "It's a test"];
-        file_put_contents($this->testFilePath, '<?php return ' . var_export($content, true) . ';');
+        file_put_contents($this->testFilePath, '<?php return '.var_export($content, true).';');
 
         $transformer = new PHPLangTransformer($this->testFilePath);
         $transformer->updateString('message', "It's a 'quoted' string");
@@ -175,7 +175,7 @@ class PHPLangTransformerTest extends TestCase
             ],
             'empty' => [],
         ];
-        file_put_contents($this->testFilePath, '<?php return ' . var_export($content, true) . ';');
+        file_put_contents($this->testFilePath, '<?php return '.var_export($content, true).';');
 
         $transformer = new PHPLangTransformer($this->testFilePath);
 

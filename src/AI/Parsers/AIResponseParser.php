@@ -93,7 +93,7 @@ class AIResponseParser
                         Log::debug('AIResponseParser: Processed translation item', [
                             'key' => $key,
                             'translated_text' => $translatedText,
-                            'comment' => $localizedString->comment ?? null
+                            'comment' => $localizedString->comment ?? null,
                         ]);
                     }
 
@@ -107,17 +107,17 @@ class AIResponseParser
         if (preg_match('/<item>(?:(?!<\/item>).)*$/s', $this->fullResponse, $inProgressMatch)) {
             if (
                 preg_match('/<key>(.*?)<\/key>/s', $inProgressMatch[0], $keyMatch) &&
-                !in_array($this->cleanContent($keyMatch[1]), $this->processedKeys)
+                ! in_array($this->cleanContent($keyMatch[1]), $this->processedKeys)
             ) {
                 $startedKey = $this->cleanContent($keyMatch[1]);
 
                 // Array to check if started event has occurred
-                if (!isset($this->startedKeys)) {
+                if (! isset($this->startedKeys)) {
                     $this->startedKeys = [];
                 }
 
                 // Process only for keys that haven't had started event
-                if (!in_array($startedKey, $this->startedKeys)) {
+                if (! in_array($startedKey, $this->startedKeys)) {
                     $startedString = new LocalizedString;
                     $startedString->key = $startedKey;
                     $startedString->translated = '';
@@ -129,7 +129,7 @@ class AIResponseParser
 
                     if ($this->debug) {
                         Log::debug('AIResponseParser: Translation started', [
-                            'key' => $startedKey
+                            'key' => $startedKey,
                         ]);
                     }
 
@@ -185,7 +185,7 @@ class AIResponseParser
             Log::debug('AIResponseParser: Parsing result', [
                 'direct_cdata_extraction' => $cdataExtracted,
                 'extracted_items_count' => count($this->translatedItems),
-                'keys_found' => !empty($this->translatedItems) ? array_map(function ($item) {
+                'keys_found' => ! empty($this->translatedItems) ? array_map(function ($item) {
                     return $item->key;
                 }, $this->translatedItems) : [],
             ]);
@@ -256,7 +256,7 @@ class AIResponseParser
         $itemPattern = '/<item>\s*<key>(.*?)<\/key>\s*<trx><!\[CDATA\[(.*?)\]\]><\/trx>\s*<\/item>/s';
         if (preg_match_all($itemPattern, $response, $matches, PREG_SET_ORDER)) {
             foreach ($matches as $i => $match) {
-                if (isset($match[1]) && isset($match[2]) && !empty($match[1]) && !empty($match[2])) {
+                if (isset($match[1]) && isset($match[2]) && ! empty($match[1]) && ! empty($match[2])) {
                     $key = trim($match[1]);
                     $translatedText = $this->cleanupSpecialChars($match[2]);
 
@@ -285,7 +285,7 @@ class AIResponseParser
             if (preg_match('/<item>(?:(?!<\/item>).)*$/s', $response, $inProgressMatch)) {
                 if (
                     preg_match('/<key>(.*?)<\/key>/s', $inProgressMatch[0], $keyMatch) &&
-                    !in_array($this->cleanContent($keyMatch[1]), $this->processedKeys)
+                    ! in_array($this->cleanContent($keyMatch[1]), $this->processedKeys)
                 ) {
                     $inProgressKey = $this->cleanContent($keyMatch[1]);
                     $inProgressString = new LocalizedString;
@@ -344,15 +344,15 @@ class AIResponseParser
         $xml = $this->cleanupSpecialChars($xml);
 
         // Add root tag if missing
-        if (!preg_match('/^\s*<\?xml|^\s*<translations/i', $xml)) {
-            $xml = '<translations>' . $xml . '</translations>';
+        if (! preg_match('/^\s*<\?xml|^\s*<translations/i', $xml)) {
+            $xml = '<translations>'.$xml.'</translations>';
         }
 
         // Add CDATA if missing
-        if (preg_match('/<trx>(.*?)<\/trx>/s', $xml, $matches) && !strpos($matches[0], 'CDATA')) {
+        if (preg_match('/<trx>(.*?)<\/trx>/s', $xml, $matches) && ! strpos($matches[0], 'CDATA')) {
             $xml = str_replace(
                 $matches[0],
-                '<trx><![CDATA[' . $matches[1] . ']]></trx>',
+                '<trx><![CDATA['.$matches[1].']]></trx>',
                 $xml
             );
         }
@@ -370,10 +370,10 @@ class AIResponseParser
     public function handleNodeComplete(string $tagName, string $content, array $attributes): void
     {
         // Process <trx> tag (single item case)
-        if ($tagName === 'trx' && !isset($this->processedKeys[0])) {
+        if ($tagName === 'trx' && ! isset($this->processedKeys[0])) {
             // Reference CDATA cache (if full content exists)
             $cdataCache = $this->xmlParser->getCdataCache();
-            if (!empty($cdataCache)) {
+            if (! empty($cdataCache)) {
                 $content = $cdataCache;
             }
 
@@ -385,8 +385,8 @@ class AIResponseParser
 
             // Check if all keys and translation items exist
             if (
-                isset($parsedData['key']) && !empty($parsedData['key']) &&
-                isset($parsedData['trx']) && !empty($parsedData['trx']) &&
+                isset($parsedData['key']) && ! empty($parsedData['key']) &&
+                isset($parsedData['trx']) && ! empty($parsedData['trx']) &&
                 count($parsedData['key']) === count($parsedData['trx'])
             ) {
                 // Process all parsed keys and translation items
@@ -396,7 +396,7 @@ class AIResponseParser
                         $translated = $parsedData['trx'][$i]['content'];
 
                         // Process only if key is not empty and not duplicate
-                        if (!empty($key) && !empty($translated) && !in_array($key, $this->processedKeys)) {
+                        if (! empty($key) && ! empty($translated) && ! in_array($key, $this->processedKeys)) {
                             $this->createTranslationItem($key, $translated);
 
                             if ($this->debug) {
@@ -438,7 +438,7 @@ class AIResponseParser
             Log::debug('AIResponseParser: Created translation item', [
                 'key' => $key,
                 'translated_length' => strlen($translated),
-                'comment' => $comment
+                'comment' => $comment,
             ]);
         }
     }

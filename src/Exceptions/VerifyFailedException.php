@@ -2,8 +2,4 @@
 
 namespace Kargnas\LaravelAiTranslator\Exceptions;
 
-
-class VerifyFailedException extends \Exception
-{
-
-}
+class VerifyFailedException extends \Exception {}

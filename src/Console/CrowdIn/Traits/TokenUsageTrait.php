@@ -15,7 +15,7 @@ trait TokenUsageTrait
         'output_tokens' => 0,
         'cache_creation_input_tokens' => 0,
         'cache_read_input_tokens' => 0,
-        'total_tokens' => 0
+        'total_tokens' => 0,
     ];
 
     /**
@@ -44,10 +44,10 @@ trait TokenUsageTrait
      */
     protected function displayTokenUsage(array $usage): void
     {
-        $this->line($this->colors['gray'] . "    Tokens: " .
-            "Input=" . $this->colors['green'] . ($usage['input_tokens'] ?? 0) . $this->colors['gray'] . ", " .
-            "Output=" . $this->colors['green'] . ($usage['output_tokens'] ?? 0) . $this->colors['gray'] . ", " .
-            "Total=" . $this->colors['purple'] . ($usage['total_tokens'] ?? 0) . $this->colors['gray'] .
+        $this->line($this->colors['gray'].'    Tokens: '.
+            'Input='.$this->colors['green'].($usage['input_tokens'] ?? 0).$this->colors['gray'].', '.
+            'Output='.$this->colors['green'].($usage['output_tokens'] ?? 0).$this->colors['gray'].', '.
+            'Total='.$this->colors['purple'].($usage['total_tokens'] ?? 0).$this->colors['gray'].
             $this->colors['reset']);
     }
 
@@ -56,12 +56,12 @@ trait TokenUsageTrait
      */
     protected function displayTotalTokenUsage(): void
     {
-        $this->line("\n" . $this->colors['blue_bg'] . $this->colors['white'] . $this->colors['bold'] . " Total Token Usage " . $this->colors['reset']);
-        $this->line($this->colors['yellow'] . "Input Tokens: " . $this->colors['reset'] . $this->colors['green'] . $this->tokenUsage['input_tokens'] . $this->colors['reset']);
-        $this->line($this->colors['yellow'] . "Output Tokens: " . $this->colors['reset'] . $this->colors['green'] . $this->tokenUsage['output_tokens'] . $this->colors['reset']);
-        $this->line($this->colors['yellow'] . "Cache Created: " . $this->colors['reset'] . $this->colors['blue'] . $this->tokenUsage['cache_creation_input_tokens'] . $this->colors['reset']);
-        $this->line($this->colors['yellow'] . "Cache Read: " . $this->colors['reset'] . $this->colors['blue'] . $this->tokenUsage['cache_read_input_tokens'] . $this->colors['reset']);
-        $this->line($this->colors['yellow'] . "Total Tokens: " . $this->colors['reset'] . $this->colors['bold'] . $this->colors['purple'] . $this->tokenUsage['total_tokens'] . $this->colors['reset']);
+        $this->line("\n".$this->colors['blue_bg'].$this->colors['white'].$this->colors['bold'].' Total Token Usage '.$this->colors['reset']);
+        $this->line($this->colors['yellow'].'Input Tokens: '.$this->colors['reset'].$this->colors['green'].$this->tokenUsage['input_tokens'].$this->colors['reset']);
+        $this->line($this->colors['yellow'].'Output Tokens: '.$this->colors['reset'].$this->colors['green'].$this->tokenUsage['output_tokens'].$this->colors['reset']);
+        $this->line($this->colors['yellow'].'Cache Created: '.$this->colors['reset'].$this->colors['blue'].$this->tokenUsage['cache_creation_input_tokens'].$this->colors['reset']);
+        $this->line($this->colors['yellow'].'Cache Read: '.$this->colors['reset'].$this->colors['blue'].$this->tokenUsage['cache_read_input_tokens'].$this->colors['reset']);
+        $this->line($this->colors['yellow'].'Total Tokens: '.$this->colors['reset'].$this->colors['bold'].$this->colors['purple'].$this->tokenUsage['total_tokens'].$this->colors['reset']);
     }
 
     /**

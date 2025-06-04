@@ -2,27 +2,27 @@
 
 namespace Kargnas\LaravelAiTranslator;
 
-
 use Kargnas\LaravelAiTranslator\Console\TestTranslateCommand;
 use Kargnas\LaravelAiTranslator\Console\TranslateCrowdin;
-use Kargnas\LaravelAiTranslator\Console\TranslateStrings;
-use Kargnas\LaravelAiTranslator\Console\TranslateStringsParallel;
 use Kargnas\LaravelAiTranslator\Console\TranslateCrowdinParallel;
 use Kargnas\LaravelAiTranslator\Console\TranslateFileCommand;
+use Kargnas\LaravelAiTranslator\Console\TranslateJson;
+use Kargnas\LaravelAiTranslator\Console\TranslateStrings;
+use Kargnas\LaravelAiTranslator\Console\TranslateStringsParallel;
 
 class ServiceProvider extends \Illuminate\Support\ServiceProvider
 {
     public function boot(): void
     {
         $this->publishes([
-            __DIR__ . '/../config/ai-translator.php' => config_path('ai-translator.php'),
+            __DIR__.'/../config/ai-translator.php' => config_path('ai-translator.php'),
         ]);
     }
 
     public function register(): void
     {
         $this->mergeConfigFrom(
-            __DIR__ . '/../config/ai-translator.php',
+            __DIR__.'/../config/ai-translator.php',
             'ai-translator',
         );
 
@@ -33,6 +33,7 @@ class ServiceProvider extends \Illuminate\Support\ServiceProvider
             TranslateCrowdin::class,
             TestTranslateCommand::class,
             TranslateFileCommand::class,
+            TranslateJson::class,
         ]);
     }
 }

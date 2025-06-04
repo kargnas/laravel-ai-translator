@@ -452,23 +452,83 @@ Make sure to set your chosen AI provider's API key in your `.env` file.
 
 ## Supported File Types
 
-Currently, this package only supports PHP language files used by Laravel. JSON language files are not supported, and there are no plans to add support for them in the future.
+This package supports both PHP and JSON language files used by Laravel:
 
-### Why PHP files only?
+### PHP Language Files
+```bash
+php artisan ai-translator:translate
+php artisan ai-translator:translate-parallel
+```
 
-We recommend using PHP files for managing translations, especially when dealing with multiple languages. Here's why:
+These commands translate PHP language files located in subdirectories like `lang/en/`, `lang/ko/`, etc.
 
-1. **Structure**: PHP files allow for a more organized structure with nested arrays, making it easier to group related translations.
+### JSON Language Files
+```bash
+php artisan ai-translator:translate-json
+```
 
-2. **Comments**: You can add comments in PHP files to provide context or instructions for translators.
+This command translates root-level JSON language files like `lang/en.json`, `lang/ko.json`, etc.
 
-3. **Performance**: PHP files are slightly faster to load compared to JSON files, as they don't require parsing.
+All translation commands support the same powerful features:
+- **Interactive language selection**: Choose source and target languages interactively
+- **Reference language support**: Use high-quality translations as reference for better results
+- **Chunking**: Process multiple strings in batches for cost-effective API usage
+- **Progress tracking**: Real-time progress indicators with colorful console output
+- **Token usage monitoring**: Track and display API token consumption and costs
+- **Context awareness**: Maintain translation consistency across files
 
-4. **Flexibility**: PHP files allow for more complex operations, such as using variables or conditions in your translations.
+### Command Options
 
-5. **Scalability**: When managing a large number of translations across multiple languages, the directory structure of PHP files makes it easier to navigate and maintain.
+All translation commands support these options:
 
-If you're currently using JSON files for your translations, we recommend migrating to PHP files for better compatibility with this package and improved manageability of your translations.
+- `--source=LOCALE`: Source language (e.g., `--source=en`)
+- `--locale=LOCALE1,LOCALE2`: Target locales (e.g., `--locale=ko,ja`)
+- `--reference=LOCALE1,LOCALE2`: Reference languages for guidance (e.g., `--reference=fr,es`)
+- `--chunk=SIZE`: Chunk size for batch processing (default: 100)
+- `--max-context=COUNT`: Maximum context items (default: 1000)
+- `--force-big-files`: Force translation of files with 500+ strings
+- `--show-prompt`: Display AI prompts during translation
+- `--non-interactive`: Run without interactive prompts
+
+### File Structure Examples
+
+**PHP Files:**
+```
+lang/
+├── en/
+│   ├── auth.php
+│   ├── validation.php
+│   └── messages.php
+├── ko/
+│   ├── auth.php
+│   ├── validation.php
+│   └── messages.php
+```
+
+**JSON Files:**
+```
+lang/
+├── en.json
+├── ko.json
+├── ja.json
+└── fr.json
+```
+
+### Why Support Both Formats?
+
+**PHP Files Benefits:**
+- Nested array structure for better organization
+- Support for comments and context
+- Slightly better performance
+- More flexibility for complex translations
+
+**JSON Files Benefits:**
+- Simpler flat structure
+- Easier to edit manually
+- Better for frontend JavaScript integration
+- Widely supported format
+
+Choose the format that best fits your project's needs - this package handles both seamlessly!
 
 ## TODO List
 

@@ -12,6 +12,7 @@ class TranslateStringsParallel extends TranslateStrings
         {--r|reference= : Reference languages for translation guidance (e.g. --reference=fr,es)}
         {--c|chunk= : Chunk size for translation (e.g. --chunk=100)}
         {--m|max-context= : Maximum number of context items to include (e.g. --max-context=1000)}
+        {--max-processes= : Maximum number of processes to run in parallel (e.g. --max-processes=10)}
         {--force-big-files : Force translation of files with more than 500 strings}
         {--show-prompt : Show the whole AI prompts during translation}
         {--non-interactive : Run in non-interactive mode, using default or provided values}';
@@ -51,7 +52,7 @@ class TranslateStringsParallel extends TranslateStrings
             $queue[] = $locale;
         }
 
-        $maxProcesses = (int) ($this->option('max-processes') ?? 100); // This doesn't work
+        $maxProcesses = (int) ($this->option('max-processes') ?: 5);
         $running = [];
 
         while (! empty($queue) || ! empty($running)) {

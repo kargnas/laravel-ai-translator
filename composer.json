@@ -1,6 +1,6 @@
 {
     "name": "kargnas/laravel-ai-translator",
-    "version": "1.7.13",
+    "version": "1.7.14",
     "description": "AI-powered translation tool for Laravel language files",
     "keywords": [
         "kargnas",
@@ -29,7 +29,7 @@
         "guzzlehttp/promises": "^2.0",
         "illuminate/support": "^8.0|^9.0|^10.0|^11.0|^12.0",
         "openai-php/client": "^0.10.3",
-        "symfony/process": "^6.0"
+        "symfony/process": "^6.0|^7.0"
     },
     "require-dev": {
         "laravel/pint": "^1.0",

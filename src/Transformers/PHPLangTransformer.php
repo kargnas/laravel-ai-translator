@@ -82,11 +82,13 @@ class PHPLangTransformer implements TransformerInterface
      */
     public function unflatten(array $array, string $key, string $value): array
     {
-        if ($this->useDotNotation) {
+        // Check if the array is already using dot notation
+        if ($this->isFlattened($array) || $this->useDotNotation) {
             $array[$key] = $value;
             return $array;
         }
 
+        // Handle nested array structure
         $parts = explode('.', $key);
         $current = &$array;
 

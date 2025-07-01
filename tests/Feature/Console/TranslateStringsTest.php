@@ -70,7 +70,8 @@ test('can get existing locales', function () {
     $method = $reflection->getMethod('getAvailableLocales');
     $method->setAccessible(true);
     $locales = $method->invoke($command);
-    expect($locales)->toContain('en');
+    expect($locales)->not->toContain('en'); // source locale should be excluded
+    expect($locales)->toBeArray();
 });
 
 test('can get string file paths', function () {

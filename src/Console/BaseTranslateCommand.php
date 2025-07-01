@@ -133,7 +133,7 @@ abstract class BaseTranslateCommand extends Command
 
         $choices = [];
         foreach ($availableLocales as $locale) {
-            $name = LanguageConfig::getLocaleName($locale);
+            $name = LanguageConfig::getLanguageName($locale);
             $choices[] = sprintf('%s%s%s (%s)', $this->colors['cyan'], $locale, $this->colors['reset'], $name);
         }
 
@@ -153,6 +153,14 @@ abstract class BaseTranslateCommand extends Command
 
     protected function getAvailableLocales(): array
     {
+        // Initialize source directory and locale if not already set
+        if (!isset($this->sourceDirectory)) {
+            $this->sourceDirectory = rtrim(config('ai-translator.source_directory', 'lang'), '/');
+        }
+        if (!isset($this->sourceLocale)) {
+            $this->sourceLocale = config('ai-translator.source_locale', 'en');
+        }
+        
         $locales = [];
         $directories = glob("{$this->sourceDirectory}/*", GLOB_ONLYDIR);
 
@@ -204,7 +212,7 @@ abstract class BaseTranslateCommand extends Command
 
         $choices = ['none' => 'No reference languages'];
         foreach ($availableLocales as $locale) {
-            $name = LanguageConfig::getLocaleName($locale);
+            $name = LanguageConfig::getLanguageName($locale);
             $choices[$locale] = sprintf('%s%s%s (%s)', $this->colors['cyan'], $locale, $this->colors['reset'], $name);
         }
 
@@ -444,7 +452,7 @@ abstract class BaseTranslateCommand extends Command
 
     protected function displayLocaleHeader(string $locale): void
     {
-        $localeName = LanguageConfig::getLocaleName($locale);
+        $localeName = LanguageConfig::getLanguageName($locale);
         $this->line($this->colors['bg_blue'] . $this->colors['white'] . 
                    " Translating to: {$locale} ({$localeName}) " . 
                    $this->colors['reset']);
@@ -532,7 +540,7 @@ abstract class BaseTranslateCommand extends Command
         $this->line($this->colors['bg_green'] . $this->colors['white'] . ' Translation Summary ' . $this->colors['reset']);
         $this->newLine();
         
-        (new TokenUsagePrinter($this->colors))->print($this->tokenUsage);
+        (new TokenUsagePrinter())->print($this->tokenUsage);
         
         $this->newLine();
         $this->displaySuccess('✓ All translations completed successfully!');

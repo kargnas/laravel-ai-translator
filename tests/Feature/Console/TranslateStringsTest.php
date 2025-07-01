@@ -67,11 +67,8 @@ test('can get existing locales', function () {
     $property->setAccessible(true);
     $property->setValue($command, $this->testLangPath);
 
-    $method = $reflection->getMethod('getAvailableLocales');
-    $method->setAccessible(true);
-    $locales = $method->invoke($command);
-    expect($locales)->not->toContain('en'); // source locale should be excluded
-    expect($locales)->toBeArray();
+    $locales = $command->getExistingLocales();
+    expect($locales)->toContain('en');
 });
 
 test('can get string file paths', function () {
@@ -84,16 +81,14 @@ test('can get string file paths', function () {
     $property->setAccessible(true);
     $property->setValue($command, $this->testLangPath);
 
-    $method = $reflection->getMethod('getLanguageFiles');
-    $method->setAccessible(true);
-    $files = $method->invoke($command, 'en');
+    $files = $command->getStringFilePaths('en');
     expect($files)
         ->toBeArray()
         ->toHaveCount(2);
 
-    // Check if both test.php and empty.php exist in the files array (relative paths)
-    expect($files)->toContain('test.php');
-    expect($files)->toContain('empty.php');
+    // Check if both test.php and empty.php exist in the files array
+    expect($files)->toContain($this->testLangPath.'/en/test.php');
+    expect($files)->toContain($this->testLangPath.'/en/empty.php');
 });
 
 test('handles show prompt option', function () {
@@ -101,7 +96,7 @@ test('handles show prompt option', function () {
         $this->markTestSkipped('API keys not found in environment. Skipping test.');
     }
 
-    artisan('ai-translator:translate-strings', [
+    artisan('ai-translator:translate', [
         '--source' => 'en',
         '--locale' => ['ko'],
         '--non-interactive' => true,
@@ -117,7 +112,7 @@ test('captures console output', function () {
     // Capture console output using BufferedOutput
     $output = new BufferedOutput;
 
-    Artisan::call('ai-translator:translate-strings', [
+    Artisan::call('ai-translator:translate', [
         '--source' => 'en',
         '--locale' => ['ko'],
         '--non-interactive' => true,
@@ -146,7 +141,7 @@ test('verifies Chinese translations format with dot notation', function () {
     Config::set('ai-translator.dot_notation', true);
 
     // Execute Chinese Simplified translation
-    Artisan::call('ai-translator:translate-strings', [
+    Artisan::call('ai-translator:translate', [
         '--source' => 'en',
         '--locale' => ['zh_CN'],
         '--non-interactive' => true,
@@ -188,7 +183,7 @@ test('verifies Chinese translations format with nested arrays', function () {
     Config::set('ai-translator.dot_notation', false);
 
     // Execute Chinese Simplified translation
-    Artisan::call('ai-translator:translate-strings', [
+    Artisan::call('ai-translator:translate', [
         '--source' => 'en',
         '--locale' => ['zh_CN'],
         '--non-interactive' => true,
@@ -238,7 +233,7 @@ test('compares Chinese variants translations', function () {
 
     // Translate zh_CN with dot notation
     Config::set('ai-translator.dot_notation', true);
-    Artisan::call('ai-translator:translate-strings', [
+    Artisan::call('ai-translator:translate', [
         '--source' => 'en',
         '--locale' => ['zh_CN'],
         '--non-interactive' => true,
@@ -246,7 +241,7 @@ test('compares Chinese variants translations', function () {
 
     // Translate zh_TW with nested arrays
     Config::set('ai-translator.dot_notation', false);
-    Artisan::call('ai-translator:translate-strings', [
+    Artisan::call('ai-translator:translate', [
         '--source' => 'en',
         '--locale' => ['zh_TW'],
         '--non-interactive' => true,

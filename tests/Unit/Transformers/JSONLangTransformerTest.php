@@ -9,13 +9,11 @@ use Kargnas\LaravelAiTranslator\Transformers\JSONLangTransformer;
 class JSONLangTransformerTest extends TestCase
 {
     private string $testFilePath;
-    private JSONLangTransformer $transformer;
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->testFilePath = sys_get_temp_dir().'/test_lang.json';
-        $this->transformer = new JSONLangTransformer();
         Config::set('ai-translator', [
             'dot_notation' => false,
         ]);
@@ -31,8 +29,8 @@ class JSONLangTransformerTest extends TestCase
 
     public function test_it_loads_empty_array_when_file_does_not_exist(): void
     {
-        $content = $this->transformer->parse($this->testFilePath);
-        $this->assertEmpty($content);
+        $transformer = new JSONLangTransformer($this->testFilePath);
+        $this->assertEmpty($transformer->flatten());
     }
 
     public function test_it_flattens_nested_array(): void
@@ -46,8 +44,10 @@ class JSONLangTransformerTest extends TestCase
             ],
             'message' => 'Hello World',
         ];
+        file_put_contents($this->testFilePath, json_encode($content));
 
-        $flattened = $this->transformer->flatten($content);
+        $transformer = new JSONLangTransformer($this->testFilePath);
+        $flattened = $transformer->flatten();
 
         $expected = [
             'title.blog' => 'My Blog',
@@ -60,12 +60,13 @@ class JSONLangTransformerTest extends TestCase
 
     public function test_it_updates_string_with_array_notation(): void
     {
+        Config::set('ai-translator.dot_notation', false);
+
         $content = ['message' => 'Hello'];
         file_put_contents($this->testFilePath, json_encode($content));
 
-        $data = $this->transformer->parse($this->testFilePath);
-        $updated = $this->transformer->unflatten($data, 'message', '안녕하세요');
-        $this->transformer->save($this->testFilePath, $updated);
+        $transformer = new JSONLangTransformer($this->testFilePath);
+        $transformer->updateString('message', '안녕하세요');
 
         $updatedContent = json_decode(file_get_contents($this->testFilePath), true);
 
@@ -88,8 +89,10 @@ class JSONLangTransformerTest extends TestCase
                 'key' => 'value',
             ],
         ];
+        file_put_contents($this->testFilePath, json_encode($content));
 
-        $flattened = $this->transformer->flatten($content);
+        $transformer = new JSONLangTransformer($this->testFilePath);
+        $flattened = $transformer->flatten();
 
         $expected = [
             'message' => 'Hello',
@@ -102,13 +105,50 @@ class JSONLangTransformerTest extends TestCase
 
     public function test_comment_is_always_considered_translated(): void
     {
-        $content = [
-            '_comment' => 'This is a comment',
-            'title' => 'My Title',
-        ];
+        $transformer = new JSONLangTransformer($this->testFilePath);
 
-        $this->assertTrue($this->transformer->isTranslated($content, '_comment'));
-        $this->assertTrue($this->transformer->isTranslated($content, 'title'));
-        $this->assertFalse($this->transformer->isTranslated($content, 'non_existent'));
+        $this->assertTrue($transformer->isTranslated('_comment'));
+    }
+
+    public function test_it_updates_nested_string_with_dot_notation(): void
+    {
+        Config::set('ai-translator.dot_notation', false);
+
+        $content = [
+            'user' => [
+                'profile' => [
+                    'name' => 'Name',
+                    'email' => 'Email'
+                ]
+            ]
+        ];
+        file_put_contents($this->testFilePath, json_encode($content));
+
+        $transformer = new JSONLangTransformer($this->testFilePath);
+        $transformer->updateString('user.profile.name', 'Nome');
+
+        $updatedContent = json_decode(file_get_contents($this->testFilePath), true);
+        
+        // Should maintain nested structure
+        $this->assertEquals('Nome', $updatedContent['user']['profile']['name']);
+        $this->assertEquals('Email', $updatedContent['user']['profile']['email']);
+    }
+
+    public function test_it_creates_nested_structure_for_new_keys(): void
+    {
+        Config::set('ai-translator.dot_notation', false);
+
+        $content = [];
+        file_put_contents($this->testFilePath, json_encode($content));
+
+        $transformer = new JSONLangTransformer($this->testFilePath);
+        $transformer->updateString('new.nested.key', 'New Value');
+
+        $updatedContent = json_decode(file_get_contents($this->testFilePath), true);
+        
+        // Should create nested structure
+        $this->assertArrayHasKey('new', $updatedContent);
+        $this->assertArrayHasKey('nested', $updatedContent['new']);
+        $this->assertEquals('New Value', $updatedContent['new']['nested']['key']);
     }
 }

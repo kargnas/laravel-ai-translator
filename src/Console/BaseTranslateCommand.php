@@ -540,7 +540,11 @@ abstract class BaseTranslateCommand extends Command
         $this->line($this->colors['bg_green'] . $this->colors['white'] . ' Translation Summary ' . $this->colors['reset']);
         $this->newLine();
         
-        (new TokenUsagePrinter())->print($this->tokenUsage);
+        $printer = new TokenUsagePrinter();
+        if (isset($this->tokenUsage['input_tokens'])) {
+            $printer->printTokenUsageSummary($this, $this->tokenUsage);
+            $printer->printCostEstimation($this, $this->tokenUsage);
+        }
         
         $this->newLine();
         $this->displaySuccess('✓ All translations completed successfully!');

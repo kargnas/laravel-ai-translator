@@ -4,116 +4,53 @@ namespace Kargnas\LaravelAiTranslator\Transformers;
 
 use Illuminate\Support\Facades\Config;
 
-class JSONLangTransformer implements TransformerInterface
+class JSONLangTransformer
 {
+    private array $content = [];
+
     private bool $useDotNotation;
-    private string $sourceLanguage;
 
-    public function __construct()
-    {
+    public function __construct(
+        public string $filePath,
+        private string $sourceLanguage = 'en',
+    ) {
         $this->useDotNotation = Config::get('ai-translator.dot_notation', false);
-        $this->sourceLanguage = Config::get('ai-translator.source_locale', 'en');
+        $this->loadContent();
     }
 
-    /**
-     * Parse a JSON language file and return its contents as an array
-     */
-    public function parse(string $file): array
+    private function loadContent(): void
     {
-        if (file_exists($file)) {
-            $json = file_get_contents($file);
+        if (file_exists($this->filePath)) {
+            $json = file_get_contents($this->filePath);
             $content = json_decode($json, true);
-            return is_array($content) ? $content : [];
+            $this->content = is_array($content) ? $content : [];
+        } else {
+            $this->content = [];
         }
-        return [];
     }
 
-    /**
-     * Save the language data to a JSON file
-     */
-    public function save(string $file, array $data): void
-    {
-        $content = $this->useDotNotation ? $data : $this->unflattenArray($this->flattenArray($data));
-
-        // Add comment at the beginning to indicate this is an auto-generated file
-        $currentDate = date('Y-m-d H:i:s T');
-        $finalContent = [
-            '_comment' => "WARNING: This is an auto-generated file. Do not modify this file manually as your changes will be lost. This file was automatically translated from {$this->sourceLanguage} on {$currentDate}.",
-        ];
-
-        // Remove _comment from content if it exists before merging
-        unset($content['_comment']);
-        
-        // Merge with existing content
-        $finalContent = array_merge($finalContent, $content);
-
-        // Ensure directory exists
-        $dir = dirname($file);
-        if (!is_dir($dir)) {
-            mkdir($dir, 0755, true);
-        }
-
-        file_put_contents($file, json_encode($finalContent, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-    }
-
-    /**
-     * Flatten a nested array into dot notation
-     */
-    public function flatten(array $array, string $prefix = ''): array
-    {
-        // Exclude _comment field from flattening as it's metadata
-        $contentWithoutComment = array_filter($array, function ($key) {
-            return $key !== '_comment';
-        }, ARRAY_FILTER_USE_KEY);
-
-        return $this->flattenArray($contentWithoutComment, $prefix);
-    }
-
-    /**
-     * Unflatten a dot notation key-value pair back into a nested array
-     */
-    public function unflatten(array $array, string $key, string $value): array
-    {
-        if ($this->useDotNotation) {
-            $flattened = $this->flattenArray($array);
-            $flattened[$key] = $value;
-            return $flattened;
-        }
-
-        $parts = explode('.', $key);
-        $current = &$array;
-
-        foreach ($parts as $i => $part) {
-            if ($i === count($parts) - 1) {
-                $current[$part] = $value;
-            } else {
-                if (!isset($current[$part]) || !is_array($current[$part])) {
-                    $current[$part] = [];
-                }
-                $current = &$current[$part];
-            }
-        }
-
-        return $array;
-    }
-
-    /**
-     * Check if a key is already translated
-     */
-    public function isTranslated(array $content, string $key): bool
+    public function isTranslated(string $key): bool
     {
         // Don't consider _comment as a translatable key
         if ($key === '_comment') {
             return true;
         }
 
-        $flattened = $this->flatten($content);
-        return array_key_exists($key, $flattened) && !empty(trim($flattened[$key]));
+        $flattened = $this->flatten();
+
+        return array_key_exists($key, $flattened);
     }
 
-    /**
-     * Flatten array implementation
-     */
+    public function flatten(): array
+    {
+        // Exclude _comment field from flattening as it's metadata
+        $contentWithoutComment = array_filter($this->content, function ($key) {
+            return $key !== '_comment';
+        }, ARRAY_FILTER_USE_KEY);
+
+        return $this->flattenArray($contentWithoutComment);
+    }
+
     private function flattenArray(array $array, string $prefix = ''): array
     {
         $result = [];
@@ -129,9 +66,6 @@ class JSONLangTransformer implements TransformerInterface
         return $result;
     }
 
-    /**
-     * Unflatten array implementation
-     */
     private function unflattenArray(array $array): array
     {
         $result = [];
@@ -142,7 +76,7 @@ class JSONLangTransformer implements TransformerInterface
                 if ($i === count($parts) - 1) {
                     $current[$part] = $value;
                 } else {
-                    if (!isset($current[$part]) || !is_array($current[$part])) {
+                    if (! isset($current[$part]) || ! is_array($current[$part])) {
                         $current[$part] = [];
                     }
                     $current = &$current[$part];
@@ -151,5 +85,46 @@ class JSONLangTransformer implements TransformerInterface
         }
 
         return $result;
+    }
+
+    public function updateString(string $key, string $translated): void
+    {
+        if ($this->useDotNotation) {
+            $flattened = $this->flattenArray($this->content);
+            $flattened[$key] = $translated;
+            $this->content = $flattened;
+        } else {
+            $parts = explode('.', $key);
+            $current = &$this->content;
+
+            foreach ($parts as $i => $part) {
+                if ($i === count($parts) - 1) {
+                    $current[$part] = $translated;
+                } else {
+                    if (! isset($current[$part]) || ! is_array($current[$part])) {
+                        $current[$part] = [];
+                    }
+                    $current = &$current[$part];
+                }
+            }
+        }
+
+        $this->saveToFile();
+    }
+
+    private function saveToFile(): void
+    {
+        $content = $this->useDotNotation ? $this->content : $this->unflattenArray($this->flattenArray($this->content));
+
+        // Add comment at the beginning to indicate this is an auto-generated file
+        $currentDate = date('Y-m-d H:i:s T');
+        $finalContent = [
+            '_comment' => "WARNING: This is an auto-generated file. Do not modify this file manually as your changes will be lost. This file was automatically translated from {$this->sourceLanguage} on {$currentDate}.",
+        ];
+
+        // Merge with existing content
+        $finalContent = array_merge($finalContent, $content);
+
+        file_put_contents($this->filePath, json_encode($finalContent, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     }
 }

@@ -9,13 +9,11 @@ use Kargnas\LaravelAiTranslator\Transformers\PHPLangTransformer;
 class PHPLangTransformerTest extends TestCase
 {
     private string $testFilePath;
-    private PHPLangTransformer $transformer;
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->testFilePath = sys_get_temp_dir().'/test_lang.php';
-        $this->transformer = new PHPLangTransformer();
         Config::set('ai-translator', [
             'dot_notation' => false,
         ]);
@@ -31,8 +29,8 @@ class PHPLangTransformerTest extends TestCase
 
     public function test_it_loads_empty_array_when_file_does_not_exist(): void
     {
-        $content = $this->transformer->parse($this->testFilePath);
-        $this->assertEmpty($content);
+        $transformer = new PHPLangTransformer($this->testFilePath);
+        $this->assertEmpty($transformer->flatten());
     }
 
     public function test_it_flattens_nested_array(): void
@@ -48,7 +46,10 @@ class PHPLangTransformerTest extends TestCase
             'message' => 'Hello World',
         ];
 
-        $flattened = $this->transformer->flatten($content);
+        file_put_contents($this->testFilePath, '<?php return '.var_export($content, true).';');
+
+        $transformer = new PHPLangTransformer($this->testFilePath);
+        $flattened = $transformer->flatten();
 
         $expected = [
             'title.blog' => 'My Blog',
@@ -62,126 +63,152 @@ class PHPLangTransformerTest extends TestCase
 
     public function test_it_updates_string_with_dot_notation(): void
     {
+        Config::set('ai-translator.dot_notation', true);
+
+        $content = ['message' => 'Hello'];
+        file_put_contents($this->testFilePath, '<?php return '.var_export($content, true).';');
+
+        $transformer = new PHPLangTransformer($this->testFilePath);
+        $transformer->updateString('message', '안녕하세요');
+
+        $updatedContent = require $this->testFilePath;
+        $this->assertEquals(['message' => '안녕하세요'], $updatedContent);
+    }
+
+    public function test_it_updates_nested_string_with_dot_notation(): void
+    {
+        Config::set('ai-translator.dot_notation', true);
+
+        $content = [
+            'navigation' => [
+                'menu' => [
+                    'home' => 'Home',
+                    'about' => 'About Us',
+                ],
+            ],
+            'footer' => [
+                'copyright' => 'All rights reserved',
+            ],
+        ];
+        file_put_contents($this->testFilePath, '<?php return '.var_export($content, true).';');
+
+        $transformer = new PHPLangTransformer($this->testFilePath);
+
+        // Update existing nested key
+        $transformer->updateString('navigation.menu.home', '홈');
+
+        // Create new nested key
+        $transformer->updateString('navigation.menu.contact', '연락처');
+
+        // Update another existing nested key in different branch
+        $transformer->updateString('footer.copyright', '모든 권리 보유');
+
+        $updatedContent = require $this->testFilePath;
+        $expected = [
+            'navigation.menu.home' => '홈',
+            'navigation.menu.about' => 'About Us',
+            'footer.copyright' => '모든 권리 보유',
+            'navigation.menu.contact' => '연락처',
+        ];
+        $this->assertEquals($expected, $updatedContent);
+    }
+
+    public function test_it_updates_string_with_array_notation(): void
+    {
+        Config::set('ai-translator.dot_notation', false);
+
         $content = [
             'title' => [
                 'blog' => 'My Blog',
             ],
         ];
-
         file_put_contents($this->testFilePath, '<?php return '.var_export($content, true).';');
 
-        $data = $this->transformer->parse($this->testFilePath);
-        $updated = $this->transformer->unflatten($data, 'title.blog', 'Updated Blog');
-        $this->transformer->save($this->testFilePath, $updated);
+        $transformer = new PHPLangTransformer($this->testFilePath);
+        $transformer->updateString('title.blog', '내 블로그');
 
-        $result = $this->transformer->parse($this->testFilePath);
-        $this->assertEquals('Updated Blog', $result['title']['blog']);
-    }
-
-    public function test_it_updates_nested_string_with_dot_notation(): void
-    {
-        $content = [
-            'title' => [
-                'about' => [
-                    'company' => 'About Company',
-                ],
-            ],
-        ];
-
-        file_put_contents($this->testFilePath, '<?php return '.var_export($content, true).';');
-
-        $data = $this->transformer->parse($this->testFilePath);
-        $updated = $this->transformer->unflatten($data, 'title.about.company', 'Updated Company');
-        $this->transformer->save($this->testFilePath, $updated);
-
-        $result = $this->transformer->parse($this->testFilePath);
-        $this->assertEquals('Updated Company', $result['title']['about']['company']);
-    }
-
-    public function test_it_updates_string_with_array_notation(): void
-    {
-        Config::set('ai-translator.dot_notation', true);
-        $transformer = new PHPLangTransformer();
-
-        $content = [
-            'title.blog' => 'My Blog',
-        ];
-
-        file_put_contents($this->testFilePath, '<?php return '.var_export($content, true).';');
-
-        $data = $transformer->parse($this->testFilePath);
-        $updated = $transformer->unflatten($data, 'title.blog', 'Updated Blog');
-        $transformer->save($this->testFilePath, $updated);
-
-        $result = $transformer->parse($this->testFilePath);
-        $this->assertEquals('Updated Blog', $result['title.blog']);
+        $updatedContent = require $this->testFilePath;
+        $this->assertEquals(['title' => ['blog' => '내 블로그']], $updatedContent);
     }
 
     public function test_it_creates_nested_structure_if_not_exists(): void
     {
-        $data = [];
-        $updated = $this->transformer->unflatten($data, 'new.nested.key', 'New Value');
-        
-        $this->assertEquals('New Value', $updated['new']['nested']['key']);
+        Config::set('ai-translator.dot_notation', false);
+
+        $content = ['existing' => 'value'];
+        file_put_contents($this->testFilePath, '<?php return '.var_export($content, true).';');
+
+        $transformer = new PHPLangTransformer($this->testFilePath);
+        $transformer->updateString('new.nested.key', 'New Value');
+
+        $updatedContent = require $this->testFilePath;
+        $expected = [
+            'existing' => 'value',
+            'new' => [
+                'nested' => [
+                    'key' => 'New Value',
+                ],
+            ],
+        ];
+        $this->assertEquals($expected, $updatedContent);
     }
 
     public function test_it_handles_special_characters(): void
     {
-        $content = [
-            'message' => "It's a \"test\" message",
-        ];
+        Config::set('ai-translator.dot_notation', false);
 
+        $content = ['message' => "It's a test"];
         file_put_contents($this->testFilePath, '<?php return '.var_export($content, true).';');
 
-        $data = $this->transformer->parse($this->testFilePath);
-        $updated = $this->transformer->unflatten($data, 'message', "Updated \"test\" message");
-        $this->transformer->save($this->testFilePath, $updated);
+        $transformer = new PHPLangTransformer($this->testFilePath);
+        $transformer->updateString('message', "It's a 'quoted' string");
 
-        $result = $this->transformer->parse($this->testFilePath);
-        $this->assertEquals("Updated \"test\" message", $result['message']);
+        $updatedContent = require $this->testFilePath;
+        $this->assertEquals(['message' => "It's a 'quoted' string"], $updatedContent);
     }
 
     public function test_it_checks_if_key_is_translated(): void
     {
         $content = [
-            'translated' => 'Some value',
-            'empty' => '',
-            'nested' => [
-                'value' => 'Nested value',
+            'title' => [
+                'blog' => 'My Blog',
             ],
+            'empty' => [],
         ];
+        file_put_contents($this->testFilePath, '<?php return '.var_export($content, true).';');
 
-        $this->assertTrue($this->transformer->isTranslated($content, 'translated'));
-        $this->assertFalse($this->transformer->isTranslated($content, 'empty'));
-        $this->assertTrue($this->transformer->isTranslated($content, 'nested.value'));
-        $this->assertFalse($this->transformer->isTranslated($content, 'non.existent'));
+        $transformer = new PHPLangTransformer($this->testFilePath);
+
+        $this->assertTrue($transformer->isTranslated('title.blog'));
+        $this->assertFalse($transformer->isTranslated('title.unknown'));
     }
 
     public function test_it_maintains_file_header_comments(): void
     {
-        $data = ['test' => 'value'];
-        $this->transformer->save($this->testFilePath, $data);
+        Config::set('ai-translator.dot_notation', false);
 
-        $content = file_get_contents($this->testFilePath);
-        $this->assertStringContainsString('WARNING: This is an auto-generated file', $content);
-        $this->assertStringContainsString('Do not modify this file manually', $content);
+        $transformer = new PHPLangTransformer($this->testFilePath, 'en');
+        $transformer->updateString('test', 'Value');
+
+        $fileContent = file_get_contents($this->testFilePath);
+
+        $this->assertStringContainsString('WARNING: This is an auto-generated file', $fileContent);
+        $this->assertStringContainsString('Do not modify this file manually', $fileContent);
+        $this->assertStringContainsString('automatically translated from en', $fileContent);
     }
 
     public function test_it_properly_formats_nested_arrays(): void
     {
-        $data = [
-            'level1' => [
-                'level2' => [
-                    'level3' => 'Deep value',
-                ],
-                'sibling' => 'Sibling value',
-            ],
-            'root' => 'Root value',
-        ];
+        Config::set('ai-translator.dot_notation', false);
 
-        $this->transformer->save($this->testFilePath, $data);
-        $result = $this->transformer->parse($this->testFilePath);
+        $transformer = new PHPLangTransformer($this->testFilePath);
+        $transformer->updateString('level1.level2.level3', 'Deep Value');
 
-        $this->assertEquals($data, $result);
+        $fileContent = file_get_contents($this->testFilePath);
+
+        // Check proper indentation
+        $this->assertStringContainsString("'level1' => [", $fileContent);
+        $this->assertStringContainsString("        'level2' => [", $fileContent);
+        $this->assertStringContainsString("            'level3' => 'Deep Value'", $fileContent);
     }
 }

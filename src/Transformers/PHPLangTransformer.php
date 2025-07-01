@@ -4,120 +4,38 @@ namespace Kargnas\LaravelAiTranslator\Transformers;
 
 use Illuminate\Support\Facades\Config;
 
-class PHPLangTransformer implements TransformerInterface
+class PHPLangTransformer
 {
+    private array $content = [];
+
     private bool $useDotNotation;
-    private string $sourceLanguage;
 
-    public function __construct()
-    {
+    public function __construct(
+        public string $filePath,
+        private string $sourceLanguage = 'en',
+    ) {
         $this->useDotNotation = Config::get('ai-translator.dot_notation', false);
-        $this->sourceLanguage = Config::get('ai-translator.source_locale', 'en');
+        $this->loadContent();
     }
 
-    /**
-     * Parse a PHP language file and return its contents as an array
-     */
-    public function parse(string $file): array
+    private function loadContent(): void
     {
-        return file_exists($file) ? require $file : [];
+        $content = file_exists($this->filePath) ? require $this->filePath : [];
+        $this->content = $content;
     }
 
-    /**
-     * Save the language data to a PHP file
-     */
-    public function save(string $file, array $data): void
+    public function isTranslated(string $key): bool
     {
-        $timestamp = date('Y-m-d H:i:s T');
-        
-        // If not using dot notation and data is already nested, use it as is
-        // If using dot notation, keep it flat
-        $content = $data;
-        if (!$this->useDotNotation && $this->isFlattened($data)) {
-            $content = $this->unflattenArray($data);
-        }
+        $flattened = $this->flattenArray($this->content);
 
-        $lines = [
-            "<?php\n",
-            '/**',
-            ' * WARNING: This is an auto-generated file.',
-            ' * Do not modify this file manually as your changes will be lost.',
-            " * This file was automatically translated from {$this->sourceLanguage} at {$timestamp}.",
-            " */\n",
-            'return '.$this->arrayExport($content, 0).";\n",
-        ];
-
-        // Ensure directory exists
-        $dir = dirname($file);
-        if (!is_dir($dir)) {
-            mkdir($dir, 0755, true);
-        }
-
-        file_put_contents($file, implode("\n", $lines));
+        return array_key_exists($key, $flattened);
     }
 
-    /**
-     * Check if array is flattened (contains dot notation keys)
-     */
-    private function isFlattened(array $array): bool
+    public function flatten(): array
     {
-        foreach (array_keys($array) as $key) {
-            if (strpos($key, '.') !== false) {
-                return true;
-            }
-        }
-        return false;
+        return $this->flattenArray($this->content);
     }
 
-    /**
-     * Flatten a nested array into dot notation
-     */
-    public function flatten(array $array, string $prefix = ''): array
-    {
-        return $this->flattenArray($array, $prefix);
-    }
-
-    /**
-     * Unflatten a dot notation key-value pair back into a nested array
-     */
-    public function unflatten(array $array, string $key, string $value): array
-    {
-        // Check if the array is already using dot notation
-        if ($this->isFlattened($array) || $this->useDotNotation) {
-            $array[$key] = $value;
-            return $array;
-        }
-
-        // Handle nested array structure
-        $parts = explode('.', $key);
-        $current = &$array;
-
-        foreach ($parts as $i => $part) {
-            if ($i === count($parts) - 1) {
-                $current[$part] = $value;
-            } else {
-                if (!isset($current[$part]) || !is_array($current[$part])) {
-                    $current[$part] = [];
-                }
-                $current = &$current[$part];
-            }
-        }
-
-        return $array;
-    }
-
-    /**
-     * Check if a key is already translated
-     */
-    public function isTranslated(array $content, string $key): bool
-    {
-        $flattened = $this->flattenArray($content);
-        return array_key_exists($key, $flattened) && !empty(trim($flattened[$key]));
-    }
-
-    /**
-     * Flatten array implementation
-     */
     private function flattenArray(array $array, string $prefix = ''): array
     {
         $result = [];
@@ -133,9 +51,6 @@ class PHPLangTransformer implements TransformerInterface
         return $result;
     }
 
-    /**
-     * Unflatten array implementation
-     */
     private function unflattenArray(array $array): array
     {
         $result = [];
@@ -146,7 +61,7 @@ class PHPLangTransformer implements TransformerInterface
                 if ($i === count($parts) - 1) {
                     $current[$part] = $value;
                 } else {
-                    if (!isset($current[$part]) || !is_array($current[$part])) {
+                    if (! isset($current[$part]) || ! is_array($current[$part])) {
                         $current[$part] = [];
                     }
                     $current = &$current[$part];
@@ -157,9 +72,49 @@ class PHPLangTransformer implements TransformerInterface
         return $result;
     }
 
-    /**
-     * Export array as PHP code
-     */
+    public function updateString(string $key, string $translated): void
+    {
+        if ($this->useDotNotation) {
+            $flattened = $this->flattenArray($this->content);
+            $flattened[$key] = $translated;
+            $this->content = $flattened;
+        } else {
+            $parts = explode('.', $key);
+            $current = &$this->content;
+
+            foreach ($parts as $i => $part) {
+                if ($i === count($parts) - 1) {
+                    $current[$part] = $translated;
+                } else {
+                    if (! isset($current[$part]) || ! is_array($current[$part])) {
+                        $current[$part] = [];
+                    }
+                    $current = &$current[$part];
+                }
+            }
+        }
+
+        $this->saveToFile();
+    }
+
+    private function saveToFile(): void
+    {
+        $timestamp = date('Y-m-d H:i:s T');
+        $content = $this->useDotNotation ? $this->content : $this->unflattenArray($this->flattenArray($this->content));
+
+        $lines = [
+            "<?php\n",
+            '/**',
+            ' * WARNING: This is an auto-generated file.',
+            ' * Do not modify this file manually as your changes will be lost.',
+            " * This file was automatically translated from {$this->sourceLanguage} at {$timestamp}.",
+            " */\n",
+            'return '.$this->arrayExport($content, 0).";\n",
+        ];
+
+        file_put_contents($this->filePath, implode("\n", $lines));
+    }
+
     private function arrayExport(array $array, int $level): string
     {
         $indent = str_repeat('    ', $level);

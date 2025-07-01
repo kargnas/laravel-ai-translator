@@ -2,9 +2,7 @@
 
 namespace Kargnas\LaravelAiTranslator\AI;
 
-use Kargnas\LaravelAiTranslator\Transformers\TransformerInterface;
 use Kargnas\LaravelAiTranslator\Transformers\PHPLangTransformer;
-use Kargnas\LaravelAiTranslator\Transformers\JSONLangTransformer;
 
 /**
  * Purpose: Provides global translation context for improving translation consistency across files
@@ -16,114 +14,127 @@ use Kargnas\LaravelAiTranslator\Transformers\JSONLangTransformer;
  */
 class TranslationContextProvider
 {
-    protected string $langDirectory;
-    protected TransformerInterface $transformer;
-
-    public function __construct(string $langDirectory, TransformerInterface $transformer)
-    {
-        $this->langDirectory = rtrim($langDirectory, '/');
-        $this->transformer = $transformer;
-    }
-
     /**
-     * Get global translation context with reference locales
+     * Get global translation context for improving consistency
+     *
+     * @param  string  $sourceLocale  Source language locale code
+     * @param  string  $targetLocale  Target language locale code
+     * @param  string  $currentFilePath  Current file being translated
+     * @param  int  $maxContextItems  Maximum number of context items to include (to prevent context overflow)
+     * @return array Context data organized by file with both source and target strings
      */
     public function getGlobalTranslationContext(
+        string $sourceLocale,
         string $targetLocale,
-        array $referenceLocales = [],
-        int $maxContextItems = 1000
+        string $currentFilePath,
+        int $maxContextItems = 100
     ): array {
-        $sourceLocale = config('ai-translator.source_locale', 'en');
-        
-        $context = [
-            'source_locale' => $sourceLocale,
-            'target_locale' => $targetLocale,
-            'references' => [],
-            'items' => [],
-            'file_count' => 0,
-            'item_count' => 0,
-        ];
+        // Base directory path for language files
+        $langDirectory = config('ai-translator.source_directory');
 
-        // Load reference translations
-        foreach ($referenceLocales as $refLocale) {
-            $refContext = $this->loadLocaleContext($sourceLocale, $refLocale, $maxContextItems);
-            if (!empty($refContext)) {
-                $context['references'][] = [
-                    'locale' => $refLocale,
-                    'file_count' => $refContext['file_count'],
-                    'item_count' => $refContext['item_count'],
-                ];
-                $context['items'] = array_merge($context['items'], $refContext['items']);
-                $context['file_count'] += $refContext['file_count'];
-                $context['item_count'] += $refContext['item_count'];
-            }
+        // Configure source and target language directory paths
+        $sourceLocaleDir = $this->getLanguageDirectory($langDirectory, $sourceLocale);
+        $targetLocaleDir = $this->getLanguageDirectory($langDirectory, $targetLocale);
+
+        // Return empty array if source directory doesn't exist
+        if (! is_dir($sourceLocaleDir)) {
+            return [];
         }
 
-        // Trim to max context items
-        if ($context['item_count'] > $maxContextItems) {
-            $context['items'] = array_slice($context['items'], 0, $maxContextItems, true);
-            $context['item_count'] = count($context['items']);
+        $currentFileName = basename($currentFilePath);
+        $context = [];
+        $totalContextItems = 0;
+        $processedFiles = 0;
+
+        // Get all PHP files from source directory
+        $sourceFiles = glob("{$sourceLocaleDir}/*.php");
+
+        // Return empty array if no files exist
+        if (empty($sourceFiles)) {
+            return [];
         }
 
-        return $context;
-    }
+        // Process similar named files first to improve context relevance
+        usort($sourceFiles, function ($a, $b) use ($currentFileName) {
+            $similarityA = similar_text($currentFileName, basename($a));
+            $similarityB = similar_text($currentFileName, basename($b));
 
-    /**
-     * Load context for a specific locale
-     */
-    protected function loadLocaleContext(string $sourceLocale, string $targetLocale, int $maxItems): array
-    {
-        $context = [
-            'items' => [],
-            'file_count' => 0,
-            'item_count' => 0,
-        ];
+            return $similarityB <=> $similarityA;
+        });
 
-        // Check both PHP and JSON files
-        $phpFiles = $this->getPhpFiles($targetLocale);
-        $jsonFiles = $this->getJsonFiles($targetLocale);
-        
-        $allFiles = array_merge($phpFiles, $jsonFiles);
-        
-        foreach ($allFiles as $fileInfo) {
-            if ($context['item_count'] >= $maxItems) {
+        foreach ($sourceFiles as $sourceFile) {
+            // Stop if maximum context items are reached
+            if ($totalContextItems >= $maxContextItems) {
                 break;
-            }
-
-            $sourceFile = $fileInfo['source'];
-            $targetFile = $fileInfo['target'];
-            
-            if (!file_exists($sourceFile) || !file_exists($targetFile)) {
-                continue;
             }
 
             try {
-                // Determine the transformer based on file type
-                $transformer = str_ends_with($sourceFile, '.json') 
-                    ? new JSONLangTransformer($sourceFile)
-                    : new PHPLangTransformer($sourceFile);
-                
-                $sourceStrings = $transformer->parse($sourceFile);
-                $targetStrings = $transformer->parse($targetFile);
-                
-                $sourceFlatten = $transformer->flatten($sourceStrings);
-                $targetFlatten = $transformer->flatten($targetStrings);
-                
-                // Get prioritized strings
-                $prioritized = $this->getPrioritizedReferenceStrings($sourceFlatten, $targetFlatten, 
-                    min(50, $maxItems - $context['item_count']));
-                
-                if (!empty($prioritized)) {
-                    $fileName = basename($sourceFile, '.php');
-                    $fileName = basename($fileName, '.json');
-                    
-                    foreach ($prioritized as $key => $item) {
-                        $context['items']["{$fileName}.{$key}"] = $item;
-                        $context['item_count']++;
+                // Confirm target file path
+                $targetFile = $targetLocaleDir.'/'.basename($sourceFile);
+                $hasTargetFile = file_exists($targetFile);
+
+                // Get original strings from source file
+                $sourceTransformer = new PHPLangTransformer($sourceFile);
+                $sourceStrings = $sourceTransformer->flatten();
+
+                // Skip empty files
+                if (empty($sourceStrings)) {
+                    continue;
+                }
+
+                // Get target strings if target file exists
+                $targetStrings = [];
+                if ($hasTargetFile) {
+                    $targetTransformer = new PHPLangTransformer($targetFile);
+                    $targetStrings = $targetTransformer->flatten();
+                }
+
+                // Limit maximum items per file
+                $maxPerFile = min(20, intval($maxContextItems / count($sourceFiles) / 2) + 1);
+
+                // Prioritize high-priority items from longer files
+                if (count($sourceStrings) > $maxPerFile) {
+                    if ($hasTargetFile && ! empty($targetStrings)) {
+                        // If target exists, apply both source and target prioritization
+                        $prioritizedItems = $this->getPrioritizedStrings($sourceStrings, $targetStrings, $maxPerFile);
+                        $sourceStrings = $prioritizedItems['source'];
+                        $targetStrings = $prioritizedItems['target'];
+                    } else {
+                        // If target doesn't exist, apply source prioritization only
+                        $sourceStrings = $this->getPrioritizedSourceOnly($sourceStrings, $maxPerFile);
                     }
-                    $context['file_count']++;
+                }
+
+                // Construct translation context - include both source and target strings
+                $fileContext = [];
+                foreach ($sourceStrings as $key => $sourceValue) {
+                    if ($hasTargetFile && ! empty($targetStrings)) {
+                        // If target file exists, include both source and target
+                        $targetValue = $targetStrings[$key] ?? null;
+                        if ($targetValue !== null) {
+                            $fileContext[$key] = [
+                                'source' => $sourceValue,
+                                'target' => $targetValue,
+                            ];
+                        }
+                    } else {
+                        // If target file doesn't exist, include source only
+                        $fileContext[$key] = [
+                            'source' => $sourceValue,
+                            'target' => null,
+                        ];
+                    }
+                }
+
+                if (! empty($fileContext)) {
+                    // Remove extension from filename and save as root key
+                    $rootKey = pathinfo(basename($sourceFile), PATHINFO_FILENAME);
+                    $context[$rootKey] = $fileContext;
+                    $totalContextItems += count($fileContext);
+                    $processedFiles++;
                 }
             } catch (\Exception $e) {
+                // Skip problematic files
                 continue;
             }
         }
@@ -132,78 +143,91 @@ class TranslationContextProvider
     }
 
     /**
-     * Get PHP files for a locale
+     * Determines the directory path for a specified language.
+     *
+     * @param  string  $langDirectory  Base directory path for language files
+     * @param  string  $locale  Language locale code
+     * @return string Language-specific directory path
      */
-    protected function getPhpFiles(string $locale): array
+    protected function getLanguageDirectory(string $langDirectory, string $locale): string
     {
-        $sourceDir = "{$this->langDirectory}/{$locale}";
-        if (!is_dir($sourceDir)) {
-            return [];
+        // Remove trailing slash if exists
+        $langDirectory = rtrim($langDirectory, '/');
+
+        // 1. If /locale pattern is already included (e.g. /lang/en)
+        if (preg_match('#/[a-z]{2}(_[A-Z]{2})?$#', $langDirectory)) {
+            return preg_replace('#/[a-z]{2}(_[A-Z]{2})?$#', "/{$locale}", $langDirectory);
         }
 
-        $files = glob("{$sourceDir}/*.php");
-        $sourceLocale = config('ai-translator.source_locale', 'en');
-        
-        return array_map(function ($file) use ($sourceLocale, $locale) {
-            $filename = basename($file);
-            return [
-                'source' => "{$this->langDirectory}/{$sourceLocale}/{$filename}",
-                'target' => "{$this->langDirectory}/{$locale}/{$filename}",
-            ];
-        }, $files);
+        // 2. Add language code to base path
+        return "{$langDirectory}/{$locale}";
     }
 
     /**
-     * Get JSON files for a locale
+     * Selects high-priority items from source and target strings.
+     *
+     * @param  array  $sourceStrings  Source string array
+     * @param  array  $targetStrings  Target string array
+     * @param  int  $maxItems  Maximum number of items
+     * @return array High-priority source and target strings
      */
-    protected function getJsonFiles(string $locale): array
+    protected function getPrioritizedStrings(array $sourceStrings, array $targetStrings, int $maxItems): array
     {
-        $sourceLocale = config('ai-translator.source_locale', 'en');
-        $sourceFile = "{$this->langDirectory}/{$sourceLocale}.json";
-        $targetFile = "{$this->langDirectory}/{$locale}.json";
-        
-        if (!file_exists($sourceFile)) {
-            return [];
+        $prioritizedSource = [];
+        $prioritizedTarget = [];
+        $commonKeys = array_intersect(array_keys($sourceStrings), array_keys($targetStrings));
+
+        // 1. Short strings first (UI elements, buttons, etc.)
+        foreach ($commonKeys as $key) {
+            if (strlen($sourceStrings[$key]) < 50 && count($prioritizedSource) < $maxItems * 0.7) {
+                $prioritizedSource[$key] = $sourceStrings[$key];
+                $prioritizedTarget[$key] = $targetStrings[$key];
+            }
         }
 
-        return [[
-            'source' => $sourceFile,
-            'target' => $targetFile,
-        ]];
-    }
+        // 2. Add remaining items
+        foreach ($commonKeys as $key) {
+            if (! isset($prioritizedSource[$key]) && count($prioritizedSource) < $maxItems) {
+                $prioritizedSource[$key] = $sourceStrings[$key];
+                $prioritizedTarget[$key] = $targetStrings[$key];
+            }
 
-    /**
-     * Get prioritized reference strings for context
-     */
-    protected function getPrioritizedReferenceStrings(array $sourceStrings, array $targetStrings, int $maxItems): array
-    {
-        $result = [];
-        $commonKeys = array_intersect_key($sourceStrings, $targetStrings);
-        
-        if (empty($commonKeys)) {
-            return $result;
-        }
-
-        // Sort by string length (shorter strings are often more common UI elements)
-        uasort($commonKeys, function ($a, $b) use ($sourceStrings) {
-            return strlen($sourceStrings[$a]) <=> strlen($sourceStrings[$b]);
-        });
-
-        $count = 0;
-        foreach ($commonKeys as $key => $value) {
-            if ($count >= $maxItems) {
+            if (count($prioritizedSource) >= $maxItems) {
                 break;
             }
-            
-            if (!empty($targetStrings[$key])) {
-                $result[$key] = [
-                    'source' => $sourceStrings[$key],
-                    'target' => $targetStrings[$key],
-                ];
-                $count++;
+        }
+
+        return [
+            'source' => $prioritizedSource,
+            'target' => $prioritizedTarget,
+        ];
+    }
+
+    /**
+     * Selects high-priority items from source strings only.
+     */
+    protected function getPrioritizedSourceOnly(array $sourceStrings, int $maxItems): array
+    {
+        $prioritizedSource = [];
+
+        // 1. Short strings first (UI elements, buttons, etc.)
+        foreach ($sourceStrings as $key => $value) {
+            if (strlen($value) < 50 && count($prioritizedSource) < $maxItems * 0.7) {
+                $prioritizedSource[$key] = $value;
             }
         }
 
-        return $result;
+        // 2. Add remaining items
+        foreach ($sourceStrings as $key => $value) {
+            if (! isset($prioritizedSource[$key]) && count($prioritizedSource) < $maxItems) {
+                $prioritizedSource[$key] = $value;
+            }
+
+            if (count($prioritizedSource) >= $maxItems) {
+                break;
+            }
+        }
+
+        return $prioritizedSource;
     }
 }

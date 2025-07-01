@@ -1,6 +1,6 @@
 {
     "name": "kargnas/laravel-ai-translator",
-    "version": "1.7.16",
+    "version": "1.7.17",
     "description": "AI-powered translation tool for Laravel language files",
     "keywords": [
         "kargnas",

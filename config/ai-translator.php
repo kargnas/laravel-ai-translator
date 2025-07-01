@@ -6,7 +6,7 @@ return [
 
     'ai' => [
         'provider' => 'anthropic',
-        'model' => 'claude-3-5-sonnet-latest', // Best result. Recommend for production.
+        'model' => 'claude-3-7-sonnet-latest', // Best result. Recommend for production.
         'api_key' => env('ANTHROPIC_API_KEY'),
 
         // claude-3-haiku

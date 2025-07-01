@@ -9,11 +9,13 @@ use Kargnas\LaravelAiTranslator\Transformers\JSONLangTransformer;
 class JSONLangTransformerTest extends TestCase
 {
     private string $testFilePath;
+    private JSONLangTransformer $transformer;
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->testFilePath = sys_get_temp_dir().'/test_lang.json';
+        $this->transformer = new JSONLangTransformer();
         Config::set('ai-translator', [
             'dot_notation' => false,
         ]);
@@ -29,8 +31,8 @@ class JSONLangTransformerTest extends TestCase
 
     public function test_it_loads_empty_array_when_file_does_not_exist(): void
     {
-        $transformer = new JSONLangTransformer($this->testFilePath);
-        $this->assertEmpty($transformer->flatten());
+        $content = $this->transformer->parse($this->testFilePath);
+        $this->assertEmpty($content);
     }
 
     public function test_it_flattens_nested_array(): void
@@ -44,10 +46,8 @@ class JSONLangTransformerTest extends TestCase
             ],
             'message' => 'Hello World',
         ];
-        file_put_contents($this->testFilePath, json_encode($content));
 
-        $transformer = new JSONLangTransformer($this->testFilePath);
-        $flattened = $transformer->flatten();
+        $flattened = $this->transformer->flatten($content);
 
         $expected = [
             'title.blog' => 'My Blog',
@@ -60,13 +60,12 @@ class JSONLangTransformerTest extends TestCase
 
     public function test_it_updates_string_with_array_notation(): void
     {
-        Config::set('ai-translator.dot_notation', false);
-
         $content = ['message' => 'Hello'];
         file_put_contents($this->testFilePath, json_encode($content));
 
-        $transformer = new JSONLangTransformer($this->testFilePath);
-        $transformer->updateString('message', '안녕하세요');
+        $data = $this->transformer->parse($this->testFilePath);
+        $updated = $this->transformer->unflatten($data, 'message', '안녕하세요');
+        $this->transformer->save($this->testFilePath, $updated);
 
         $updatedContent = json_decode(file_get_contents($this->testFilePath), true);
 
@@ -89,10 +88,8 @@ class JSONLangTransformerTest extends TestCase
                 'key' => 'value',
             ],
         ];
-        file_put_contents($this->testFilePath, json_encode($content));
 
-        $transformer = new JSONLangTransformer($this->testFilePath);
-        $flattened = $transformer->flatten();
+        $flattened = $this->transformer->flatten($content);
 
         $expected = [
             'message' => 'Hello',
@@ -105,8 +102,13 @@ class JSONLangTransformerTest extends TestCase
 
     public function test_comment_is_always_considered_translated(): void
     {
-        $transformer = new JSONLangTransformer($this->testFilePath);
+        $content = [
+            '_comment' => 'This is a comment',
+            'title' => 'My Title',
+        ];
 
-        $this->assertTrue($transformer->isTranslated('_comment'));
+        $this->assertTrue($this->transformer->isTranslated($content, '_comment'));
+        $this->assertTrue($this->transformer->isTranslated($content, 'title'));
+        $this->assertFalse($this->transformer->isTranslated($content, 'non_existent'));
     }
 }

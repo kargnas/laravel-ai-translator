@@ -33,6 +33,24 @@ class PHPLangTransformerTest extends TestCase
         $this->assertEmpty($transformer->flatten());
     }
 
+    public function test_it_handles_empty_file_without_return_statement(): void
+    {
+        // Create an empty PHP file without return statement
+        file_put_contents($this->testFilePath, '<?php');
+        
+        $transformer = new PHPLangTransformer($this->testFilePath);
+        $this->assertEmpty($transformer->flatten());
+    }
+
+    public function test_it_handles_file_with_code_but_no_return(): void
+    {
+        // Create a PHP file with code but no return statement
+        file_put_contents($this->testFilePath, '<?php $var = "test";');
+        
+        $transformer = new PHPLangTransformer($this->testFilePath);
+        $this->assertEmpty($transformer->flatten());
+    }
+
     public function test_it_flattens_nested_array(): void
     {
         $content = [

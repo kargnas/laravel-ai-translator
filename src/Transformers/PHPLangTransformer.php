@@ -20,8 +20,13 @@ class PHPLangTransformer
 
     private function loadContent(): void
     {
-        $content = file_exists($this->filePath) ? require $this->filePath : [];
-        $this->content = $content;
+        if (file_exists($this->filePath)) {
+            $content = require $this->filePath;
+            // Handle empty files or files without return statement
+            $this->content = is_array($content) ? $content : [];
+        } else {
+            $this->content = [];
+        }
     }
 
     public function isTranslated(string $key): bool

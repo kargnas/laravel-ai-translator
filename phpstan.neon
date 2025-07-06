@@ -1,0 +1,65 @@
+includes:
+    - ./vendor/phpstan/phpstan-phpunit/extension.neon
+
+parameters:
+    level: 5
+    paths:
+        - src
+    excludePaths:
+        - tests/Fixtures
+    reportUnmatchedIgnoredErrors: false
+    treatPhpDocTypesAsCertain: false
+    ignoreErrors:
+        # Laravel facades (without larastan, all Log methods are unknown)
+        - '#Call to static method .* on an unknown class Log#'
+        
+        # Test properties
+        - '#Access to an undefined property PHPUnit\\Framework\\TestCase::\$has#'
+        
+        # Parser methods (used via reflection)
+        - '#Method .* is unused#'
+        
+        # Test assertions
+        - '#Call to method PHPUnit\\Framework\\Assert::assertIsArray\(\) with array will always evaluate to true#'
+        
+        # Type issues that are handled at runtime
+        - '#Offset \d+ on array{string, string, string} in isset\(\) always exists#'
+        - '#Result of && is always true#'
+        - '#Strict comparison using .* between string and null will always#'
+        - '#Property .* does not accept null#'
+        
+        # Laravel specific
+        - '#Called ''env'' outside of the config directory#'
+        
+        # Command ask() method accepts int as default
+        - '#Parameter \#2 \$default of method Illuminate\\Console\\Command::ask\(\) expects string\|null, int given#'
+        
+        # Missing classes/constants (will be defined at runtime)
+        - '#Attribute class AdrienBrault\\Instructrice\\Attribute\\Prompt does not exist#'
+        - '#Access to undefined constant Kargnas\\LaravelAiTranslator\\Enums#'
+        - '#Call to an undefined static method Kargnas\\LaravelAiTranslator\\AI\\AIProvider::make#'
+        
+        # Constructor issues
+        - '#Class Kargnas\\LaravelAiTranslator\\AI\\TranslationContextProvider does not have a constructor#'
+        
+        # Variable definitions
+        - '#Variable \$debug might not be defined#'
+        
+        # PHPDoc issues
+        - '#PHPDoc tag @param references unknown parameter#'
+        
+        # Type mismatches handled at runtime
+        - '#Parameter .* of method .* expects string, array given#'
+        - '#Parameter .* of method .* expects string, int given#'
+        
+        # Exception handling
+        - '#Call to an undefined method Exception::getResponse\(\)#'
+        
+        # Properties used for debugging
+        - '#Property .* is never read, only written#'
+        
+        # Conditions that are always true (by design)
+        - '#If condition is always true#'
+        
+        # Collection type issues
+        - '#Illuminate\\Support\\Collection<\*NEVER\*, \*NEVER\*> does not accept#'

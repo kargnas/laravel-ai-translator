@@ -12,8 +12,6 @@ use Kargnas\LaravelAiTranslator\AI\AIProvider;
 use Kargnas\LaravelAiTranslator\AI\TranslationContextProvider;
 use Kargnas\LaravelAiTranslator\Enums\PromptType;
 
-use function React\Promise\all;
-
 class TranslationService
 {
     protected ProjectService $projectService;

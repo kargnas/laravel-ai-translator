@@ -47,3 +47,6 @@ jobs:
 
       - name: Execute tests
         run: cd $GITHUB_WORKSPACE && vendor/bin/pest tests
+
+      - name: Run PHPStan
+        run: vendor/bin/phpstan analyse --memory-limit=2G

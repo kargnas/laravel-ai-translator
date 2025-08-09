@@ -12,20 +12,44 @@ class TokenUsagePrinter
     /**
      * 지원되는 모델 목록
      */
+    // Legacy models (for backward compatibility)
     public const MODEL_CLAUDE_3_OPUS = 'claude-3-opus-20240229';
 
-    public const MODEL_CLAUDE_3_5_SONNET = 'claude-3-5-sonnet-20240620';
+    public const MODEL_CLAUDE_3_5_SONNET_OLD = 'claude-3-5-sonnet-20240620';
 
     public const MODEL_CLAUDE_3_HAIKU = 'claude-3-haiku-20240307';
 
-    public const MODEL_CLAUDE_3_5_HAIKU = 'claude-3-5-haiku-20240307';
+    // Current models
+    public const MODEL_CLAUDE_3_5_SONNET = 'claude-3-5-sonnet-20241022';
 
-    public const MODEL_CLAUDE_3_7_SONNET = 'claude-3-7-sonnet-20240808';
+    public const MODEL_CLAUDE_3_5_HAIKU = 'claude-3-5-haiku-20241022';
 
+    public const MODEL_CLAUDE_3_7_SONNET = 'claude-3-7-sonnet-20250219';
+
+    public const MODEL_CLAUDE_SONNET_4 = 'claude-sonnet-4-20250514';
+
+    public const MODEL_CLAUDE_OPUS_4 = 'claude-opus-4-20250514';
+
+    public const MODEL_CLAUDE_OPUS_4_1 = 'claude-opus-4-1-20250805';
     /**
      * 모델별 가격 정보 ($ per million tokens)
      */
     protected const MODEL_RATES = [
+        // Opus models
+        self::MODEL_CLAUDE_OPUS_4_1 => [
+            'input' => 15.0,
+            'output' => 75.0,
+            'cache_write' => 18.75, // 25% 할증 (5m cache)
+            'cache_read' => 1.5,    // 10% (90% 할인)
+            'name' => 'Claude Opus 4.1',
+        ],
+        self::MODEL_CLAUDE_OPUS_4 => [
+            'input' => 15.0,
+            'output' => 75.0,
+            'cache_write' => 18.75, // 25% 할증 (5m cache)
+            'cache_read' => 1.5,    // 10% (90% 할인)
+            'name' => 'Claude Opus 4',
+        ],
         self::MODEL_CLAUDE_3_OPUS => [
             'input' => 15.0,
             'output' => 75.0,
@@ -33,33 +57,51 @@ class TokenUsagePrinter
             'cache_read' => 1.5,    // 10% (90% 할인)
             'name' => 'Claude 3 Opus',
         ],
-        self::MODEL_CLAUDE_3_5_SONNET => [
+        
+        // Sonnet models
+        self::MODEL_CLAUDE_SONNET_4 => [
             'input' => 3.0,
             'output' => 15.0,
-            'cache_write' => 3.75,  // 25% 할증
+            'cache_write' => 3.75,  // 25% 할증 (5m cache)
             'cache_read' => 0.3,    // 10% (90% 할인)
-            'name' => 'Claude 3.5 Sonnet',
-        ],
-        self::MODEL_CLAUDE_3_HAIKU => [
-            'input' => 0.25,
-            'output' => 1.25,
-            'cache_write' => 0.30,  // 25% 할증
-            'cache_read' => 0.03,   // 10% (90% 할인)
-            'name' => 'Claude 3 Haiku',
-        ],
-        self::MODEL_CLAUDE_3_5_HAIKU => [
-            'input' => 0.25,
-            'output' => 1.25,
-            'cache_write' => 0.30,  // 25% 할증
-            'cache_read' => 0.03,   // 10% (90% 할인)
-            'name' => 'Claude 3.5 Haiku',
+            'name' => 'Claude Sonnet 4',
         ],
         self::MODEL_CLAUDE_3_7_SONNET => [
             'input' => 3.0,
             'output' => 15.0,
-            'cache_write' => 3.75,  // 25% 할증
+            'cache_write' => 3.75,  // 25% 할증 (5m cache)
             'cache_read' => 0.3,    // 10% (90% 할인)
             'name' => 'Claude 3.7 Sonnet',
+        ],
+        self::MODEL_CLAUDE_3_5_SONNET => [
+            'input' => 3.0,
+            'output' => 15.0,
+            'cache_write' => 3.75,  // 25% 할증 (5m cache)
+            'cache_read' => 0.3,    // 10% (90% 할인)
+            'name' => 'Claude 3.5 Sonnet',
+        ],
+        self::MODEL_CLAUDE_3_5_SONNET_OLD => [
+            'input' => 3.0,
+            'output' => 15.0,
+            'cache_write' => 3.75,  // 25% 할증
+            'cache_read' => 0.3,    // 10% (90% 할인)
+            'name' => 'Claude 3.5 Sonnet (old)',
+        ],
+        
+        // Haiku models
+        self::MODEL_CLAUDE_3_5_HAIKU => [
+            'input' => 0.80,
+            'output' => 4.0,
+            'cache_write' => 1.0,   // 25% 할증 (5m cache)
+            'cache_read' => 0.08,   // 10% (90% 할인)
+            'name' => 'Claude 3.5 Haiku',
+        ],
+        self::MODEL_CLAUDE_3_HAIKU => [
+            'input' => 0.25,
+            'output' => 1.25,
+            'cache_write' => 0.30,  // 20% 할증 (5m cache)
+            'cache_read' => 0.03,   // 12% (88% 할인)
+            'name' => 'Claude 3 Haiku',
         ],
     ];
 

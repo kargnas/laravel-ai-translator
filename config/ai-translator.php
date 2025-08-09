@@ -29,10 +29,17 @@ return [
         // 'model' => 'gemini-2.5-pro-preview-05-06',
         // 'api_key' => env('GEMINI_API_KEY'),
 
-        // Gemini API configuration for prompt generation
+        // Gemini API configuration
         'gemini' => [
             'api_key' => env('GEMINI_API_KEY'),
-            'model' => 'gemini-2.0-flash-exp', // For prompt generation
+            'model' => 'gemini-2.0-flash-exp',
+        ],
+        
+        // Separate configuration for prompt generation
+        'prompt_generation' => [
+            'provider' => env('AI_PROMPT_PROVIDER', 'gemini'), // Can be 'openai', 'anthropic', or 'gemini'
+            'model' => env('AI_PROMPT_MODEL', 'gemini-2.0-flash-exp'),
+            'api_key' => env('AI_PROMPT_API_KEY'), // Falls back to provider-specific key if not set
         ],
 
         // Additional options

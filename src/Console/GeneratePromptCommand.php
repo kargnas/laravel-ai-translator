@@ -5,10 +5,23 @@ namespace Kargnas\LaravelAiTranslator\Console;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
 use Kargnas\LaravelAiTranslator\AI\Clients\GeminiClient;
+use Kargnas\LaravelAiTranslator\AI\Clients\OpenAIClient;
+use Kargnas\LaravelAiTranslator\AI\Clients\AnthropicClient;
 use Kargnas\LaravelAiTranslator\AI\Language\LanguageConfig;
 
 class GeneratePromptCommand extends Command
 {
+    /**
+     * AI provider for prompt generation
+     * @var string
+     */
+    protected $ai_provider;
+    
+    /**
+     * AI model for prompt generation
+     * @var string
+     */
+    protected $ai_model;
     /**
      * Common stop words to exclude from glossary
      */
@@ -37,9 +50,10 @@ class GeneratePromptCommand extends Command
     protected $description = 'Generate initial prompts and glossary by analyzing frontend and language files using Gemini';
 
     /**
-     * @var GeminiClient
+     * AI client for prompt generation
+     * @var mixed
      */
-    protected $gemini_client;
+    protected $ai_client;
 
     /**
      * Execute the console command.
@@ -98,18 +112,49 @@ class GeneratePromptCommand extends Command
     }
 
     /**
-     * Initialize Gemini client
+     * Initialize AI client for prompt generation
      */
     protected function initializeGeminiClient(): void
     {
-        $api_key = config('ai-translator.ai.gemini.api_key');
+        $provider = config('ai-translator.ai.prompt_generation.provider', 'gemini');
+        $model = config('ai-translator.ai.prompt_generation.model');
+        $api_key = config('ai-translator.ai.prompt_generation.api_key');
+        
+        // Fall back to provider-specific API key if not set
+        if (empty($api_key)) {
+            $api_key = match($provider) {
+                'openai' => config('ai-translator.ai.openai.api_key') ?? config('ai-translator.ai.api_key'),
+                'anthropic' => config('ai-translator.ai.anthropic.api_key') ?? config('ai-translator.ai.api_key'),
+                'gemini' => config('ai-translator.ai.gemini.api_key'),
+                default => null,
+            };
+        }
         
         if (empty($api_key)) {
-            throw new \Exception('Gemini API key not configured. Please set GEMINI_API_KEY in your .env file.');
+            throw new \Exception("API key not configured for {$provider}. Please set the appropriate API key in your .env file.");
         }
-
-        $model = config('ai-translator.ai.gemini.model', 'gemini-2.0-flash-exp');
-        $this->gemini_client = new GeminiClient($api_key, $model);
+        
+        // Set default model if not specified
+        if (empty($model)) {
+            $model = match($provider) {
+                'openai' => 'gpt-4o',
+                'anthropic' => 'claude-3-5-sonnet-latest',
+                'gemini' => 'gemini-2.0-flash-exp',
+                default => throw new \Exception("Unknown provider: {$provider}"),
+            };
+        }
+        
+        // Initialize the appropriate client
+        $this->ai_client = match($provider) {
+            'openai' => new \Kargnas\LaravelAiTranslator\AI\Clients\OpenAIClient($api_key),
+            'anthropic' => new \Kargnas\LaravelAiTranslator\AI\Clients\AnthropicClient($api_key),
+            'gemini' => new GeminiClient($api_key, $model),
+            default => throw new \Exception("Unsupported provider: {$provider}"),
+        };
+        
+        // Store provider and model for later use
+        $this->ai_provider = $provider;
+        $this->ai_model = $model;
     }
 
     /**
@@ -299,7 +344,7 @@ class GeneratePromptCommand extends Command
         $user_prompt .= "4. Is concise (max 200 words)\n\n";
         $user_prompt .= "Return only the prompt text, no explanations.";
         
-        $response = $this->gemini_client->complete($system_prompt, $user_prompt);
+        $response = $this->callAIClient($system_prompt, $user_prompt);
         
         return trim($response);
     }
@@ -335,7 +380,7 @@ class GeneratePromptCommand extends Command
             $user_prompt .= "4. Mentions formality level and addressing style\n\n";
             $user_prompt .= "Return only the prompt text, no explanations.";
             
-            $response = $this->gemini_client->complete($system_prompt, $user_prompt);
+            $response = $this->callAIClient($system_prompt, $user_prompt);
             $prompts[$locale] = trim($response);
         }
         
@@ -370,7 +415,7 @@ class GeneratePromptCommand extends Command
         $user_prompt .= "Return the glossary in JSON format with this structure:\n";
         $user_prompt .= '{"term": {"definition": "...", "context": "...", "preferred_translation": "...", "notes": "..."}}';
         
-        $response = $this->gemini_client->complete($system_prompt, $user_prompt);
+        $response = $this->callAIClient($system_prompt, $user_prompt);
         
         // Parse JSON response
         $glossary = json_decode($response, true);
@@ -454,6 +499,71 @@ class GeneratePromptCommand extends Command
         $summary .= "- Total Keys: " . ($language_data['total_keys'] ?? 0) . "\n";
         
         return $summary;
+    }
+
+    /**
+     * Call the AI client with the appropriate method for each provider
+     */
+    protected function callAIClient(string $system_prompt, string $user_prompt): string
+    {
+        return match($this->ai_provider) {
+            'openai' => $this->callOpenAI($system_prompt, $user_prompt),
+            'anthropic' => $this->callAnthropic($system_prompt, $user_prompt),
+            'gemini' => $this->callGemini($system_prompt, $user_prompt),
+            default => throw new \Exception("Unsupported provider: {$this->ai_provider}"),
+        };
+    }
+    
+    /**
+     * Call OpenAI API
+     */
+    protected function callOpenAI(string $system_prompt, string $user_prompt): string
+    {
+        $requestData = [
+            'model' => $this->ai_model,
+            'messages' => [
+                ['role' => 'system', 'content' => $system_prompt],
+                ['role' => 'user', 'content' => $user_prompt],
+            ],
+            'temperature' => 0.7,
+            'stream' => false,
+        ];
+        
+        $response = $this->ai_client->createChatStream($requestData, null);
+        
+        return $response['choices'][0]['message']['content'] ?? '';
+    }
+    
+    /**
+     * Call Anthropic API
+     */
+    protected function callAnthropic(string $system_prompt, string $user_prompt): string
+    {
+        $requestData = [
+            'model' => $this->ai_model,
+            'messages' => [
+                ['role' => 'user', 'content' => $user_prompt],
+            ],
+            'system' => [
+                [
+                    'type' => 'text',
+                    'text' => $system_prompt,
+                ],
+            ],
+            'max_tokens' => 4096,
+        ];
+        
+        $response = $this->ai_client->messages()->create($requestData);
+        
+        return $response['content'][0]['text'] ?? '';
+    }
+    
+    /**
+     * Call Gemini API
+     */
+    protected function callGemini(string $system_prompt, string $user_prompt): string
+    {
+        return $this->ai_client->complete($system_prompt, $user_prompt);
     }
 
     /**

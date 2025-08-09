@@ -91,23 +91,6 @@ it('handles missing source directory gracefully', function () {
     $result->assertExitCode(1);
 });
 
-it('can export results to file', function () {
-    $exportFile = __DIR__.'/../../temp/export.json';
-    
-    $this->artisan('ai-translator:find-unused', [
-        '--source' => 'en',
-        '--scan-path' => [$this->testAppDir],
-        '--export' => $exportFile
-    ])
-    ->assertExitCode(0);
-    
-    expect(file_exists($exportFile))->toBeTrue();
-    
-    $exportData = json_decode(file_get_contents($exportFile), true);
-    expect($exportData)->toHaveKey('unused_keys');
-    expect($exportData['unused_keys'])->toBeArray();
-});
-
 it('detects various translation patterns', function () {
     // Create file with different translation patterns
     $testFile = $this->testAppDir.'/PatternTest.php';

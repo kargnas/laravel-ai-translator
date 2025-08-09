@@ -2,6 +2,7 @@
 
 namespace Kargnas\LaravelAiTranslator;
 
+use Kargnas\LaravelAiTranslator\Console\CleanCommand;
 use Kargnas\LaravelAiTranslator\Console\FindUnusedTranslations;
 use Kargnas\LaravelAiTranslator\Console\TestTranslateCommand;
 use Kargnas\LaravelAiTranslator\Console\TranslateCrowdin;
@@ -28,6 +29,7 @@ class ServiceProvider extends \Illuminate\Support\ServiceProvider
         );
 
         $this->commands([
+            CleanCommand::class,
             FindUnusedTranslations::class,
             TranslateStrings::class,
             TranslateStringsParallel::class,

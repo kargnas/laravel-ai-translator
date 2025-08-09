@@ -5,12 +5,18 @@ namespace Kargnas\LaravelAiTranslator\Console;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
 use Kargnas\LaravelAiTranslator\AI\Clients\GeminiClient;
-use Kargnas\LaravelAiTranslator\AI\Language\Language;
-use Kargnas\LaravelAiTranslator\Transformers\JSONLangTransformer;
-use Kargnas\LaravelAiTranslator\Transformers\PHPLangTransformer;
+use Kargnas\LaravelAiTranslator\AI\Language\LanguageConfig;
 
 class GeneratePromptCommand extends Command
 {
+    /**
+     * Common stop words to exclude from glossary
+     */
+    protected const COMMON_STOP_WORDS = [
+        'the', 'and', 'for', 'are', 'you', 'your', 'this', 'that', 'with', 'from',
+        'but', 'not', 'have', 'has', 'had', 'was', 'were', 'been', 'being', 'will',
+    ];
+
     /**
      * The name and signature of the console command.
      *
@@ -102,7 +108,8 @@ class GeneratePromptCommand extends Command
             throw new \Exception('Gemini API key not configured. Please set GEMINI_API_KEY in your .env file.');
         }
 
-        $this->gemini_client = new GeminiClient($api_key, 'gemini-2.0-flash-exp');
+        $model = config('ai-translator.ai.gemini.model', 'gemini-2.0-flash-exp');
+        $this->gemini_client = new GeminiClient($api_key, $model);
     }
 
     /**
@@ -195,7 +202,8 @@ class GeneratePromptCommand extends Command
         }
 
         // Handle JSON files
-        $json_files = File::glob("{$source_path}.json");
+        $json_file = "{$path}/{$source_locale}.json";
+        $json_files = File::exists($json_file) ? [$json_file] : [];
         foreach ($json_files as $file) {
             $content = json_decode(File::get($file), true);
             if (is_array($content)) {
@@ -313,7 +321,8 @@ class GeneratePromptCommand extends Command
             
             $sample_translations = array_slice($existing_translations[$locale] ?? [], 0, 10);
             
-            $system_prompt = "You are an expert in creating language-specific translation prompts. Generate a concise prompt for translating to " . Language::getName($locale) . ".";
+            $language_name = LanguageConfig::getLanguageName($locale) ?? $locale;
+            $system_prompt = "You are an expert in creating language-specific translation prompts. Generate a concise prompt for translating to " . $language_name . ".";
             
             $user_prompt = "Based on these sample existing translations for {$locale}, generate a language-specific prompt:\n\n";
             foreach ($sample_translations as $key => $value) {
@@ -392,7 +401,7 @@ class GeneratePromptCommand extends Command
             $words = preg_split('/\s+/', strtolower($value));
             foreach ($words as $word) {
                 $word = trim($word, '.,!?;:()[]{}"\'-');
-                if (strlen($word) >= 3 && !in_array($word, ['the', 'and', 'for', 'are', 'you', 'your', 'this', 'that', 'with', 'from'])) {
+                if (strlen($word) >= 3 && !in_array($word, self::COMMON_STOP_WORDS)) {
                     if (!isset($word_frequency[$word])) {
                         $word_frequency[$word] = 0;
                     }

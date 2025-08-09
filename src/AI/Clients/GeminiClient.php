@@ -60,7 +60,7 @@ class GeminiClient
     }
 
     /**
-     * 입력 콘텐츠를 라이브러리에 맞게 변환
+     * Format input content for the library
      */
     protected function formatRequestContent(array $contents): string
     {
@@ -72,7 +72,7 @@ class GeminiClient
     }
 
     /**
-     * 응답을 AIProvider가 기대하는 형식으로 변환
+     * Format response to match AIProvider's expected format
      */
     protected function formatResponse($response): array
     {

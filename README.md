@@ -218,6 +218,52 @@ This command will:
 1. Recognize all language folders in your `lang` directory
 2. Use AI to translate the contents of the string files in the source language, English. (You can change the source language in the config file)
 
+### Cleaning Translations
+
+To remove translated strings and prepare for re-translation, use the clean command:
+
+```bash
+php artisan ai-translator:clean
+```
+
+This command removes translations from locale files while preserving your source language, allowing you to regenerate translations with updated AI models or rules.
+
+#### Options
+
+- `pattern`: Match specific files or keys
+  - `enums` - matches all `*/enums.php` files
+  - `foo/bar` - matches files in subdirectories
+  - `enums.heroes` - matches specific keys within files
+- `--source=LOCALE`: Source locale to exclude (default: from config)
+- `--locale=LOCALE1,LOCALE2`: Target specific locales
+- `--force`: Skip confirmation prompt
+- `--no-backup`: Skip creating backup files
+- `--dry-run`: Preview changes without deletion
+
+#### Examples
+
+```bash
+# Remove all translations from all locales (interactive)
+php artisan ai-translator:clean
+
+# Remove translations from specific file pattern
+php artisan ai-translator:clean enums
+
+# Remove specific key translations
+php artisan ai-translator:clean enums.heroes
+
+# Target specific locales
+php artisan ai-translator:clean --locale=ko,ja
+
+# Skip confirmation and backup
+php artisan ai-translator:clean enums --force --no-backup
+
+# Preview what would be deleted
+php artisan ai-translator:clean enums --dry-run
+```
+
+The command automatically creates backups in `lang/backup/` before deletion (unless `--no-backup` is used).
+
 ### Example
 
 Given an English language file:

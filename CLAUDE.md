@@ -33,7 +33,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Naming Conventions
 - **Classes**: PascalCase (e.g., `TranslateStrings`)
-- **Methods/Functions**: snake_case (e.g., `get_translation`)
+- **Methods/Functions**: camelCase (e.g., `getTranslation`)
 - **Variables**: snake_case (e.g., `$source_locale`)
 - **Constants**: UPPER_SNAKE_CASE (e.g., `DEFAULT_LOCALE`)
 

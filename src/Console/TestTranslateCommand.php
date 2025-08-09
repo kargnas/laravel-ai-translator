@@ -12,7 +12,7 @@ use Kargnas\LaravelAiTranslator\Models\LocalizedString;
 class TestTranslateCommand extends Command
 {
     protected $signature = 'ai-translator:test-translate
-                          {source_language=en : Source language code (ex: en)}
+                          {source_language? : Source language code (uses config default if not specified)}
                           {target_language=ko : Target language code (ex: ko)}
                           {--text= : Text to translate}
                           {--rules=* : Additional rules}
@@ -44,7 +44,7 @@ class TestTranslateCommand extends Command
 
     public function handle()
     {
-        $sourceLanguage = $this->argument('source_language');
+        $sourceLanguage = $this->argument('source_language') ?: config('ai-translator.source_locale', 'en');
         $targetLanguage = $this->argument('target_language');
         $text = $this->option('text');
         $rulesList = $this->option('rules');

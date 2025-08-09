@@ -120,7 +120,7 @@ class CleanCommand extends Command
     protected function create_backups(array $locales, array $stats): void
     {
         $this->newLine();
-        $this->display_info('Creating backups...');
+        $this->displayInfo('Creating backups...');
         
         // Create backup directory
         if (!is_dir($this->backup_directory)) {
@@ -148,11 +148,11 @@ class CleanCommand extends Command
                     if ($detail['type'] === 'php') {
                         $source_path = "{$this->source_directory}/{$locale}/{$detail['file']}";
                         $backup_path = "{$this->backup_directory}/{$locale}/{$detail['file']}";
-                        $this->backup_file($source_path, $backup_path);
+                        $this->backupFile($source_path, $backup_path);
                     } else {
                         $source_path = "{$this->source_directory}/{$locale}.json";
                         $backup_path = "{$this->backup_directory}/{$locale}.json";
-                        $this->backup_file($source_path, $backup_path);
+                        $this->backupFile($source_path, $backup_path);
                     }
                     
                     $this->line("  {$this->colors['green']}✓{$this->colors['reset']} Backed up {$detail['file']}");
@@ -471,7 +471,7 @@ class CleanCommand extends Command
     protected function perform_clean(?string $pattern, array $locales, array $stats): void
     {
         $this->newLine();
-        $this->display_info('Starting clean operation...');
+        $this->displayInfo('Starting clean operation...');
         
         foreach ($locales as $locale) {
             if (!isset($stats['locales'][$locale])) {

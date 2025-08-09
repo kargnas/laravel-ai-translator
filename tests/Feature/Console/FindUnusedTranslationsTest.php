@@ -52,7 +52,8 @@ it('can find unused translation keys', function () {
         '--source' => 'en',
         '--scan-path' => [$this->testAppDir],
         '--format' => 'json'
-    ]);
+    ])
+    ->expectsConfirmation('Do you want to delete 3 unused translation keys?', 'no');
     
     $output = Artisan::output();
     
@@ -68,7 +69,8 @@ it('shows summary when requested', function () {
         '--source' => 'en',
         '--scan-path' => [$this->testAppDir],
         '--format' => 'summary'
-    ]);
+    ])
+    ->expectsConfirmation('Do you want to delete 3 unused translation keys?', 'no');
     
     $output = Artisan::output();
     
@@ -108,7 +110,8 @@ it('detects various translation patterns', function () {
         '--source' => 'en',
         '--scan-path' => [$this->testAppDir],
         '--format' => 'json'
-    ]);
+    ])
+    ->expectsConfirmation('Do you want to delete 4 unused translation keys?', 'no');
     
     $output = Artisan::output();
     
@@ -150,7 +153,8 @@ it('detects dynamic translation keys with template literals', function () {
         '--source' => 'en',
         '--scan-path' => [$this->testAppDir],
         '--format' => 'json'
-    ]);
+    ])
+    ->expectsConfirmation('Do you want to delete 1 unused translation keys?', 'no');
     
     $output = Artisan::output();
     
@@ -199,7 +203,8 @@ it('handles edge cases with dynamic keys', function () {
         '--source' => 'en',
         '--scan-path' => [$this->testAppDir],
         '--format' => 'json'
-    ]);
+    ])
+    ->expectsConfirmation('Do you want to delete 2 unused translation keys?', 'no');
     
     $output = Artisan::output();
     

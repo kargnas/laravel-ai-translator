@@ -197,17 +197,36 @@ class CleanCommand extends Command
         $directories = glob("{$this->source_directory}/*", GLOB_ONLYDIR);
         foreach ($directories as $dir) {
             $locale = basename($dir);
-            // Skip backup directory
-            if ($locale !== $this->source_locale && $locale !== 'backup') {
-                $locales[] = $locale;
+            
+            // Skip source locale and any backup directories
+            if ($locale === $this->source_locale) {
+                continue;
             }
+            
+            // Skip any directory that starts with 'backup'
+            if (str_starts_with($locale, 'backup')) {
+                continue;
+            }
+            
+            $locales[] = $locale;
         }
 
         // Check JSON files
         $json_files = glob("{$this->source_directory}/*.json");
         foreach ($json_files as $file) {
             $locale = basename($file, '.json');
-            if ($locale !== $this->source_locale && !in_array($locale, $locales)) {
+            
+            // Skip source locale
+            if ($locale === $this->source_locale) {
+                continue;
+            }
+            
+            // Skip any file that starts with 'backup'
+            if (str_starts_with($locale, 'backup')) {
+                continue;
+            }
+            
+            if (!in_array($locale, $locales)) {
                 $locales[] = $locale;
             }
         }
@@ -336,26 +355,28 @@ class CleanCommand extends Command
             
             // Check if it's a subdirectory pattern (contains /)
             if (str_contains($file_pattern, '/')) {
-                // Direct path match or ends with pattern
-                return $file_without_ext === $file_pattern || 
-                       str_ends_with($file_without_ext, "/{$file_pattern}");
+                // Must match exactly the path from locale root
+                return $file_without_ext === $file_pattern;
             } else {
-                // File name only match - check basename without extension
-                $file_name = basename($file_without_ext);
-                return $file_name === $file_pattern;
+                // File must be directly in locale directory (no subdirectories)
+                if (str_contains($file_without_ext, '/')) {
+                    return false; // File is in a subdirectory, not a direct match
+                }
+                return $file_without_ext === $file_pattern;
             }
         }
         
         // Check for subdirectory pattern (contains /)
         if (str_contains($pattern, '/')) {
-            // Exact match or ends with the pattern
-            return $file_without_ext === $pattern || 
-                   str_ends_with($file_without_ext, "/{$pattern}");
+            // Must match exactly the path from locale root
+            return $file_without_ext === $pattern;
         }
         
-        // Simple file name pattern
-        $file_name = basename($file_without_ext);
-        return $file_name === $pattern || str_ends_with($file_without_ext, "/{$pattern}");
+        // Simple file name pattern - must be directly in locale directory
+        if (str_contains($file_without_ext, '/')) {
+            return false; // File is in a subdirectory, not a direct match
+        }
+        return $file_without_ext === $pattern;
     }
 
     protected function countStringsInFile(string $file_path, ?string $pattern, string $type): int

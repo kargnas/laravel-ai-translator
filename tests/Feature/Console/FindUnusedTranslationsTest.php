@@ -4,6 +4,12 @@ use Illuminate\Support\Facades\Artisan;
 use Kargnas\LaravelAiTranslator\Console\FindUnusedTranslations;
 
 beforeEach(function () {
+    // Clean up any existing test directories first
+    $testDir = __DIR__.'/../../temp';
+    if (file_exists($testDir)) {
+        exec("rm -rf {$testDir}");
+    }
+    
     // Create test directories
     $this->testLangDir = __DIR__.'/../../temp/lang';
     $this->testAppDir = __DIR__.'/../../temp/app';

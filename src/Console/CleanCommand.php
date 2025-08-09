@@ -395,13 +395,12 @@ class CleanCommand extends Command
     protected function countStringsInFile(string $file_path, ?string $pattern, string $type): int
     {
         if ($type === 'php') {
-            $transformer = new PHPLangTransformer();
+            $transformer = new PHPLangTransformer($file_path);
         } else {
-            $transformer = new JSONLangTransformer();
+            $transformer = new JSONLangTransformer($file_path);
         }
 
-        $data = $transformer->parse($file_path);
-        $flat = $transformer->flatten($data);
+        $flat = $transformer->flatten();
 
         if (!$pattern) {
             return count($flat);
@@ -508,12 +507,13 @@ class CleanCommand extends Command
             throw new \RuntimeException("File is not writable: {$file_path}");
         }
 
-        $transformer = new PHPLangTransformer();
-        $data = $transformer->parse($file_path);
+        $transformer = new PHPLangTransformer($file_path);
+        $flat = $transformer->flatten();
+        $data = $this->unflattenArray($flat);
 
         if (!$pattern) {
             // Remove all strings (empty array) but preserve file structure
-            $transformer->save($file_path, []);
+            $this->savePhpFile($file_path, []);
             return;
         }
 
@@ -566,7 +566,7 @@ class CleanCommand extends Command
                 }
             }
 
-            $transformer->save($file_path, $data);
+            $this->savePhpFile($file_path, $data);
             return;
         }
 
@@ -581,12 +581,12 @@ class CleanCommand extends Command
             if ($file_relative === $pattern || str_ends_with($file_relative, "/{$pattern}")) {
                 // Clear the file but show warning for complete file deletion
                 $this->warn("  Warning: Clearing entire file contents for {$file_path}");
-                $transformer->save($file_path, []);
+                $this->savePhpFile($file_path, []);
             }
         } else if ($file_name === $pattern) {
             // Clear the file but show warning for complete file deletion
             $this->warn("  Warning: Clearing entire file contents for {$file_path}");
-            $transformer->save($file_path, []);
+            $this->savePhpFile($file_path, []);
         }
     }
 
@@ -596,12 +596,13 @@ class CleanCommand extends Command
             throw new \RuntimeException("File is not writable: {$file_path}");
         }
 
-        $transformer = new JSONLangTransformer();
-        $data = $transformer->parse($file_path);
+        $transformer = new JSONLangTransformer($file_path);
+        $flat = $transformer->flatten();
+        $data = $this->unflattenArray($flat);
 
         if (!$pattern) {
             // Remove all strings (empty object)
-            $transformer->save($file_path, []);
+            $this->saveJsonFile($file_path, []);
             return;
         }
 
@@ -619,7 +620,7 @@ class CleanCommand extends Command
                 unset($data[$key]);
             }
 
-            $transformer->save($file_path, $data);
+            $this->saveJsonFile($file_path, $data);
         }
     }
 
@@ -715,5 +716,84 @@ class CleanCommand extends Command
     protected function displayWarning(string $message): void
     {
         $this->line($this->colors['yellow'] . $message . $this->colors['reset']);
+    }
+
+    /**
+     * Save PHP language file with proper formatting
+     */
+    protected function savePhpFile(string $file_path, array $data): void
+    {
+        $timestamp = date('Y-m-d H:i:s T');
+        $source_language = $this->source_locale;
+        
+        $lines = [
+            "<?php\n",
+            '/**',
+            ' * WARNING: This is an auto-generated file.',
+            ' * Do not modify this file manually as your changes will be lost.',
+            " * This file was automatically cleaned from {$source_language} at {$timestamp}.",
+            " */\n",
+            'return '.$this->arrayExport($data, 0).";\n",
+        ];
+
+        file_put_contents($file_path, implode("\n", $lines));
+    }
+
+    /**
+     * Export array to PHP syntax
+     */
+    protected function arrayExport(array $array, int $level): string
+    {
+        $indent = str_repeat('    ', $level);
+        $output = "[\n";
+
+        $items = [];
+        foreach ($array as $key => $value) {
+            $formattedKey = is_int($key) ? $key : "'".str_replace("'", "\\'", $key)."'";
+            if (is_array($value)) {
+                $items[] = $indent."    {$formattedKey} => ".$this->arrayExport($value, $level + 1);
+            } else {
+                $formattedValue = "'".str_replace("'", "\\'", $value)."'";
+                $items[] = $indent."    {$formattedKey} => {$formattedValue}";
+            }
+        }
+
+        $output .= implode(",\n", $items);
+        $output .= "\n".$indent.']';
+
+        return $output;
+    }
+
+    /**
+     * Save JSON language file with proper formatting
+     */
+    protected function saveJsonFile(string $file_path, array $data): void
+    {
+        $json_options = JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES;
+        file_put_contents($file_path, json_encode($data, $json_options) . "\n");
+    }
+
+    /**
+     * Convert flattened array with dot notation to nested array
+     */
+    protected function unflattenArray(array $array): array
+    {
+        $result = [];
+        foreach ($array as $key => $value) {
+            $parts = explode('.', $key);
+            $current = &$result;
+            foreach ($parts as $i => $part) {
+                if ($i === count($parts) - 1) {
+                    $current[$part] = $value;
+                } else {
+                    if (!isset($current[$part]) || !is_array($current[$part])) {
+                        $current[$part] = [];
+                    }
+                    $current = &$current[$part];
+                }
+            }
+        }
+
+        return $result;
     }
 }

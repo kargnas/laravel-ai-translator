@@ -4,6 +4,9 @@ return [
     // Language file directory. 'lang' for Laravel.
     'source_directory' => 'lang',
 
+    // Source language for translations. Default is 'en' for English.
+    'source_locale' => 'en',
+
     'ai' => [
         'provider' => 'anthropic',
         'model' => 'claude-3-5-sonnet-latest', // Best result. Recommend for production.

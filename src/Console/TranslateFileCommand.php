@@ -14,7 +14,7 @@ class TranslateFileCommand extends Command
 {
     protected $signature = 'ai-translator:translate-file
                            {file : Path to the PHP file to translate}
-                           {--source-language=en : Source language code (ex: en)}
+                           {--source-language= : Source language code (uses config default if not specified)}
                            {--target-language=ko : Target language code (ex: ko)}
                            {--rules=* : Additional rules}
                            {--debug : Enable debug mode}
@@ -50,7 +50,7 @@ class TranslateFileCommand extends Command
 
         try {
             $filePath = $this->argument('file');
-            $sourceLanguage = $this->option('source-language');
+            $sourceLanguage = $this->option('source-language') ?: config('ai-translator.source_locale', 'en');
             $targetLanguage = $this->option('target-language');
             $rules = $this->option('rules') ?: [];
             $showAiResponse = $this->option('show-ai-response');

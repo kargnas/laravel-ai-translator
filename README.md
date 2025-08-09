@@ -218,6 +218,61 @@ This command will:
 1. Recognize all language folders in your `lang` directory
 2. Use AI to translate the contents of the string files in the source language, English. (You can change the source language in the config file)
 
+### Cleaning Translations
+
+To remove translated strings and prepare for re-translation, use the clean command:
+
+```bash
+php artisan ai-translator:clean [pattern] [options]
+```
+
+This command removes translations from locale files while preserving your source language, allowing you to regenerate translations with updated AI models or rules. It automatically detects all target locales and excludes the source locale.
+
+#### Arguments
+
+- `pattern`: Optional pattern to match files or keys
+  - `enums` - matches all `*/enums.php` files
+  - `foo/bar` - matches files in subdirectories
+  - `enums.heroes` - matches specific keys within files
+
+#### Options
+
+- `-s|--source=LOCALE`: Source locale to exclude from cleaning (default: from config)
+- `-f|--force`: Skip confirmation prompt
+- `--no-backup`: Skip creating backup files
+- `--dry-run`: Preview changes without deletion
+
+#### Examples
+
+```bash
+# Remove all translations from all target locales (interactive confirmation)
+php artisan ai-translator:clean
+
+# Remove translations from specific file pattern
+php artisan ai-translator:clean enums
+
+# Remove translations from subdirectory files
+php artisan ai-translator:clean auth/login
+
+# Remove specific key translations
+php artisan ai-translator:clean enums.heroes
+
+# Specify different source locale
+php artisan ai-translator:clean --source=es
+
+# Skip confirmation and backup
+php artisan ai-translator:clean enums --force --no-backup
+
+# Preview what would be deleted
+php artisan ai-translator:clean enums --dry-run
+```
+
+The command automatically:
+- Creates backups in `lang/backup/` before deletion (unless `--no-backup` is used)
+- Detects all available target locales (excluding the source locale)
+- Shows detailed statistics before performing deletions
+- Prevents accidental overwrites by checking for existing backup directories
+
 ### Example
 
 Given an English language file:

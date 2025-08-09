@@ -11,13 +11,12 @@ class CleanCommand extends Command
 {
     protected $signature = 'ai-translator:clean
         {pattern? : Pattern to match files/keys (e.g., "enums" for */enums.php, "foo/bar" for subdirectory, "enums.heroes" for specific key)}
-        {--l|locale=* : Target locales to clean (e.g. --locale=ko,ja). If not provided, will ask interactively}
         {--s|source= : Source locale to exclude from cleaning}
         {--f|force : Skip confirmation prompt}
         {--no-backup : Skip creating backup files}
         {--dry-run : Show what would be deleted without actually deleting}';
 
-    protected $description = 'Remove translated strings from locale files to prepare for re-translation';
+    protected $description = 'Remove translated strings from all locale files (except source) to prepare for re-translation';
 
     protected string $source_directory;
     protected string $source_locale;
@@ -44,12 +43,12 @@ class CleanCommand extends Command
             $this->initializeConfiguration();
 
             $pattern = $this->argument('pattern');
-            $target_locales = $this->getTargetLocales();
+            $target_locales = $this->getAllTargetLocales();
             $is_dry_run = $this->option('dry-run');
             $create_backup = !$this->option('no-backup');
 
             if (empty($target_locales)) {
-                $this->error('No target locales selected.');
+                $this->error('No target locales found.');
                 return self::FAILURE;
             }
 
@@ -184,45 +183,11 @@ class CleanCommand extends Command
         }
     }
 
-    protected function getTargetLocales(): array
+    protected function getAllTargetLocales(): array
     {
-        if ($this->option('locale')) {
-            return is_array($this->option('locale')) 
-                ? $this->option('locale') 
-                : explode(',', $this->option('locale'));
-        }
-
-        return $this->askForTargetLocales();
+        return $this->getAvailableLocales();
     }
 
-    protected function askForTargetLocales(): array
-    {
-        $available_locales = $this->getAvailableLocales();
-        
-        if (empty($available_locales)) {
-            $this->error('No target locales available.');
-            return [];
-        }
-
-        $choices = [];
-        foreach ($available_locales as $locale) {
-            $name = LanguageConfig::getLanguageName($locale);
-            $choices[] = "{$this->colors['cyan']}{$locale}{$this->colors['reset']} ({$name})";
-        }
-
-        $selected = $this->choice(
-            'Select target locales to clean (comma-separated numbers for multiple)',
-            $choices,
-            null,
-            null,
-            true
-        );
-
-        return array_map(function ($choice) {
-            preg_match('/^([a-z_]+)/i', strip_tags($choice), $matches);
-            return $matches[1] ?? '';
-        }, $selected);
-    }
 
     protected function getAvailableLocales(): array
     {
@@ -364,6 +329,7 @@ class CleanCommand extends Command
         
         // Check if pattern contains a dot (key pattern)
         if (str_contains($pattern, '.')) {
+            // For key patterns like "test.welcome", we need to match the file
             // Extract file part from pattern (before the first dot)
             $parts = explode('.', $pattern);
             $file_pattern = $parts[0];
@@ -374,7 +340,7 @@ class CleanCommand extends Command
                 return $file_without_ext === $file_pattern || 
                        str_ends_with($file_without_ext, "/{$file_pattern}");
             } else {
-                // File name only match
+                // File name only match - check basename without extension
                 $file_name = basename($file_without_ext);
                 return $file_name === $file_pattern;
             }
@@ -408,43 +374,40 @@ class CleanCommand extends Command
 
         // Check for specific key pattern
         if (str_contains($pattern, '.')) {
+            // Extract the file pattern and key pattern
+            $pattern_parts = explode('.', $pattern);
+            $file_pattern = $pattern_parts[0];
+            
+            // Get the file name without extension
+            $file_without_ext = preg_replace('/\.(php|json)$/', '', basename($file_path));
+            
             // For subdirectory patterns like foo/bar.key
-            if (str_contains($pattern, '/')) {
+            if (str_contains($file_pattern, '/')) {
                 // Extract the file part and key part
-                $pattern_parts = explode('.', $pattern);
-                $file_part = $pattern_parts[0];
-                
-                // Check if this file matches the file pattern
-                $file_without_ext = preg_replace('/\.php$/', '', basename($file_path));
                 $file_dir = dirname(str_replace($this->source_directory . '/', '', $file_path));
-                $file_relative = ($file_dir === '.' || str_ends_with($file_dir, "/{$file_part}")) 
+                $file_relative = ($file_dir === '.' || str_ends_with($file_dir, "/{$file_pattern}")) 
                     ? $file_without_ext 
                     : "{$file_dir}/{$file_without_ext}";
                 
-                if (!str_ends_with($file_relative, $file_part) && $file_relative !== $file_part) {
+                if (!str_ends_with($file_relative, $file_pattern) && $file_relative !== $file_pattern) {
                     return 0;
                 }
-                
-                // Now check for the key pattern (everything after the file part)
-                $key_pattern = implode('.', array_slice($pattern_parts, 1));
-                $count = 0;
-                foreach (array_keys($flat) as $key) {
-                    if (str_starts_with($key, $key_pattern . '.') || $key === $key_pattern) {
-                        $count++;
-                    }
-                }
-                return $count;
             } else {
-                // Simple key pattern without subdirectory
-                $key_pattern = $pattern;
-                $count = 0;
-                foreach (array_keys($flat) as $key) {
-                    if (str_starts_with($key, $key_pattern . '.') || $key === $key_pattern) {
-                        $count++;
-                    }
+                // Simple file pattern - check if basename matches
+                if ($file_without_ext !== $file_pattern) {
+                    return 0;
                 }
-                return $count;
             }
+            
+            // Now count keys that match the pattern
+            $key_pattern = implode('.', array_slice($pattern_parts, 1));
+            $count = 0;
+            foreach (array_keys($flat) as $key) {
+                if (str_starts_with($key, $key_pattern . '.') || $key === $key_pattern) {
+                    $count++;
+                }
+            }
+            return $count;
         }
 
         // For file pattern, count all strings if file matches
@@ -519,52 +482,48 @@ class CleanCommand extends Command
 
         // Handle specific key pattern
         if (str_contains($pattern, '.')) {
+            // Extract the file pattern and key pattern
+            $pattern_parts = explode('.', $pattern);
+            $file_pattern = $pattern_parts[0];
+            
+            // Get the file name without extension
+            $file_without_ext = preg_replace('/\.php$/', '', basename($file_path));
+            
             // For subdirectory patterns like foo/bar.key
-            if (str_contains($pattern, '/')) {
-                // Extract the key part after the file pattern
-                $pattern_parts = explode('.', $pattern);
-                $file_part = $pattern_parts[0];
-                
+            if (str_contains($file_pattern, '/')) {
                 // Check if this file matches the file pattern
-                $file_without_ext = preg_replace('/\.php$/', '', basename($file_path));
                 $file_dir = dirname(str_replace($this->source_directory . '/', '', $file_path));
-                $file_relative = ($file_dir === '.' || str_contains($file_dir, $file_part)) 
+                $file_relative = ($file_dir === '.' || str_contains($file_dir, $file_pattern)) 
                     ? $file_without_ext 
                     : "{$file_dir}/{$file_without_ext}";
                 
-                if (!str_ends_with($file_relative, $file_part) && $file_relative !== $file_part) {
+                if (!str_ends_with($file_relative, $file_pattern) && $file_relative !== $file_pattern) {
                     return; // File doesn't match pattern
                 }
-                
-                // Now remove the matching keys
-                $key_pattern = implode('.', array_slice($pattern_parts, 1));
-                $flat = $transformer->flatten($data);
-                $keys_to_remove = [];
-                
-                foreach (array_keys($flat) as $key) {
-                    if (str_starts_with($key, $key_pattern . '.') || $key === $key_pattern) {
-                        $keys_to_remove[] = $key;
-                    }
-                }
-
-                foreach ($keys_to_remove as $key) {
-                    $data = $this->removeKeyFromArray($data, $key);
-                }
             } else {
-                // Simple key pattern
-                $flat = $transformer->flatten($data);
-                $keys_to_remove = [];
-                
-                foreach (array_keys($flat) as $key) {
-                    if (str_starts_with($key, $pattern . '.') || $key === $pattern) {
-                        $keys_to_remove[] = $key;
-                    }
-                }
-
-                foreach ($keys_to_remove as $key) {
-                    $data = $this->removeKeyFromArray($data, $key);
+                // Simple file pattern - check if basename matches
+                if ($file_without_ext !== $file_pattern) {
+                    return; // File doesn't match pattern
                 }
             }
+            
+            // Now remove the matching keys
+            $key_pattern = implode('.', array_slice($pattern_parts, 1));
+            $flat = $transformer->flatten($data);
+            $keys_to_remove = [];
+            
+            foreach (array_keys($flat) as $key) {
+                if (str_starts_with($key, $key_pattern . '.') || $key === $key_pattern) {
+                    $keys_to_remove[] = $key;
+                }
+            }
+
+            foreach ($keys_to_remove as $key) {
+                $data = $this->removeKeyFromArray($data, $key);
+            }
+            
+            // Clean up any empty arrays after all removals
+            $data = $this->cleanEmptyArrays($data);
 
             $this->savePhpFile($file_path, $data);
             return;
@@ -608,16 +567,33 @@ class CleanCommand extends Command
 
         // Handle specific key pattern
         if (str_contains($pattern, '.')) {
-            $keys_to_remove = [];
+            // Extract the file pattern (locale) and key pattern
+            $pattern_parts = explode('.', $pattern, 2);
+            $locale_pattern = $pattern_parts[0];
             
-            foreach (array_keys($data) as $key) {
-                if (str_starts_with($key, $pattern . '.') || $key === $pattern) {
-                    $keys_to_remove[] = $key;
-                }
+            // Check if this JSON file matches the locale pattern
+            $file_name = basename($file_path, '.json');
+            if ($file_name !== $locale_pattern) {
+                return; // File doesn't match pattern
             }
+            
+            // If there's a key pattern, remove matching keys
+            if (isset($pattern_parts[1])) {
+                $key_pattern = $pattern_parts[1];
+                $keys_to_remove = [];
+                
+                foreach (array_keys($data) as $key) {
+                    if (str_starts_with($key, $key_pattern . '.') || $key === $key_pattern) {
+                        $keys_to_remove[] = $key;
+                    }
+                }
 
-            foreach ($keys_to_remove as $key) {
-                unset($data[$key]);
+                foreach ($keys_to_remove as $key) {
+                    unset($data[$key]);
+                }
+            } else {
+                // No key pattern, clear entire file
+                $data = [];
             }
 
             $this->saveJsonFile($file_path, $data);
@@ -638,7 +614,8 @@ class CleanCommand extends Command
         
         unset($current[$keys[count($keys) - 1]]);
         
-        return $array;
+        // Clean up empty arrays after removal
+        return $this->cleanEmptyArrays($array);
     }
 
     protected function confirmDeletion(array $stats): bool
@@ -647,8 +624,9 @@ class CleanCommand extends Command
             return true;
         }
 
+        $locale_count = count($stats['locales']);
         return $this->confirm(
-            "This will delete {$stats['total_strings']} strings from {$stats['total_files']} files. Continue?",
+            "This will delete {$stats['total_strings']} strings from {$stats['total_files']} files across {$locale_count} locales. Continue?",
             false
         );
     }
@@ -683,6 +661,8 @@ class CleanCommand extends Command
             $this->line("Pattern: {$this->colors['cyan']}ALL FILES{$this->colors['reset']}");
         }
         
+        $this->line("Source locale (excluded): {$this->colors['green']}{$this->source_locale}{$this->colors['reset']}");
+        $this->line("Total locales to clean: {$this->colors['yellow']}" . count($stats['locales']) . "{$this->colors['reset']}");
         $this->line("Total files affected: {$this->colors['yellow']}{$stats['total_files']}{$this->colors['reset']}");
         $this->line("Total strings to delete: {$this->colors['red']}{$stats['total_strings']}{$this->colors['reset']}");
         
@@ -795,5 +775,22 @@ class CleanCommand extends Command
         }
 
         return $result;
+    }
+
+    /**
+     * Recursively remove empty arrays from the data structure
+     */
+    protected function cleanEmptyArrays(array $array): array
+    {
+        foreach ($array as $key => &$value) {
+            if (is_array($value)) {
+                $value = $this->cleanEmptyArrays($value);
+                if (empty($value)) {
+                    unset($array[$key]);
+                }
+            }
+        }
+        
+        return $array;
     }
 }

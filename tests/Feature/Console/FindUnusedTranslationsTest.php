@@ -187,7 +187,13 @@ it('handles edge cases with dynamic keys', function () {
     file_put_contents($enDir.'/start.php', "<?php\n\nreturn [\n    'value1' => [\n        'middle' => [\n            'end1' => 'End value 1',\n            'end2' => 'End value 2'\n        ]\n    ],\n    'value2' => [\n        'middle' => [\n            'end3' => 'End value 3'\n        ]\n    ],\n    'unused' => [\n        'middle' => [\n            'unused_end' => 'This should be unused'\n        ]\n    ]\n];");
     
     // Add JSON translations for edge cases
-    file_put_contents($this->testLangDir.'/en.json', json_encode([\n        'home.suffix' => 'Home suffix',\n        'about.suffix' => 'About suffix',\n        'singleValue' => 'Single value',\n        'anotherValue' => 'Another value',\n        'unusedJson' => 'Should be unused'\n    ]));
+    file_put_contents($this->testLangDir.'/en.json', json_encode([
+        'home.suffix' => 'Home suffix',
+        'about.suffix' => 'About suffix',
+        'singleValue' => 'Single value',
+        'anotherValue' => 'Another value',
+        'unusedJson' => 'Should be unused'
+    ]));
     
     $result = $this->artisan('ai-translator:find-unused', [
         '--source' => 'en',

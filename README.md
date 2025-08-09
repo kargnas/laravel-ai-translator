@@ -223,37 +223,42 @@ This command will:
 To remove translated strings and prepare for re-translation, use the clean command:
 
 ```bash
-php artisan ai-translator:clean
+php artisan ai-translator:clean [pattern] [options]
 ```
 
-This command removes translations from locale files while preserving your source language, allowing you to regenerate translations with updated AI models or rules.
+This command removes translations from locale files while preserving your source language, allowing you to regenerate translations with updated AI models or rules. It automatically detects all target locales and excludes the source locale.
 
-#### Options
+#### Arguments
 
-- `pattern`: Match specific files or keys
+- `pattern`: Optional pattern to match files or keys
   - `enums` - matches all `*/enums.php` files
   - `foo/bar` - matches files in subdirectories
   - `enums.heroes` - matches specific keys within files
-- `--source=LOCALE`: Source locale to exclude (default: from config)
-- `--locale=LOCALE1,LOCALE2`: Target specific locales
-- `--force`: Skip confirmation prompt
+
+#### Options
+
+- `-s|--source=LOCALE`: Source locale to exclude from cleaning (default: from config)
+- `-f|--force`: Skip confirmation prompt
 - `--no-backup`: Skip creating backup files
 - `--dry-run`: Preview changes without deletion
 
 #### Examples
 
 ```bash
-# Remove all translations from all locales (interactive)
+# Remove all translations from all target locales (interactive confirmation)
 php artisan ai-translator:clean
 
 # Remove translations from specific file pattern
 php artisan ai-translator:clean enums
 
+# Remove translations from subdirectory files
+php artisan ai-translator:clean auth/login
+
 # Remove specific key translations
 php artisan ai-translator:clean enums.heroes
 
-# Target specific locales
-php artisan ai-translator:clean --locale=ko,ja
+# Specify different source locale
+php artisan ai-translator:clean --source=es
 
 # Skip confirmation and backup
 php artisan ai-translator:clean enums --force --no-backup
@@ -262,7 +267,11 @@ php artisan ai-translator:clean enums --force --no-backup
 php artisan ai-translator:clean enums --dry-run
 ```
 
-The command automatically creates backups in `lang/backup/` before deletion (unless `--no-backup` is used).
+The command automatically:
+- Creates backups in `lang/backup/` before deletion (unless `--no-backup` is used)
+- Detects all available target locales (excluding the source locale)
+- Shows detailed statistics before performing deletions
+- Prevents accidental overwrites by checking for existing backup directories
 
 ### Example
 

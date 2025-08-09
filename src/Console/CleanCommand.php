@@ -40,11 +40,11 @@ class CleanCommand extends Command
     public function handle(): int
     {
         try {
-            $this->display_header();
-            $this->initialize_configuration();
+            $this->displayHeader();
+            $this->initializeConfiguration();
 
             $pattern = $this->argument('pattern');
-            $target_locales = $this->get_target_locales();
+            $target_locales = $this->getTargetLocales();
             $is_dry_run = $this->option('dry-run');
             $create_backup = !$this->option('no-backup');
 
@@ -54,41 +54,41 @@ class CleanCommand extends Command
             }
 
             // Check for existing backup if backup is enabled
-            if ($create_backup && !$is_dry_run && $this->backup_exists()) {
+            if ($create_backup && !$is_dry_run && $this->backupExists()) {
                 $this->error("Backup directory already exists at: {$this->backup_directory}");
                 $this->error('Please remove or rename the existing backup directory before proceeding.');
                 $this->info('You can skip backup creation with --no-backup flag.');
                 return self::FAILURE;
             }
 
-            $stats = $this->analyze_pattern($pattern, $target_locales);
+            $stats = $this->analyzePattern($pattern, $target_locales);
             
             if ($stats['total_strings'] === 0) {
                 $this->info('No strings found matching the pattern.');
                 return self::SUCCESS;
             }
 
-            $this->display_stats($stats, $pattern, $is_dry_run);
+            $this->displayStats($stats, $pattern, $is_dry_run);
 
-            if (!$is_dry_run && !$this->confirm_deletion($stats)) {
-                $this->display_warning('⚠ Clean operation cancelled');
+            if (!$is_dry_run && !$this->confirmDeletion($stats)) {
+                $this->displayWarning('⚠ Clean operation cancelled');
                 return self::SUCCESS;
             }
 
             if (!$is_dry_run) {
                 // Create backups if enabled
                 if ($create_backup) {
-                    $this->create_backups($target_locales, $stats);
+                    $this->createBackups($target_locales, $stats);
                 }
                 
-                $this->perform_clean($pattern, $target_locales, $stats);
-                $this->display_success('✓ Clean operation completed successfully!');
+                $this->performClean($pattern, $target_locales, $stats);
+                $this->displaySuccess('✓ Clean operation completed successfully!');
                 
                 if ($create_backup) {
-                    $this->display_info("Backups created at: {$this->backup_directory}");
+                    $this->displayInfo("Backups created at: {$this->backup_directory}");
                 }
             } else {
-                $this->display_info('ℹ Dry run completed. No files were modified.');
+                $this->displayInfo('ℹ Dry run completed. No files were modified.');
             }
 
             return self::SUCCESS;
@@ -105,19 +105,19 @@ class CleanCommand extends Command
         }
     }
 
-    protected function initialize_configuration(): void
+    protected function initializeConfiguration(): void
     {
         $this->source_directory = rtrim(config('ai-translator.source_directory', 'lang'), '/');
         $this->source_locale = $this->option('source') ?? config('ai-translator.source_locale', 'en');
         $this->backup_directory = $this->source_directory . '/backup';
     }
 
-    protected function backup_exists(): bool
+    protected function backupExists(): bool
     {
         return is_dir($this->backup_directory);
     }
 
-    protected function create_backups(array $locales, array $stats): void
+    protected function createBackups(array $locales, array $stats): void
     {
         $this->newLine();
         $this->displayInfo('Creating backups...');
@@ -164,7 +164,7 @@ class CleanCommand extends Command
         }
     }
 
-    protected function backup_file(string $source_path, string $backup_path): void
+    protected function backupFile(string $source_path, string $backup_path): void
     {
         if (!file_exists($source_path)) {
             throw new \RuntimeException("Source file does not exist: {$source_path}");
@@ -184,7 +184,7 @@ class CleanCommand extends Command
         }
     }
 
-    protected function get_target_locales(): array
+    protected function getTargetLocales(): array
     {
         if ($this->option('locale')) {
             return is_array($this->option('locale')) 
@@ -192,12 +192,12 @@ class CleanCommand extends Command
                 : explode(',', $this->option('locale'));
         }
 
-        return $this->ask_for_target_locales();
+        return $this->askForTargetLocales();
     }
 
-    protected function ask_for_target_locales(): array
+    protected function askForTargetLocales(): array
     {
-        $available_locales = $this->get_available_locales();
+        $available_locales = $this->getAvailableLocales();
         
         if (empty($available_locales)) {
             $this->error('No target locales available.');
@@ -224,7 +224,7 @@ class CleanCommand extends Command
         }, $selected);
     }
 
-    protected function get_available_locales(): array
+    protected function getAvailableLocales(): array
     {
         $locales = [];
         
@@ -250,7 +250,7 @@ class CleanCommand extends Command
         return $locales;
     }
 
-    protected function analyze_pattern(?string $pattern, array $locales): array
+    protected function analyzePattern(?string $pattern, array $locales): array
     {
         $stats = [
             'total_files' => 0,
@@ -267,12 +267,12 @@ class CleanCommand extends Command
             ];
 
             // Analyze PHP files
-            $php_files = $this->get_matching_php_files($locale, $pattern);
+            $php_files = $this->getMatchingPhpFiles($locale, $pattern);
             foreach ($php_files as $file) {
                 $file_path = "{$this->source_directory}/{$locale}/{$file}";
                 if (file_exists($file_path)) {
                     try {
-                        $string_count = $this->count_strings_in_file($file_path, $pattern, 'php');
+                        $string_count = $this->countStringsInFile($file_path, $pattern, 'php');
                         if ($string_count > 0) {
                             $locale_stats['files']++;
                             $locale_stats['strings'] += $string_count;
@@ -292,7 +292,7 @@ class CleanCommand extends Command
             $json_file = "{$this->source_directory}/{$locale}.json";
             if (file_exists($json_file)) {
                 try {
-                    $string_count = $this->count_strings_in_file($json_file, $pattern, 'json');
+                    $string_count = $this->countStringsInFile($json_file, $pattern, 'json');
                     if ($string_count > 0) {
                         $locale_stats['files']++;
                         $locale_stats['strings'] += $string_count;
@@ -317,7 +317,7 @@ class CleanCommand extends Command
         return $stats;
     }
 
-    protected function get_matching_php_files(string $locale, ?string $pattern): array
+    protected function getMatchingPhpFiles(string $locale, ?string $pattern): array
     {
         $locale_dir = "{$this->source_directory}/{$locale}";
         if (!is_dir($locale_dir)) {
@@ -341,7 +341,7 @@ class CleanCommand extends Command
                 if ($file->isFile() && $file->getExtension() === 'php') {
                     $relative_path = str_replace($locale_dir . '/', '', $file->getPathname());
                     
-                    if ($this->file_matches_pattern($relative_path, $pattern)) {
+                    if ($this->fileMatchesPattern($relative_path, $pattern)) {
                         $files[] = $relative_path;
                     }
                 }
@@ -353,7 +353,7 @@ class CleanCommand extends Command
         return $files;
     }
 
-    protected function file_matches_pattern(string $file, ?string $pattern): bool
+    protected function fileMatchesPattern(string $file, ?string $pattern): bool
     {
         if (!$pattern) {
             return true; // No pattern means all files
@@ -392,7 +392,7 @@ class CleanCommand extends Command
         return $file_name === $pattern || str_ends_with($file_without_ext, "/{$pattern}");
     }
 
-    protected function count_strings_in_file(string $file_path, ?string $pattern, string $type): int
+    protected function countStringsInFile(string $file_path, ?string $pattern, string $type): int
     {
         if ($type === 'php') {
             $transformer = new PHPLangTransformer();
@@ -468,7 +468,7 @@ class CleanCommand extends Command
         return 0;
     }
 
-    protected function perform_clean(?string $pattern, array $locales, array $stats): void
+    protected function performClean(?string $pattern, array $locales, array $stats): void
     {
         $this->newLine();
         $this->displayInfo('Starting clean operation...');
@@ -486,10 +486,10 @@ class CleanCommand extends Command
                 try {
                     if ($detail['type'] === 'php') {
                         $file_path = "{$this->source_directory}/{$locale}/{$detail['file']}";
-                        $this->clean_php_file($file_path, $pattern);
+                        $this->cleanPhpFile($file_path, $pattern);
                     } else {
                         $file_path = "{$this->source_directory}/{$locale}.json";
-                        $this->clean_json_file($file_path, $pattern);
+                        $this->cleanJsonFile($file_path, $pattern);
                     }
                     
                     $this->line("  {$this->colors['green']}✓{$this->colors['reset']} Cleaned {$detail['strings']} strings from {$detail['file']}");
@@ -502,7 +502,7 @@ class CleanCommand extends Command
         }
     }
 
-    protected function clean_php_file(string $file_path, ?string $pattern): void
+    protected function cleanPhpFile(string $file_path, ?string $pattern): void
     {
         if (!is_writable($file_path)) {
             throw new \RuntimeException("File is not writable: {$file_path}");
@@ -548,7 +548,7 @@ class CleanCommand extends Command
                 }
 
                 foreach ($keys_to_remove as $key) {
-                    $data = $this->remove_key_from_array($data, $key);
+                    $data = $this->removeKeyFromArray($data, $key);
                 }
             } else {
                 // Simple key pattern
@@ -562,7 +562,7 @@ class CleanCommand extends Command
                 }
 
                 foreach ($keys_to_remove as $key) {
-                    $data = $this->remove_key_from_array($data, $key);
+                    $data = $this->removeKeyFromArray($data, $key);
                 }
             }
 
@@ -590,7 +590,7 @@ class CleanCommand extends Command
         }
     }
 
-    protected function clean_json_file(string $file_path, ?string $pattern): void
+    protected function cleanJsonFile(string $file_path, ?string $pattern): void
     {
         if (!is_writable($file_path)) {
             throw new \RuntimeException("File is not writable: {$file_path}");
@@ -623,7 +623,7 @@ class CleanCommand extends Command
         }
     }
 
-    protected function remove_key_from_array(array $array, string $dot_key): array
+    protected function removeKeyFromArray(array $array, string $dot_key): array
     {
         $keys = explode('.', $dot_key);
         $current = &$array;
@@ -640,7 +640,7 @@ class CleanCommand extends Command
         return $array;
     }
 
-    protected function confirm_deletion(array $stats): bool
+    protected function confirmDeletion(array $stats): bool
     {
         if ($this->option('force')) {
             return true;
@@ -652,7 +652,7 @@ class CleanCommand extends Command
         );
     }
 
-    protected function display_header(): void
+    protected function displayHeader(): void
     {
         $this->newLine();
         $title = ' Laravel AI Translator - Clean ';
@@ -665,7 +665,7 @@ class CleanCommand extends Command
         $this->line($this->colors['yellow'] . $line . $this->colors['reset']);
     }
 
-    protected function display_stats(array $stats, ?string $pattern, bool $is_dry_run): void
+    protected function displayStats(array $stats, ?string $pattern, bool $is_dry_run): void
     {
         $this->newLine();
         
@@ -702,17 +702,17 @@ class CleanCommand extends Command
         }
     }
 
-    protected function display_success(string $message): void
+    protected function displaySuccess(string $message): void
     {
         $this->line($this->colors['green'] . $message . $this->colors['reset']);
     }
 
-    protected function display_info(string $message): void
+    protected function displayInfo(string $message): void
     {
         $this->line($this->colors['cyan'] . $message . $this->colors['reset']);
     }
 
-    protected function display_warning(string $message): void
+    protected function displayWarning(string $message): void
     {
         $this->line($this->colors['yellow'] . $message . $this->colors['reset']);
     }

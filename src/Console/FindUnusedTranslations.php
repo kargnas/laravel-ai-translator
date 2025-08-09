@@ -46,6 +46,11 @@ class FindUnusedTranslations extends Command
         '/\$tc\(\s*[\'"]([^\'"\)]+)[\'"][\s,\)]*.*?\)/i',
         // Blade directive patterns
         '/@t\(\s*[\'"]([^\'"\)]+)[\'"][\s,\)]*.*?\)/i',
+        // Template literal patterns for dynamic keys
+        '/__\(\s*`([^`]+)`[\s,\)]*.*?\)/i',
+        '/trans\(\s*`([^`]+)`[\s,\)]*.*?\)/i',
+        '/\$t\(\s*`([^`]+)`[\s,\)]*.*?\)/i',
+        '/t\(\s*`([^`]+)`[\s,\)]*.*?\)/i',
     ];
 
     protected array $fileExtensions = [
@@ -83,15 +88,20 @@ class FindUnusedTranslations extends Command
 
         // Step 2: Scan files for translation usage
         $this->line("🔍 Scanning for translation usage...");
-        $usedKeys = $this->scanForUsedKeys($scanPaths);
-        $this->info("Found {$this->colors['green']}" . count($usedKeys) . "{$this->colors['reset']} used translation keys");
+        $usageData = $this->scanForUsedKeys($scanPaths);
+        $staticCount = count($usageData['static']);
+        $dynamicCount = count($usageData['dynamic_prefixes']);
+        $this->info("Found {$this->colors['green']}{$staticCount}{$this->colors['reset']} static translation keys");
+        if ($dynamicCount > 0) {
+            $this->info("Found {$this->colors['cyan']}{$dynamicCount}{$this->colors['reset']} dynamic translation patterns");
+        }
 
         // Step 3: Find unused keys
         $this->line("🧹 Identifying unused translations...");
-        $unusedKeys = $this->findUnusedKeys($translationKeys, $usedKeys);
+        $unusedKeys = $this->findUnusedKeys($translationKeys, $usageData);
         
         // Step 4: Display results
-        $this->displayResults($unusedKeys, $translationKeys, $usedKeys, $format);
+        $this->displayResults($unusedKeys, $translationKeys, $usageData['static'], $format);
 
         // Step 5: Export if requested
         if ($this->option('export')) {
@@ -194,26 +204,34 @@ class FindUnusedTranslations extends Command
     protected function scanForUsedKeys(array $scanPaths): array
     {
         $usedKeys = [];
+        $dynamicPrefixes = [];
         
         foreach ($scanPaths as $path) {
             $files = $this->getFilesToScan($path);
             
-            $this->withProgressBar($files, function ($file) use (&$usedKeys) {
+            $this->withProgressBar($files, function ($file) use (&$usedKeys, &$dynamicPrefixes) {
                 $content = file_get_contents($file);
-                $keys = $this->extractTranslationKeys($content);
+                $extracted = $this->extractTranslationKeys($content);
                 
-                foreach ($keys as $key) {
+                foreach ($extracted['static'] as $key) {
                     if (!isset($usedKeys[$key])) {
                         $usedKeys[$key] = [];
                     }
                     $usedKeys[$key][] = $file;
+                }
+                
+                foreach ($extracted['dynamic_prefixes'] as $prefix) {
+                    if (!isset($dynamicPrefixes[$prefix])) {
+                        $dynamicPrefixes[$prefix] = [];
+                    }
+                    $dynamicPrefixes[$prefix][] = $file;
                 }
             });
         }
         
         $this->newLine();
         
-        return $usedKeys;
+        return ['static' => $usedKeys, 'dynamic_prefixes' => $dynamicPrefixes];
     }
 
     protected function getFilesToScan(string $path): array
@@ -253,24 +271,52 @@ class FindUnusedTranslations extends Command
 
     protected function extractTranslationKeys(string $content): array
     {
-        $keys = [];
+        $staticKeys = [];
+        $dynamicPrefixes = [];
         
         foreach ($this->translationPatterns as $pattern) {
             if (preg_match_all($pattern, $content, $matches)) {
                 foreach ($matches[1] as $key) {
                     $key = trim($key);
-                    if (!empty($key) && !str_contains($key, '$') && !str_contains($key, '{')) {
-                        $keys[] = $key;
+                    
+                    if (empty($key)) {
+                        continue;
+                    }
+                    
+                    // Check if it's a dynamic key with template literals
+                    if (preg_match('/\$\{[^}]+\}/', $key)) {
+                        // Extract the static prefix from dynamic keys
+                        // Examples:
+                        // "enums.hero.${heroId}" -> "enums.hero."
+                        // "errors.${type}.${code}" -> "errors."
+                        $parts = preg_split('/\.?\$\{/', $key, 2);
+                        if (!empty($parts[0])) {
+                            $prefix = rtrim($parts[0], '.');
+                            if ($prefix) {
+                                $dynamicPrefixes[] = $prefix;
+                            }
+                        }
+                    } elseif (str_contains($key, '$') || str_contains($key, '{')) {
+                        // Skip other types of variables (PHP variables, etc.)
+                        continue;
+                    } else {
+                        // Static key
+                        $staticKeys[] = $key;
                     }
                 }
             }
         }
         
-        return array_unique($keys);
+        return [
+            'static' => array_unique($staticKeys),
+            'dynamic_prefixes' => array_unique($dynamicPrefixes)
+        ];
     }
 
-    protected function findUnusedKeys(array $translationKeys, array $usedKeys): array
+    protected function findUnusedKeys(array $translationKeys, array $usageData): array
     {
+        $usedKeys = $usageData['static'] ?? [];
+        $dynamicPrefixes = $usageData['dynamic_prefixes'] ?? [];
         $unusedKeys = [];
         
         foreach ($translationKeys as $key => $data) {
@@ -279,10 +325,27 @@ class FindUnusedTranslations extends Command
                 continue;
             }
             
+            // Check if this key matches any dynamic prefix pattern
+            $isUsedByDynamic = false;
+            foreach ($dynamicPrefixes as $prefix => $files) {
+                // Check if the translation key starts with a dynamic prefix
+                // e.g., "enums.hero.warrior" starts with "enums.hero"
+                if (str_starts_with($key, $prefix . '.')) {
+                    $isUsedByDynamic = true;
+                    break;
+                }
+            }
+            
+            if ($isUsedByDynamic) {
+                continue;
+            }
+            
             // Check partial matches (for nested keys)
             $isUsed = false;
             foreach (array_keys($usedKeys) as $usedKey) {
-                if (str_starts_with($key, $usedKey) || str_starts_with($usedKey, $key)) {
+                // Only check if the full key is a prefix of the used key
+                // This prevents false positives like "user" matching "users"
+                if (str_starts_with($usedKey, $key . '.')) {
                     $isUsed = true;
                     break;
                 }

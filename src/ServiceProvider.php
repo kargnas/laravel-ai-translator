@@ -2,6 +2,7 @@
 
 namespace Kargnas\LaravelAiTranslator;
 
+use Kargnas\LaravelAiTranslator\Console\GeneratePromptCommand;
 use Kargnas\LaravelAiTranslator\Console\TestTranslateCommand;
 use Kargnas\LaravelAiTranslator\Console\TranslateCrowdin;
 use Kargnas\LaravelAiTranslator\Console\TranslateCrowdinParallel;
@@ -27,6 +28,7 @@ class ServiceProvider extends \Illuminate\Support\ServiceProvider
         );
 
         $this->commands([
+            GeneratePromptCommand::class,
             TranslateStrings::class,
             TranslateStringsParallel::class,
             TranslateCrowdinParallel::class,

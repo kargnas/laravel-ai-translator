@@ -6,11 +6,14 @@ class GeminiClient
 {
     protected string $apiKey;
 
+    protected string $model;
+
     protected $client;
 
-    public function __construct(string $apiKey)
+    public function __construct(string $apiKey, string $model = 'gemini-pro')
     {
         $this->apiKey = $apiKey;
+        $this->model = $model;
         $this->client = \Gemini::client($apiKey);
     }
 
@@ -57,7 +60,7 @@ class GeminiClient
     }
 
     /**
-     * 입력 콘텐츠를 라이브러리에 맞게 변환
+     * Format input content for the library
      */
     protected function formatRequestContent(array $contents): string
     {
@@ -69,7 +72,7 @@ class GeminiClient
     }
 
     /**
-     * 응답을 AIProvider가 기대하는 형식으로 변환
+     * Format response to match AIProvider's expected format
      */
     protected function formatResponse($response): array
     {
@@ -85,5 +88,19 @@ class GeminiClient
                 ],
             ],
         ];
+    }
+
+    /**
+     * Simple completion method for direct text generation
+     */
+    public function complete(string $system_prompt, string $user_prompt): string
+    {
+        try {
+            $prompt = "{$system_prompt}\n\n{$user_prompt}";
+            $response = $this->client->generativeModel(model: $this->model)->generateContent($prompt);
+            return $response->text();
+        } catch (\Throwable $e) {
+            throw new \Exception("Gemini API error: {$e->getMessage()}");
+        }
     }
 }

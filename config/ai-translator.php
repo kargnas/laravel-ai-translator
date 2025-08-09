@@ -29,6 +29,12 @@ return [
         // 'model' => 'gemini-2.5-pro-preview-05-06',
         // 'api_key' => env('GEMINI_API_KEY'),
 
+        // Gemini API configuration for prompt generation
+        'gemini' => [
+            'api_key' => env('GEMINI_API_KEY'),
+            'model' => 'gemini-2.0-flash-exp', // For prompt generation
+        ],
+
         // Additional options
         // 'retries' => 5,
         // 'max_tokens' => 4096,

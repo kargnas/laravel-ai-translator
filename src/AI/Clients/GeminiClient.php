@@ -6,11 +6,14 @@ class GeminiClient
 {
     protected string $apiKey;
 
+    protected string $model;
+
     protected $client;
 
-    public function __construct(string $apiKey)
+    public function __construct(string $apiKey, string $model = 'gemini-pro')
     {
         $this->apiKey = $apiKey;
+        $this->model = $model;
         $this->client = \Gemini::client($apiKey);
     }
 
@@ -85,5 +88,19 @@ class GeminiClient
                 ],
             ],
         ];
+    }
+
+    /**
+     * Simple completion method for direct text generation
+     */
+    public function complete(string $system_prompt, string $user_prompt): string
+    {
+        try {
+            $prompt = "{$system_prompt}\n\n{$user_prompt}";
+            $response = $this->client->generativeModel(model: $this->model)->generateContent($prompt);
+            return $response->text();
+        } catch (\Throwable $e) {
+            throw new \Exception("Gemini API error: {$e->getMessage()}");
+        }
     }
 }

@@ -2,6 +2,8 @@
 
 namespace Kargnas\LaravelAiTranslator;
 
+use Kargnas\LaravelAiTranslator\Console\BuildGlossaryCommand;
+use Kargnas\LaravelAiTranslator\Console\GeneratePromptCommand;
 use Kargnas\LaravelAiTranslator\Console\TestTranslateCommand;
 use Kargnas\LaravelAiTranslator\Console\TranslateCrowdin;
 use Kargnas\LaravelAiTranslator\Console\TranslateCrowdinParallel;
@@ -34,6 +36,8 @@ class ServiceProvider extends \Illuminate\Support\ServiceProvider
             TestTranslateCommand::class,
             TranslateFileCommand::class,
             TranslateJson::class,
+            GeneratePromptCommand::class,
+            BuildGlossaryCommand::class,
         ]);
     }
 }

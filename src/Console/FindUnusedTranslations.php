@@ -14,7 +14,8 @@ class FindUnusedTranslations extends Command
         {--scan-path=* : Directories to scan for translation usage (default: app, resources/views)}
         {--format=table : Output format (table, json, summary)}
         {--show-files : Show which files unused translations come from}
-        {--f|force : Automatically delete without confirmation}';
+        {--clean : Delete unused translation keys after analysis}
+        {--f|force : Automatically delete without confirmation (requires --clean)}';
 
     protected $description = 'Find unused translation keys by scanning PHP files and templates';
 
@@ -103,8 +104,8 @@ class FindUnusedTranslations extends Command
         // Step 4: Display results
         $this->displayResults($unusedKeys, $translationKeys, $usageData['static'], $format);
 
-        // Step 5: Ask about deletion if there are unused keys
-        if (!empty($unusedKeys)) {
+        // Step 5: Ask about deletion if there are unused keys and --clean option is provided
+        if (!empty($unusedKeys) && $this->option('clean')) {
             $this->handleDeletion($unusedKeys, $sourceLocale);
         }
 
@@ -540,7 +541,8 @@ class FindUnusedTranslations extends Command
             $this->warn("⚠️  Large number of unused keys detected. Consider gradual cleanup.");
         }
         
-        $this->line("💡 {$this->colors['cyan']}Tip:{$this->colors['reset']} Use --force option to automatically delete without confirmation");
+        $this->line("💡 {$this->colors['cyan']}Tip:{$this->colors['reset']} Use --clean option to delete unused keys");
+        $this->line("💡 {$this->colors['cyan']}Tip:{$this->colors['reset']} Use --clean --force to delete without confirmation");
     }
 
     protected function handleDeletion(array $unusedKeys, string $sourceLocale): void

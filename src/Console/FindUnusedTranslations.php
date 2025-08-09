@@ -14,7 +14,7 @@ class FindUnusedTranslations extends Command
         {--scan-path=* : Directories to scan for translation usage (default: app, resources/views)}
         {--format=table : Output format (table, json, summary)}
         {--show-files : Show which files unused translations come from}
-        {--export= : Export results to file}';
+        {--f|force : Automatically delete without confirmation}';
 
     protected $description = 'Find unused translation keys by scanning PHP files and templates';
 
@@ -103,9 +103,9 @@ class FindUnusedTranslations extends Command
         // Step 4: Display results
         $this->displayResults($unusedKeys, $translationKeys, $usageData['static'], $format);
 
-        // Step 5: Export if requested
-        if ($this->option('export')) {
-            $this->exportResults($unusedKeys, $this->option('export'));
+        // Step 5: Ask about deletion if there are unused keys
+        if (!empty($unusedKeys)) {
+            $this->handleDeletion($unusedKeys, $sourceLocale);
         }
 
         return self::SUCCESS;
@@ -211,7 +211,7 @@ class FindUnusedTranslations extends Command
             
             $this->withProgressBar($files, function ($file) use (&$usedKeys, &$dynamicPrefixes) {
                 $content = file_get_contents($file);
-                $extracted = $this->extractTranslationKeys($content);
+                $extracted = $this->extractTranslationKeys($content, $file);
                 
                 foreach ($extracted['static'] as $key) {
                     if (!isset($usedKeys[$key])) {
@@ -269,13 +269,16 @@ class FindUnusedTranslations extends Command
         return $files;
     }
 
-    protected function extractTranslationKeys(string $content): array
+    protected function extractTranslationKeys(string $content, string $filePath): array
     {
         $staticKeys = [];
         $dynamicPrefixes = [];
         
+        // Remove commented lines based on file type to avoid false positives
+        $contentWithoutComments = $this->removeCommentedCode($content, $filePath);
+        
         foreach ($this->translationPatterns as $pattern) {
-            if (preg_match_all($pattern, $content, $matches)) {
+            if (preg_match_all($pattern, $contentWithoutComments, $matches)) {
                 foreach ($matches[1] as $key) {
                     $key = trim($key);
                     
@@ -311,6 +314,63 @@ class FindUnusedTranslations extends Command
             'static' => array_unique($staticKeys),
             'dynamic_prefixes' => array_unique($dynamicPrefixes)
         ];
+    }
+    
+    protected function removeCommentedCode(string $content, string $filePath): string
+    {
+        $extension = pathinfo($filePath, PATHINFO_EXTENSION);
+        $filename = basename($filePath);
+        
+        // Determine file type and apply appropriate comment removal
+        if (str_ends_with($filename, '.blade.php')) {
+            // Blade files: PHP + Blade comments + HTML comments
+            $content = $this->removePhpComments($content);
+            $content = preg_replace('/\{\{--.*?--\}\}/s', '', $content); // Blade comments
+            $content = preg_replace('/<!--.*?-->/s', '', $content); // HTML comments
+        } elseif ($extension === 'php') {
+            // PHP files: PHP comments only
+            $content = $this->removePhpComments($content);
+        } elseif (in_array($extension, ['js', 'jsx', 'ts', 'tsx'])) {
+            // JavaScript/TypeScript files: JS comments + JSX comments
+            $content = $this->removeJsComments($content);
+            if (in_array($extension, ['jsx', 'tsx'])) {
+                // Also remove JSX comments in JSX/TSX files
+                $content = preg_replace('/\{\s*\/\*.*?\*\/\s*\}/s', '', $content); // {/* comment */}
+            }
+        } elseif ($extension === 'vue') {
+            // Vue files: JS comments + HTML comments
+            $content = $this->removeJsComments($content);
+            $content = preg_replace('/<!--.*?-->/s', '', $content); // HTML comments
+        } elseif ($extension === 'json') {
+            // JSON files: no comments allowed, return as-is
+            // JSON doesn't support comments
+            return $content;
+        }
+        
+        return $content;
+    }
+    
+    protected function removePhpComments(string $content): string
+    {
+        // Remove single-line comments (// and #)
+        $content = preg_replace('/\/\/.*$/m', '', $content);
+        $content = preg_replace('/^\s*#.*$/m', '', $content);
+        
+        // Remove multi-line comments (/* ... */)
+        $content = preg_replace('/\/\*[^*]*\*+(?:[^\/*][^*]*\*+)*\//', '', $content);
+        
+        return $content;
+    }
+    
+    protected function removeJsComments(string $content): string
+    {
+        // Remove single-line comments (//)
+        $content = preg_replace('/\/\/.*$/m', '', $content);
+        
+        // Remove multi-line comments (/* ... */)
+        $content = preg_replace('/\/\*[^*]*\*+(?:[^\/*][^*]*\*+)*\//', '', $content);
+        
+        return $content;
     }
 
     protected function findUnusedKeys(array $translationKeys, array $usageData): array
@@ -474,44 +534,155 @@ class FindUnusedTranslations extends Command
             $this->warn("⚠️  Large number of unused keys detected. Consider gradual cleanup.");
         }
         
-        $this->line("💡 {$this->colors['cyan']}Tip:{$this->colors['reset']} Use --export option to save results for review");
+        $this->line("💡 {$this->colors['cyan']}Tip:{$this->colors['reset']} Use --force option to automatically delete without confirmation");
     }
 
-    protected function exportResults(array $unusedKeys, string $filename): void
+    protected function handleDeletion(array $unusedKeys, string $sourceLocale): void
     {
-        $data = [
-            'timestamp' => now()->toISOString(),
-            'summary' => [
-                'total_unused' => count($unusedKeys),
-                'analysis_completed' => true
-            ],
-            'unused_keys' => $unusedKeys
-        ];
+        $totalKeys = count($unusedKeys);
         
-        $extension = pathinfo($filename, PATHINFO_EXTENSION);
+        // If force option is not set, ask for confirmation
+        if (!$this->option('force')) {
+            $this->newLine();
+            if (!$this->confirm("Do you want to delete {$totalKeys} unused translation keys?", false)) {
+                $this->info('No action taken.');
+                return;
+            }
+        }
+        
+        $this->newLine();
+        $this->line($this->colors['bg_red'] . $this->colors['white'] . ' ⚠️  WARNING - BETA FEATURE ' . $this->colors['reset']);
+        $this->newLine();
+        $this->warn("This feature is in BETA. Data loss may occur!");
+        $this->newLine();
+        
+        $this->info("This will delete {$this->colors['red']}{$totalKeys}{$this->colors['reset']} unused translation keys.");
+        
+        if (!$this->option('force')) {
+            if (!$this->confirm('Are you absolutely sure you want to proceed with deletion?', false)) {
+                $this->info('Deletion cancelled.');
+                return;
+            }
+        }
+        
+        // Create backup before deletion
+        $backupDir = $this->createBackup();
+        if ($backupDir) {
+            $this->info("✓ Backup created at: {$this->colors['green']}{$backupDir}{$this->colors['reset']}");
+        } else {
+            $this->error('Failed to create backup.');
+            if (!$this->option('force') && !$this->confirm('Continue without backup?', false)) {
+                $this->info('Deletion cancelled.');
+                return;
+            }
+        }
+        
+        $this->newLine();
+        $this->info('Preparing to delete unused translations...');
+        
+        // Group unused keys by file for CleanCommand pattern
+        $patterns = $this->prepareCleanPatterns($unusedKeys);
+        
+        // Execute CleanCommand for each pattern
+        foreach ($patterns as $pattern) {
+            $this->info("Deleting: {$pattern}");
+            $this->call('ai-translator:clean', [
+                'pattern' => $pattern,
+                '--source' => $sourceLocale,
+                '--force' => true,
+                '--no-backup' => true  // Disable CleanCommand's backup as we already created one
+            ]);
+        }
+        
+        $this->newLine();
+        $this->line("{$this->colors['green']}✓ Successfully deleted {$totalKeys} unused translation keys.{$this->colors['reset']}");
+        if ($backupDir) {
+            $this->info("Backup saved at: {$backupDir}");
+        }
+    }
+    
+    protected function prepareCleanPatterns(array $unusedKeys): array
+    {
+        $patterns = [];
+        
+        foreach ($unusedKeys as $key => $data) {
+            // For PHP files, we need to create a pattern like "filename.keypath"
+            // For JSON files, the key is already in the right format
+            $patterns[] = $key;
+        }
+        
+        return array_unique($patterns);
+    }
+    
+    protected function createBackup(): ?string
+    {
+        $sourceDirectory = rtrim(config('ai-translator.source_directory', 'lang'), '/');
+        $timestamp = date('Y-m-d_H-i-s');
+        $backupDir = "{$sourceDirectory}/backup-before-unused/{$timestamp}";
         
         try {
-            if ($extension === 'json') {
-                file_put_contents($filename, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
-            } else {
-                // Default to CSV format
-                $fp = fopen($filename, 'w');
-                fputcsv($fp, ['Key', 'Value', 'File', 'Type']);
-                
-                foreach ($unusedKeys as $key => $keyData) {
-                    fputcsv($fp, [
-                        $key,
-                        $keyData['value'],
-                        $keyData['file'],
-                        $keyData['type']
-                    ]);
+            // Create backup directory
+            if (!is_dir($backupDir)) {
+                if (!mkdir($backupDir, 0755, true)) {
+                    return null;
                 }
-                fclose($fp);
             }
             
-            $this->info("📁 Results exported to: {$this->colors['cyan']}{$filename}{$this->colors['reset']}");
+            // Copy all language directories and files
+            $items = glob("{$sourceDirectory}/*");
+            foreach ($items as $item) {
+                $basename = basename($item);
+                
+                // Skip backup directories
+                if (str_starts_with($basename, 'backup')) {
+                    continue;
+                }
+                
+                if (is_dir($item)) {
+                    // Copy directory recursively
+                    $this->copyDirectory($item, "{$backupDir}/{$basename}");
+                } elseif (is_file($item) && str_ends_with($basename, '.json')) {
+                    // Copy JSON file
+                    copy($item, "{$backupDir}/{$basename}");
+                }
+            }
+            
+            // Create info file
+            $infoFile = "{$backupDir}/backup_info.txt";
+            $info = "Backup created before unused translation deletion\n";
+            $info .= "Date: {$timestamp}\n";
+            $info .= "Command: ai-translator:find-unused\n";
+            file_put_contents($infoFile, $info);
+            
+            return $backupDir;
+            
         } catch (\Exception $e) {
-            $this->error("Failed to export results: " . $e->getMessage());
+            $this->error("Backup failed: " . $e->getMessage());
+            return null;
+        }
+    }
+    
+    protected function copyDirectory(string $source, string $destination): void
+    {
+        if (!is_dir($destination)) {
+            mkdir($destination, 0755, true);
+        }
+        
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($source, \RecursiveDirectoryIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::SELF_FIRST
+        );
+        
+        foreach ($iterator as $item) {
+            $destPath = $destination . '/' . $iterator->getSubPathName();
+            
+            if ($item->isDir()) {
+                if (!is_dir($destPath)) {
+                    mkdir($destPath, 0755, true);
+                }
+            } else {
+                copy($item, $destPath);
+            }
         }
     }
 }

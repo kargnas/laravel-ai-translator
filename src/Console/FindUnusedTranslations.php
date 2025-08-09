@@ -251,18 +251,24 @@ class FindUnusedTranslations extends Command
                 continue;
             }
             
+            // Skip files in backup directories
+            $pathname = $file->getPathname();
+            if (str_contains($pathname, '/backup') || str_contains($pathname, '\\backup')) {
+                continue;
+            }
+            
             $filename = $file->getFilename();
             $extension = $file->getExtension();
             
             // Check for blade files specifically
             if (str_ends_with($filename, '.blade.php')) {
-                $files[] = $file->getPathname();
+                $files[] = $pathname;
                 continue;
             }
             
             // Check other extensions
             if (in_array($extension, $this->fileExtensions)) {
-                $files[] = $file->getPathname();
+                $files[] = $pathname;
             }
         }
         
@@ -583,16 +589,33 @@ class FindUnusedTranslations extends Command
         // Group unused keys by file for CleanCommand pattern
         $patterns = $this->prepareCleanPatterns($unusedKeys);
         
-        // Execute CleanCommand for each pattern
+        // First, delete from source language files
+        $this->newLine();
+        $this->info("Deleting from source language ({$sourceLocale})...");
+        $this->deleteFromSourceLanguage($unusedKeys, $sourceLocale);
+        
+        // Then, delete from other languages using CleanCommand
+        $this->newLine();
+        $this->info('Deleting from other languages...');
+        
+        $progressBar = $this->output->createProgressBar(count($patterns));
+        $progressBar->setFormat(' %current%/%max% [%bar%] %percent:3s%% %message%');
+        $progressBar->setMessage('Deleting unused keys...');
+        $progressBar->start();
+        
         foreach ($patterns as $pattern) {
-            $this->info("Deleting: {$pattern}");
-            $this->call('ai-translator:clean', [
+            $progressBar->setMessage("Deleting: {$pattern}");
+            $this->callSilently('ai-translator:clean', [
                 'pattern' => $pattern,
                 '--source' => $sourceLocale,
                 '--force' => true,
                 '--no-backup' => true  // Disable CleanCommand's backup as we already created one
             ]);
+            $progressBar->advance();
         }
+        
+        $progressBar->finish();
+        $this->newLine();
         
         $this->newLine();
         $this->line("{$this->colors['green']}✓ Successfully deleted {$totalKeys} unused translation keys.{$this->colors['reset']}");
@@ -684,5 +707,167 @@ class FindUnusedTranslations extends Command
                 copy($item, $destPath);
             }
         }
+    }
+    
+    protected function deleteFromSourceLanguage(array $unusedKeys, string $sourceLocale): void
+    {
+        $sourceDirectory = rtrim(config('ai-translator.source_directory', 'lang'), '/');
+        $deletedCount = 0;
+        $filesModified = [];
+        
+        // Group keys by file
+        $keysByFile = [];
+        foreach ($unusedKeys as $key => $data) {
+            $file = $data['file'];
+            if (!isset($keysByFile[$file])) {
+                $keysByFile[$file] = [];
+            }
+            $keysByFile[$file][$key] = $data;
+        }
+        
+        foreach ($keysByFile as $file => $keys) {
+            try {
+                // Get the first key's data to determine file type
+                $firstKeyData = reset($keys);
+                
+                if ($firstKeyData['type'] === 'php') {
+                    // Handle PHP files
+                    $transformer = new PHPLangTransformer($file);
+                    $flat = $transformer->flatten();
+                    $original = $this->unflattenArray($flat);
+                    
+                    foreach ($keys as $fullKey => $keyData) {
+                        // Remove the file prefix from the key
+                        $keyToRemove = $keyData['key'];
+                        $original = $this->removeKeyFromArray($original, $keyToRemove);
+                        $deletedCount++;
+                    }
+                    
+                    // Clean up empty arrays
+                    $original = $this->cleanEmptyArrays($original);
+                    
+                    // Save the file
+                    $this->savePhpFile($file, $original);
+                    $filesModified[] = basename($file);
+                    
+                } elseif ($firstKeyData['type'] === 'json') {
+                    // Handle JSON files
+                    $transformer = new JSONLangTransformer($file);
+                    $data = $transformer->flatten();
+                    
+                    foreach ($keys as $fullKey => $keyData) {
+                        unset($data[$fullKey]);
+                        $deletedCount++;
+                    }
+                    
+                    // Save the file
+                    $this->saveJsonFile($file, $data);
+                    $filesModified[] = basename($file);
+                }
+            } catch (\Exception $e) {
+                $this->error("Failed to delete keys from {$file}: " . $e->getMessage());
+            }
+        }
+        
+        if ($deletedCount > 0) {
+            $this->info("{$this->colors['green']}✓{$this->colors['reset']} Deleted {$deletedCount} keys from {$sourceLocale} (" . implode(', ', array_unique($filesModified)) . ")");
+        }
+    }
+    
+    protected function removeKeyFromArray(array $array, string $dot_key): array
+    {
+        $keys = explode('.', $dot_key);
+        $current = &$array;
+        
+        for ($i = 0; $i < count($keys) - 1; $i++) {
+            if (!isset($current[$keys[$i]])) {
+                return $array;
+            }
+            $current = &$current[$keys[$i]];
+        }
+        
+        unset($current[$keys[count($keys) - 1]]);
+        
+        return $array;
+    }
+    
+    protected function cleanEmptyArrays(array $array): array
+    {
+        foreach ($array as $key => &$value) {
+            if (is_array($value)) {
+                $value = $this->cleanEmptyArrays($value);
+                if (empty($value)) {
+                    unset($array[$key]);
+                }
+            }
+        }
+        
+        return $array;
+    }
+    
+    protected function savePhpFile(string $file_path, array $data): void
+    {
+        $timestamp = date('Y-m-d H:i:s T');
+        
+        $lines = [
+            "<?php\n",
+            '/**',
+            ' * WARNING: This is an auto-generated file.',
+            ' * Do not modify this file manually as your changes will be lost.',
+            " * This file was automatically modified at {$timestamp}.",
+            " */\n",
+            'return '.$this->arrayExport($data, 0).";\n",
+        ];
+
+        file_put_contents($file_path, implode("\n", $lines));
+    }
+    
+    protected function arrayExport(array $array, int $level): string
+    {
+        $indent = str_repeat('    ', $level);
+        $output = "[\n";
+
+        $items = [];
+        foreach ($array as $key => $value) {
+            $formattedKey = is_int($key) ? $key : "'".str_replace("'", "\\'", $key)."'";
+            if (is_array($value)) {
+                $items[] = $indent."    {$formattedKey} => ".$this->arrayExport($value, $level + 1);
+            } else {
+                $formattedValue = "'".str_replace("'", "\\'", $value)."'";
+                $items[] = $indent."    {$formattedKey} => {$formattedValue}";
+            }
+        }
+
+        $output .= implode(",\n", $items);
+        $output .= "\n".$indent.']';
+
+        return $output;
+    }
+    
+    protected function saveJsonFile(string $file_path, array $data): void
+    {
+        $json_options = JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES;
+        file_put_contents($file_path, json_encode($data, $json_options) . "\n");
+    }
+    
+    protected function unflattenArray(array $array): array
+    {
+        $result = [];
+        foreach ($array as $key => $value) {
+            $parts = explode('.', $key);
+            $current = &$result;
+            foreach ($parts as $i => $part) {
+                if ($i === count($parts) - 1) {
+                    $current[$part] = $value;
+                } else {
+                    if (!isset($current[$part]) || !is_array($current[$part])) {
+                        $current[$part] = [];
+                    }
+                    $current = &$current[$part];
+                }
+            }
+        }
+
+        return $result;
     }
 }

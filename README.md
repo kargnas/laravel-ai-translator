@@ -17,7 +17,17 @@ AI-powered translation tool for Laravel language files
 
 ## 🔄 Recent Updates
 
- - 🔁 **Parallel Translation**: Translate multiple locales concurrently with the `translate-parallel` command.
+- 🔍 **Find & Remove Unused Translations**: New `ai-translator:find-unused` command to detect and optionally remove unused translation keys
+  - Scans your codebase for actual translation usage
+  - Supports file type-specific comment detection (PHP, JS, JSX, Vue, Blade)
+  - Automatic backup before deletion
+  - Removes keys from both source and target languages
+  - Progress bars for better UX
+- 🧹 **Enhanced Clean Command**: Improved pattern matching and backup handling
+  - More precise file pattern matching (no more subdirectory confusion)
+  - Better handling of backup directories
+  - Strict path matching to prevent unintended deletions
+- 🔁 **Parallel Translation**: Translate multiple locales concurrently with the `translate-parallel` command
 - **New Provider**: Added Google Gemini support (including the 2.5 models)
 - **AI Enhancement**: Added support for Claude 3.7's Extended Thinking capabilities
   - Extended context window up to 200K tokens, output tokens up to 64K tokens
@@ -218,6 +228,58 @@ This command will:
 1. Recognize all language folders in your `lang` directory
 2. Use AI to translate the contents of the string files in the source language, English. (You can change the source language in the config file)
 
+### Finding and Removing Unused Translations
+
+To find translation keys that are no longer used in your codebase:
+
+```bash
+php artisan ai-translator:find-unused [options]
+```
+
+This command scans your source code to identify unused translation keys and optionally removes them.
+
+#### Features
+
+- **Smart Code Scanning**: Analyzes PHP, JavaScript, Vue, and Blade files
+- **Comment Awareness**: Ignores translation keys in comments (file type specific)
+- **Dynamic Key Detection**: Recognizes template literal patterns like `${variable}`
+- **Automatic Cleanup**: Optionally removes unused keys from all language files
+- **Backup Protection**: Creates automatic backups before deletion
+- **Source Language Support**: Removes keys from source language as well
+
+#### Options
+
+- `--source=LOCALE`: Source language to analyze (default: from config)
+- `--scan-path=PATH`: Directories to scan (default: app, resources/views)
+- `--format=FORMAT`: Output format (table, json, summary)
+- `--show-files`: Show which files contain unused translations
+- `-f|--force`: Automatically delete without confirmation
+
+#### Examples
+
+```bash
+# Find unused translations (interactive deletion prompt)
+php artisan ai-translator:find-unused
+
+# Scan specific directories
+php artisan ai-translator:find-unused --scan-path=app --scan-path=resources
+
+# Auto-delete without confirmation
+php artisan ai-translator:find-unused --force
+
+# Show detailed file information
+php artisan ai-translator:find-unused --show-files
+
+# Output as JSON
+php artisan ai-translator:find-unused --format=json
+```
+
+The command automatically:
+- Creates timestamped backups in `lang/backup-before-unused/` before deletion
+- Detects translation usage patterns in all major file types
+- Removes commented-out code to avoid false positives
+- Shows progress bars during deletion for better UX
+
 ### Cleaning Translations
 
 To remove translated strings and prepare for re-translation, use the clean command:
@@ -226,13 +288,13 @@ To remove translated strings and prepare for re-translation, use the clean comma
 php artisan ai-translator:clean [pattern] [options]
 ```
 
-This command removes translations from locale files while preserving your source language, allowing you to regenerate translations with updated AI models or rules. It automatically detects all target locales and excludes the source locale.
+This command removes translations from locale files while preserving your source language, allowing you to regenerate translations with updated AI models or rules.
 
 #### Arguments
 
 - `pattern`: Optional pattern to match files or keys
-  - `enums` - matches all `*/enums.php` files
-  - `foo/bar` - matches files in subdirectories
+  - `enums` - matches `lang/{locale}/enums.php` files only (not subdirectories)
+  - `foo/bar` - matches exact path `lang/{locale}/foo/bar.php`
   - `enums.heroes` - matches specific keys within files
 
 #### Options
@@ -248,10 +310,10 @@ This command removes translations from locale files while preserving your source
 # Remove all translations from all target locales (interactive confirmation)
 php artisan ai-translator:clean
 
-# Remove translations from specific file pattern
+# Remove translations from specific file (direct matches only)
 php artisan ai-translator:clean enums
 
-# Remove translations from subdirectory files
+# Remove translations from exact subdirectory path
 php artisan ai-translator:clean auth/login
 
 # Remove specific key translations
@@ -269,7 +331,8 @@ php artisan ai-translator:clean enums --dry-run
 
 The command automatically:
 - Creates backups in `lang/backup/` before deletion (unless `--no-backup` is used)
-- Detects all available target locales (excluding the source locale)
+- Uses strict pattern matching (no wildcards in subdirectories)
+- Excludes backup directories from being treated as locales
 - Shows detailed statistics before performing deletions
 - Prevents accidental overwrites by checking for existing backup directories
 

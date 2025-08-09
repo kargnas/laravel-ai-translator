@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Support\Facades\Artisan;
 use Kargnas\LaravelAiTranslator\Console\FindUnusedTranslations;
 
 beforeEach(function () {
@@ -47,41 +48,47 @@ afterEach(function () {
 it('can find unused translation keys', function () {
     $command = new FindUnusedTranslations();
     
-    $this->artisan('ai-translator:find-unused', [
+    $result = $this->artisan('ai-translator:find-unused', [
         '--source' => 'en',
         '--scan-path' => [$this->testAppDir],
         '--format' => 'json'
-    ])
-    ->expectsOutput(function ($output) {
-        return str_contains($output, 'unused_key') && 
-               str_contains($output, 'json_unused') &&
-               str_contains($output, 'nested.unused');
-    })
-    ->assertExitCode(0);
+    ]);
+    
+    $output = Artisan::output();
+    
+    expect($output)->toContain('unused_key')
+        ->and($output)->toContain('json_unused')
+        ->and($output)->toContain('nested.unused');
+    
+    $result->assertExitCode(0);
 });
 
 it('shows summary when requested', function () {
-    $this->artisan('ai-translator:find-unused', [
+    $result = $this->artisan('ai-translator:find-unused', [
         '--source' => 'en',
         '--scan-path' => [$this->testAppDir],
         '--format' => 'summary'
-    ])
-    ->expectsOutput(function ($output) {
-        return str_contains($output, 'Analysis Results') && 
-               str_contains($output, 'Total translation keys');
-    })
-    ->assertExitCode(0);
+    ]);
+    
+    $output = Artisan::output();
+    
+    expect($output)->toContain('Analysis Results')
+        ->and($output)->toContain('Total translation keys');
+    
+    $result->assertExitCode(0);
 });
 
 it('handles missing source directory gracefully', function () {
-    $this->artisan('ai-translator:find-unused', [
+    $result = $this->artisan('ai-translator:find-unused', [
         '--source' => 'nonexistent',
         '--scan-path' => [$this->testAppDir]
-    ])
-    ->expectsOutput(function ($output) {
-        return str_contains($output, 'No translation files found');
-    })
-    ->assertExitCode(1);
+    ]);
+    
+    $output = Artisan::output();
+    
+    expect($output)->toContain('No translation files found');
+    
+    $result->assertExitCode(1);
 });
 
 it('can export results to file', function () {
@@ -114,15 +121,17 @@ it('detects various translation patterns', function () {
     $enDir = $this->testLangDir.'/en';
     file_put_contents($enDir.'/patterns.php', "<?php\n\nreturn [\n    'pattern1' => 'Pattern 1',\n    'pattern2' => 'Pattern 2',\n    'pattern3' => 'Pattern 3',\n    'pattern4' => 'Pattern 4',\n    'blade_pattern' => 'Blade Pattern',\n    'blade_pattern2' => 'Blade Pattern 2',\n    'unused_pattern' => 'Unused Pattern'\n];");
     
-    $this->artisan('ai-translator:find-unused', [
+    $result = $this->artisan('ai-translator:find-unused', [
         '--source' => 'en',
         '--scan-path' => [$this->testAppDir],
         '--format' => 'json'
-    ])
-    ->expectsOutput(function ($output) {
-        return str_contains($output, 'unused_pattern') && 
-               !str_contains($output, 'pattern1') &&
-               !str_contains($output, 'blade_pattern');
-    })
-    ->assertExitCode(0);
+    ]);
+    
+    $output = Artisan::output();
+    
+    expect($output)->toContain('unused_pattern')
+        ->and($output)->not->toContain('"pattern1"')
+        ->and($output)->not->toContain('"blade_pattern"');
+    
+    $result->assertExitCode(0);
 });

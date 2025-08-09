@@ -509,7 +509,7 @@ class CleanCommand extends Command
             
             // Now remove the matching keys
             $key_pattern = implode('.', array_slice($pattern_parts, 1));
-            $flat = $transformer->flatten($data);
+            $flat = $transformer->flatten();
             $keys_to_remove = [];
             
             foreach (array_keys($flat) as $key) {

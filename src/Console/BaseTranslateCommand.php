@@ -10,6 +10,7 @@ use Kargnas\LaravelAiTranslator\AI\Printer\TokenUsagePrinter;
 use Kargnas\LaravelAiTranslator\AI\TranslationContextProvider;
 use Kargnas\LaravelAiTranslator\Enums\PromptType;
 use Kargnas\LaravelAiTranslator\Enums\TranslationStatus;
+use Kargnas\LaravelAiTranslator\Models\LocalizedString;
 use Kargnas\LaravelAiTranslator\Transformers\TransformerInterface;
 
 abstract class BaseTranslateCommand extends Command
@@ -378,13 +379,41 @@ abstract class BaseTranslateCommand extends Command
 
     protected function performTranslation(array $strings, string $locale, array $globalContext): array
     {
-        $aiProvider = AIProvider::make();
+        // Get the current file name from the context
+        $filename = 'translation.php'; // Default filename
         
-        if (!$aiProvider->hasExtendedThinking()) {
+        // Create AIProvider instance with proper constructor parameters
+        $aiProvider = new AIProvider(
+            filename: $filename,
+            strings: $strings,
+            sourceLanguage: $this->sourceLocale,
+            targetLanguage: $locale,
+            references: [],
+            additionalRules: [],
+            globalTranslationContext: $globalContext
+        );
+        
+        // Check if extended thinking is enabled in config
+        $useExtendedThinking = config('ai-translator.ai.use_extended_thinking', false);
+        if (!$useExtendedThinking) {
             $this->displayInfo("  🧠 AI Translating...");
         }
 
-        return $aiProvider->translate($strings, $this->sourceLocale, $locale, $globalContext, PromptType::DEFAULT);
+        // Call translate method and return the results
+        $translatedObjects = $aiProvider->translate();
+        
+        // Format the response to match expected structure
+        return [
+            'translations' => array_map(function($item) {
+                return [
+                    'key' => $item->key,
+                    'translated' => $item->translated,
+                    'status' => !empty($item->translated) ? TranslationStatus::SUCCESS : TranslationStatus::FAILED,
+                    'reason' => $item->comment ?? null
+                ];
+            }, $translatedObjects),
+            'usage' => $aiProvider->getTokenUsage()
+        ];
     }
 
     protected function applyTranslations(

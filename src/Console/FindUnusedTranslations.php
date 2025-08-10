@@ -18,6 +18,8 @@ class FindUnusedTranslations extends Command
 
     protected $description = 'Find unused translation keys by scanning PHP files and templates';
 
+    protected bool $isTestEnvironment = false;
+
     protected array $colors = [
         'red' => "\033[31m",
         'green' => "\033[32m",
@@ -65,13 +67,16 @@ class FindUnusedTranslations extends Command
 
     public function handle(): int
     {
+        // Initialize test environment flag once
+        $this->isTestEnvironment = app()->environment('testing');
+        
         // Disable colors in test environment
-        if (app()->environment('testing')) {
+        if ($this->isTestEnvironment) {
             $this->colors = array_fill_keys(array_keys($this->colors), '');
         }
         
         // Only display header if not in test environment
-        if (!app()->environment('testing')) {
+        if (!$this->isTestEnvironment) {
             $this->displayHeader();
         }
 
@@ -79,14 +84,14 @@ class FindUnusedTranslations extends Command
         $scanPaths = $this->getScanPaths();
         $format = $this->option('format');
         
-        if (!app()->environment('testing')) {
+        if (!$this->isTestEnvironment) {
             $this->info("🔍 Analyzing translations for locale: {$this->colors['cyan']}{$sourceLocale}{$this->colors['reset']}");
             $this->info("📁 Scanning paths: {$this->colors['dim']}" . implode(', ', $scanPaths) . "{$this->colors['reset']}");
             $this->newLine();
         }
 
         // Step 1: Get all translation keys from language files
-        if (!app()->environment('testing')) {
+        if (!$this->isTestEnvironment) {
             $this->line("📚 Loading translation keys...");
         }
         $translationKeys = $this->getTranslationKeys($sourceLocale);
@@ -96,18 +101,18 @@ class FindUnusedTranslations extends Command
             return self::FAILURE;
         }
         
-        if (!app()->environment('testing')) {
+        if (!$this->isTestEnvironment) {
             $this->info("Found {$this->colors['green']}" . count($translationKeys) . "{$this->colors['reset']} translation keys");
         }
 
         // Step 2: Scan files for translation usage
-        if (!app()->environment('testing')) {
+        if (!$this->isTestEnvironment) {
             $this->line("🔍 Scanning for translation usage...");
         }
         $usageData = $this->scanForUsedKeys($scanPaths);
         $staticCount = count($usageData['static']);
         $dynamicCount = count($usageData['dynamic_prefixes']);
-        if (!app()->environment('testing')) {
+        if (!$this->isTestEnvironment) {
             $this->info("Found {$this->colors['green']}{$staticCount}{$this->colors['reset']} static translation keys");
             if ($dynamicCount > 0) {
                 $this->info("Found {$this->colors['cyan']}{$dynamicCount}{$this->colors['reset']} dynamic translation patterns");
@@ -115,7 +120,7 @@ class FindUnusedTranslations extends Command
         }
 
         // Step 3: Find unused keys
-        if (!app()->environment('testing')) {
+        if (!$this->isTestEnvironment) {
             $this->line("🧹 Identifying unused translations...");
         }
         $unusedKeys = $this->findUnusedKeys($translationKeys, $usageData);
@@ -230,7 +235,7 @@ class FindUnusedTranslations extends Command
             $files = $this->getFilesToScan($path);
             
             // In test environment, don't use progress bar
-            if (app()->environment('testing')) {
+            if ($this->isTestEnvironment) {
                 foreach ($files as $file) {
                     $content = file_get_contents($file);
                     $extracted = $this->extractTranslationKeys($content, $file);
@@ -271,7 +276,7 @@ class FindUnusedTranslations extends Command
             }
         }
         
-        if (!app()->environment('testing')) {
+        if (!$this->isTestEnvironment) {
             $this->newLine();
         }
         
@@ -471,11 +476,11 @@ class FindUnusedTranslations extends Command
 
     protected function displayResults(array $unusedKeys, array $translationKeys, array $usedKeys, string $format): void
     {
-        if (!app()->environment('testing')) {
+        if (!$this->isTestEnvironment) {
             $this->newLine();
         }
         $this->line($this->colors['bg_blue'] . $this->colors['white'] . ' Analysis Results ' . $this->colors['reset']);
-        if (!app()->environment('testing')) {
+        if (!$this->isTestEnvironment) {
             $this->newLine();
         }
         
@@ -518,7 +523,7 @@ class FindUnusedTranslations extends Command
         }
         
         $this->line("{$this->colors['yellow']}📋 Unused Translation Keys:{$this->colors['reset']}");
-        if (!app()->environment('testing')) {
+        if (!$this->isTestEnvironment) {
             $this->newLine();
         }
         
@@ -554,7 +559,7 @@ class FindUnusedTranslations extends Command
             }
             $jsonOutput = json_encode($output, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
             // In test environment, also output keys separately for better matching
-            if (app()->environment('testing')) {
+            if ($this->isTestEnvironment) {
                 foreach (array_keys($unusedKeys) as $key) {
                     $this->line($key);
                 }

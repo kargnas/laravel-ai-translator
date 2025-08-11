@@ -5,6 +5,7 @@ namespace Kargnas\LaravelAiTranslator\Console\CrowdIn\Services;
 use GuzzleHttp\Client;
 use GuzzleHttp\Promise;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Log;
 
 class CrowdinAsyncApiService
 {
@@ -156,7 +157,7 @@ class CrowdinAsyncApiService
                     continue;
                 }
 
-                \Log::error('Failed to process translations chunk', [
+                Log::error('Failed to process translations chunk', [
                     'error' => $e->getMessage(),
                     'chunk' => $chunk,
                 ]);
@@ -178,7 +179,7 @@ class CrowdinAsyncApiService
 
             return $userData['data']['id'] ?? throw new \RuntimeException('Failed to get user ID from response');
         } catch (\Exception $e) {
-            \Log::error('Failed to get current user ID', [
+            Log::error('Failed to get current user ID', [
                 'error' => $e->getMessage(),
             ]);
             throw new \RuntimeException('Failed to get current user ID: '.$e->getMessage());

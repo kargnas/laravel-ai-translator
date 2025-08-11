@@ -8,6 +8,7 @@ use CrowdinApiClient\Model\SourceString;
 use CrowdinApiClient\Model\StringTranslationApproval;
 use Illuminate\Console\Command;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 use Kargnas\LaravelAiTranslator\AI\AIProvider;
 use Kargnas\LaravelAiTranslator\AI\TranslationContextProvider;
 use Kargnas\LaravelAiTranslator\Enums\PromptType;
@@ -395,7 +396,7 @@ class TranslationService
             } else {
                 // API call failure is treated as non-duplicate
                 $nonDuplicates[] = $item;
-                \Log::warning("Failed to check duplicates for {$key}", [
+                Log::warning("Failed to check duplicates for {$key}", [
                     'error' => $result['reason']->getMessage(),
                 ]);
             }
@@ -561,7 +562,7 @@ class TranslationService
             $this->command->line("    - Successfully added: {$successCount}");
             $this->command->line('    - Failed: '.(count($checkResult['nonDuplicates']) - $successCount));
 
-            \Log::info('Translation process completed', [
+            Log::info('Translation process completed', [
                 'total' => count($translated),
                 'duplicates' => $duplicateCount,
                 'success' => $successCount,
@@ -571,7 +572,7 @@ class TranslationService
             $errorMessage = 'Translation processing failed';
             $errorDetails = $e->getMessage();
 
-            \Log::error($errorMessage, [
+            Log::error($errorMessage, [
                 'error' => $errorDetails,
                 'file' => __FILE__,
                 'line' => __LINE__,

@@ -4,6 +4,7 @@ namespace Kargnas\LaravelAiTranslator\AI\Clients;
 
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 /**
  * HTTP client for calling Anthropic (Claude) server
@@ -101,7 +102,7 @@ class AnthropicClient
                 if (config('app.debug', false) || config('ai-translator.debug', false)) {
                     $eventType = $parsedData['type'] ?? 'unknown';
                     if (in_array($eventType, ['message_start', 'message_stop', 'message_delta']) && ! isset($parsedData['__logged'])) {
-                        \Log::debug("Anthropic API Raw Event: {$eventType}", json_decode(json_encode($parsedData), true));
+                        Log::debug("Anthropic API Raw Event: {$eventType}", json_decode(json_encode($parsedData), true));
                         $parsedData['__logged'] = true;
                     }
                 }

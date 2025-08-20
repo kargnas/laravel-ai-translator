@@ -147,7 +147,7 @@ class CrowdinAsyncApiService
             } catch (\Exception $e) {
                 $errorBody = json_decode($e->getResponse()->getBody(), true);
 
-                // 동일 번역이 있는 경우 스킵 처리
+                // Skip if same translation already exists
                 if (
                     isset($errorBody['errors']) &&
                     str_contains($errorBody['errors'][0]['error']['errors'][0]['message'] ?? '', 'identical translation')

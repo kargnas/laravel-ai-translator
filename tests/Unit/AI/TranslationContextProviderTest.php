@@ -100,7 +100,7 @@ class TranslationContextProviderTest extends TestCase
         // Create target PHP file with translations
         $targetItems = [];
         for ($i = 1; $i <= 50; $i++) {
-            $targetItems["key{$i}"] = "번역된 값 {$i}";
+            $targetItems["key{$i}"] = "Translated value {$i}";
         }
         $targetContent = "<?php\nreturn " . var_export($targetItems, true) . ";";
         File::put($this->tempDir . '/ko/large.php', $targetContent);

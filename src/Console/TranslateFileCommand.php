@@ -89,7 +89,7 @@ class TranslateFileCommand extends Command
             config(['ai-translator.ai.use_extended_thinking' => false]);
             config(['ai-translator.ai.disable_stream' => false]);
 
-            // 전역 번역 컨텍스트 가져오기
+            // Get global translation context
             $contextProvider = new TranslationContextProvider;
             $maxContextItems = (int) $this->option('max-context-items') ?: 100;
             $globalContext = $contextProvider->getGlobalTranslationContext(
@@ -113,7 +113,7 @@ class TranslateFileCommand extends Command
                 globalTranslationContext: $globalContext
             );
 
-            // 번역 시작 정보. sourceLanguageObj, targetLanguageObj, 총 추가 규칙 수등 표현
+            // Translation start info. Display sourceLanguageObj, targetLanguageObj, total additional rules count, etc.
             $this->line("\n".str_repeat('─', 80));
             $this->line($this->colors['blue_bg'].$this->colors['white'].$this->colors['bold'].' Translation Configuration '.$this->colors['reset']);
 
@@ -175,7 +175,7 @@ class TranslateFileCommand extends Command
                 }
             };
 
-            // 번역 완료 콜백
+            // Translation completion callback
             $onTranslated = function (LocalizedString $item, string $status, array $translatedItems) use ($strings, $totalItems) {
                 // 원본 텍스트 가져오기
                 $originalText = '';
@@ -233,7 +233,7 @@ class TranslateFileCommand extends Command
                 $this->line('');
             };
 
-            // 번역 실행
+            // Execute translation
             $translatedItems = $provider
                 ->setOnTranslated($onTranslated)
                 ->setOnThinking($onThinking)
@@ -243,13 +243,13 @@ class TranslateFileCommand extends Command
                 ->setOnTokenUsage($onTokenUsage)
                 ->translate();
 
-            // 번역 결과를 배열로 변환
+            // Convert translation results to array
             $results = [];
             foreach ($translatedItems as $item) {
                 $results[$item->key] = $item->translated;
             }
 
-            // 번역 결과 파일 생성
+            // Create translation result file
             $outputFilePath = pathinfo($filePath, PATHINFO_DIRNAME).'/'.
                 pathinfo($filePath, PATHINFO_FILENAME).'-'.
                 $targetLanguage.'.php';

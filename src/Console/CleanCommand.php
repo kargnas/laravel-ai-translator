@@ -319,6 +319,7 @@ class CleanCommand extends Command
             foreach ($iterator as $file) {
                 // Skip symlinks to avoid potential issues
                 if ($file->isLink()) {
+                    $this->warn("Skipping symlink: {$file->getPathname()}");
                     continue;
                 }
                 
@@ -600,11 +601,12 @@ class CleanCommand extends Command
 
         $file_name = basename($file_path, '.json');
         
-        // Handle patterns with dot notation (e.g., "ko.Login")
+        // Handle patterns with dot notation (e.g., "ko.Login" or "ko.Login.Welcome.Message")
         if (str_contains($pattern, '.')) {
-            // Extract the file pattern (locale) and key pattern
-            $pattern_parts = explode('.', $pattern, 2);
-            $locale_pattern = $pattern_parts[0];
+            // Find the first dot to separate locale from key pattern
+            $first_dot_pos = strpos($pattern, '.');
+            $locale_pattern = substr($pattern, 0, $first_dot_pos);
+            $key_pattern = substr($pattern, $first_dot_pos + 1);
             
             // Check if this JSON file matches the locale pattern
             if ($file_name !== $locale_pattern) {
@@ -612,8 +614,7 @@ class CleanCommand extends Command
             }
             
             // If there's a key pattern, remove matching keys
-            if (isset($pattern_parts[1])) {
-                $key_pattern = $pattern_parts[1];
+            if ($key_pattern !== '') {
                 $keys_to_remove = [];
                 
                 foreach (array_keys($data) as $key) {

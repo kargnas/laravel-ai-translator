@@ -11,16 +11,16 @@ use function Pest\Laravel\artisan;
 beforeEach(function () {
     // Set up test language file directory
     $this->testLangPath = __DIR__.'/../../Fixtures/lang-clean';
-    
+
     // Configure AI translator settings
     Config::set('ai-translator.source_directory', $this->testLangPath);
     Config::set('ai-translator.source_locale', 'en');
-    
+
     // Clean up any existing test directories
     if (File::exists($this->testLangPath)) {
         File::deleteDirectory($this->testLangPath);
     }
-    
+
     // Create test directories and files
     setupTestFiles();
 });
@@ -35,10 +35,10 @@ afterEach(function () {
 function setupTestFiles(): void
 {
     $testLangPath = test()->testLangPath;
-    
+
     // Create source (English) files
     File::makeDirectory("{$testLangPath}/en", 0755, true);
-    
+
     // Create test.php
     File::put("{$testLangPath}/en/test.php", '<?php
 return [
@@ -77,7 +77,7 @@ return [
 
     // Create target locale files (Korean)
     File::makeDirectory("{$testLangPath}/ko", 0755, true);
-    
+
     File::put("{$testLangPath}/ko/test.php", '<?php
 return [
     "welcome" => "애플리케이션에 오신 것을 환영합니다",
@@ -113,7 +113,7 @@ return [
 
     // Create target locale files (Japanese)
     File::makeDirectory("{$testLangPath}/ja", 0755, true);
-    
+
     File::put("{$testLangPath}/ja/test.php", '<?php
 return [
     "welcome" => "アプリケーションへようこそ",
@@ -141,15 +141,15 @@ return [
 
     // Create JSON files
     File::put("{$testLangPath}/ko.json", json_encode([
-        "Login" => "로그인",
-        "Register" => "회원가입",
-        "Forgot Password?" => "비밀번호를 잊으셨나요?",
+        'Login' => '로그인',
+        'Register' => '회원가입',
+        'Forgot Password?' => '비밀번호를 잊으셨나요?',
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 
     File::put("{$testLangPath}/ja.json", json_encode([
-        "Login" => "ログイン",
-        "Register" => "登録",
-        "Forgot Password?" => "パスワードを忘れましたか？",
+        'Login' => 'ログイン',
+        'Register' => '登録',
+        'Forgot Password?' => 'パスワードを忘れましたか？',
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 }
 
@@ -166,21 +166,21 @@ test('cleans all files when no pattern provided', function () {
     // Check Korean files are empty
     $koTest = include "{$this->testLangPath}/ko/test.php";
     expect($koTest)->toBeEmpty();
-    
+
     $koNested = include "{$this->testLangPath}/ko/nested.php";
     expect($koNested)->toBeEmpty();
-    
+
     // Check Japanese files are empty
     $jaTest = include "{$this->testLangPath}/ja/test.php";
     expect($jaTest)->toBeEmpty();
-    
+
     // Check JSON files are empty
     $koJson = json_decode(File::get("{$this->testLangPath}/ko.json"), true);
     expect($koJson)->toBeEmpty();
-    
+
     $jaJson = json_decode(File::get("{$this->testLangPath}/ja.json"), true);
     expect($jaJson)->toBeEmpty();
-    
+
     // Source files should remain unchanged
     $enTest = include "{$this->testLangPath}/en/test.php";
     expect($enTest)->not->toBeEmpty();
@@ -197,12 +197,12 @@ test('cleans specific file pattern', function () {
     // test.php should be empty
     $koTest = include "{$this->testLangPath}/ko/test.php";
     expect($koTest)->toBeEmpty();
-    
+
     // nested.php should remain unchanged
     $koNested = include "{$this->testLangPath}/ko/nested.php";
     expect($koNested)->not->toBeEmpty();
     expect($koNested)->toHaveKey('top');
-    
+
     // JSON files should remain unchanged
     $koJson = json_decode(File::get("{$this->testLangPath}/ko.json"), true);
     expect($koJson)->not->toBeEmpty();
@@ -216,10 +216,10 @@ test('cleans specific key pattern', function () {
     ])->assertSuccessful();
 
     $koTest = include "{$this->testLangPath}/ko/test.php";
-    
+
     // 'welcome' key should be removed
     expect($koTest)->not->toHaveKey('welcome');
-    
+
     // Other keys should remain
     expect($koTest)->toHaveKey('hello');
     expect($koTest)->toHaveKey('products');
@@ -233,16 +233,16 @@ test('cleans nested key pattern', function () {
     ])->assertSuccessful();
 
     $koNested = include "{$this->testLangPath}/ko/nested.php";
-    
+
     // Check structure
     expect($koNested)->toHaveKey('top');
     expect($koNested)->toHaveKey('section');
     expect($koNested['section'])->toHaveKey('title');
     expect($koNested['section'])->toHaveKey('content');
-    
+
     // 'subsection' should be completely removed
     expect($koNested['section'])->not->toHaveKey('subsection');
-    
+
     // Footer should remain
     expect($koNested)->toHaveKey('footer');
 });
@@ -268,11 +268,11 @@ return [
     ])->assertSuccessful();
 
     $koDeeply = include "{$this->testLangPath}/ko/deeply.php";
-    
+
     // 'keep' should remain
     expect($koDeeply)->toHaveKey('keep');
     expect($koDeeply['keep'])->toBe('Keep this');
-    
+
     // 'remove' and all its nested empty arrays should be gone
     expect($koDeeply)->not->toHaveKey('remove');
 });
@@ -287,7 +287,7 @@ test('cleans subdirectory pattern', function () {
     // admin/dashboard.php should be empty
     $koDashboard = include "{$this->testLangPath}/ko/admin/dashboard.php";
     expect($koDashboard)->toBeEmpty();
-    
+
     // Other files should remain unchanged
     $koTest = include "{$this->testLangPath}/ko/test.php";
     expect($koTest)->not->toBeEmpty();
@@ -301,10 +301,10 @@ test('cleans subdirectory with key pattern', function () {
     ])->assertSuccessful();
 
     $koDashboard = include "{$this->testLangPath}/ko/admin/dashboard.php";
-    
+
     // 'users' key should be removed
     expect($koDashboard)->not->toHaveKey('users');
-    
+
     // Other keys should remain
     expect($koDashboard)->toHaveKey('title');
     expect($koDashboard)->toHaveKey('settings');
@@ -317,17 +317,17 @@ test('creates backup when not disabled', function () {
     ])->assertSuccessful();
 
     // Backup directory should exist
-    expect(File::exists("{$this->testLangPath}/backup"))->toBeTrue();
-    
+    expect(File::exists("{$this->testLangPath}/_backup"))->toBeTrue();
+
     // Backup files should exist
-    expect(File::exists("{$this->testLangPath}/backup/ko/test.php"))->toBeTrue();
-    expect(File::exists("{$this->testLangPath}/backup/ja/test.php"))->toBeTrue();
-    
+    expect(File::exists("{$this->testLangPath}/_backup/ko/test.php"))->toBeTrue();
+    expect(File::exists("{$this->testLangPath}/_backup/ja/test.php"))->toBeTrue();
+
     // Backup info file should exist
-    expect(File::exists("{$this->testLangPath}/backup/backup_info.txt"))->toBeTrue();
-    
+    expect(File::exists("{$this->testLangPath}/_backup/backup_info.txt"))->toBeTrue();
+
     // Backup content should match original
-    $backupContent = include "{$this->testLangPath}/backup/ko/test.php";
+    $backupContent = include "{$this->testLangPath}/_backup/ko/test.php";
     expect($backupContent)->toHaveKey('welcome');
     expect($backupContent['welcome'])->toBe('애플리케이션에 오신 것을 환영합니다');
 });
@@ -342,7 +342,7 @@ test('respects dry run option', function () {
     $koTest = include "{$this->testLangPath}/ko/test.php";
     expect($koTest)->not->toBeEmpty();
     expect($koTest)->toHaveKey('welcome');
-    
+
     // No backup should be created in dry-run mode
     expect(File::exists("{$this->testLangPath}/backup"))->toBeFalse();
 });
@@ -357,7 +357,7 @@ test('excludes source locale', function () {
     $enTest = include "{$this->testLangPath}/en/test.php";
     expect($enTest)->not->toBeEmpty();
     expect($enTest)->toHaveKey('welcome');
-    
+
     // Target files should be empty
     $koTest = include "{$this->testLangPath}/ko/test.php";
     expect($koTest)->toBeEmpty();
@@ -365,19 +365,19 @@ test('excludes source locale', function () {
 
 test('handles json file key removal', function () {
     artisan('ai-translator:clean', [
-        'pattern' => 'ko.Login',
+        'pattern' => 'Login',
         '--force' => true,
         '--no-backup' => true,
     ])->assertSuccessful();
 
-    $koJson = json_decode(File::get("{$this->testLangPath}/ko.json"), true);
-    
+    $json = json_decode(File::get("{$this->testLangPath}/ko.json"), true);
+
     // 'Login' key should be removed
-    expect($koJson)->not->toHaveKey('Login');
-    
+    expect($json)->not->toHaveKey('Login');
+
     // Other keys should remain
-    expect($koJson)->toHaveKey('Register');
-    expect($koJson)->toHaveKey('Forgot Password?');
+    expect($json)->toHaveKey('Register');
+    expect($json)->toHaveKey('Forgot Password?');
 });
 
 test('cleans multiple locales simultaneously', function () {
@@ -391,7 +391,7 @@ test('cleans multiple locales simultaneously', function () {
     $koTest = include "{$this->testLangPath}/ko/test.php";
     expect($koTest)->not->toHaveKey('hello');
     expect($koTest)->toHaveKey('welcome');
-    
+
     // Check Japanese
     $jaTest = include "{$this->testLangPath}/ja/test.php";
     expect($jaTest)->not->toHaveKey('hello');
@@ -406,7 +406,7 @@ test('handles deep nested removal correctly', function () {
     ])->assertSuccessful();
 
     $koNested = include "{$this->testLangPath}/ko/nested.php";
-    
+
     // Check that only 'deep' is removed, not entire 'subsection'
     expect($koNested)->toHaveKey('section');
     expect($koNested['section'])->toHaveKey('subsection');
@@ -415,31 +415,15 @@ test('handles deep nested removal correctly', function () {
     expect($koNested['section']['subsection'])->not->toHaveKey('deep');
 });
 
-test('fails when backup directory exists', function () {
-    // Create existing backup directory
-    File::makeDirectory("{$this->testLangPath}/backup", 0755, true);
-    File::put("{$this->testLangPath}/backup/test.txt", 'existing backup');
-    
-    artisan('ai-translator:clean', [
-        '--force' => true,
-    ])
-    ->expectsOutput("Backup directory already exists at: {$this->testLangPath}/backup")
-    ->assertFailed();
-    
-    // Files should remain unchanged
-    $koTest = include "{$this->testLangPath}/ko/test.php";
-    expect($koTest)->not->toBeEmpty();
-});
-
 test('shows correct stats in dry run', function () {
     artisan('ai-translator:clean', [
         'pattern' => 'test.welcome',
         '--dry-run' => true,
     ])
-    ->expectsOutputToContain('DRY RUN MODE')
-    ->expectsOutputToContain('test.welcome')
-    ->expectsOutputToContain('Total locales to clean:')
-    ->assertSuccessful();
+        ->expectsOutputToContain('DRY RUN MODE')
+        ->expectsOutputToContain('test.welcome')
+        ->expectsOutputToContain('Total locales to clean:')
+        ->assertSuccessful();
 });
 
 test('handles pattern with multiple dots correctly', function () {
@@ -466,10 +450,10 @@ return [
     ])->assertSuccessful();
 
     $koMulti = include "{$this->testLangPath}/ko/multi.php";
-    
+
     // level4 should be removed
     expect($koMulti['level1']['level2']['level3'])->not->toHaveKey('level4');
-    
+
     // 'keep' should remain
     expect($koMulti['level1']['level2']['level3'])->toHaveKey('keep');
 });

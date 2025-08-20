@@ -85,8 +85,8 @@ test('can translate strings using Gemini', function () {
     }
 
     config()->set('ai-translator.ai.provider', 'gemini');
-    config()->set('ai-translator.ai.model', 'gemini-2.5-pro-preview-05-06');
-    config()->set('ai-translator.ai.model', 'gemini-2.5-flash-preview-04-17');
+    config()->set('ai-translator.ai.model', 'gemini-2.5-pro');
+    config()->set('ai-translator.ai.model', 'gemini-2.5-flash');
     config()->set('ai-translator.ai.api_key', env('GEMINI_API_KEY'));
 
     $provider = new AIProvider(

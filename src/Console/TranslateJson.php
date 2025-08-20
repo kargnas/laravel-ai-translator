@@ -629,6 +629,7 @@ class TranslateJson extends Command
 
         return collect($files)
             ->map(fn ($file) => pathinfo($file, PATHINFO_FILENAME))
+            ->filter(fn ($filename) => !str_starts_with($filename, '_'))
             ->values()
             ->toArray();
     }

@@ -26,7 +26,7 @@ class AIProvider
 
     public Language $targetLanguageObj;
 
-    // 번역 응답의 원본 XML을 저장하는 변수
+    // Variable to store the raw XML of the translation response
     public static string $lastRawResponse = '';
 
     /**
@@ -267,7 +267,7 @@ class AIProvider
     }
 
     /**
-     * 번역 완료 콜백 설정
+     * Set the translation completion callback
      */
     public function setOnTranslated(?callable $callback): self
     {
@@ -339,7 +339,7 @@ class AIProvider
     }
 
     /**
-     * 문자열 번역
+     * Translate strings
      */
     public function translate(): array
     {
@@ -353,7 +353,7 @@ class AIProvider
                 $translatedObjects = $this->getTranslatedObjects();
                 $this->verify($translatedObjects);
 
-                // 번역이 완료된 후 최종 토큰 사용량 전달
+                // Pass final token usage after translation is complete
                 if ($this->onTokenUsage) {
                     // 토큰 사용량에 final 플래그 추가
                     $tokenUsage = $this->getTokenUsage();
@@ -636,12 +636,12 @@ class AIProvider
                         $currentItems = $responseParser->getTranslatedItems();
                         $currentItemCount = count($currentItems);
 
-                        // 새로운 번역 항목이 추가됐는지 확인
+                        // Check if new translation items have been added
                         if ($currentItemCount > $previousItemCount) {
                             $newItems = array_slice($currentItems, $previousItemCount);
-                            $translatedItems = $currentItems; // 전체 번역 결과 업데이트
+                            $translatedItems = $currentItems; // Update complete translation results
 
-                            // 새 번역 항목 각각에 대해 콜백 호출
+                            // Call callback for each new translation item
                             foreach ($newItems as $index => $newItem) {
                                 // Skip already processed keys
                                 if (isset($processedKeys[$newItem->key])) {

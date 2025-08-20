@@ -222,9 +222,9 @@ class TranslateStrings extends Command
     }
 
     /**
-     * 번역 실행
+     * Execute translation
      *
-     * @param  int  $maxContextItems  최대 컨텍스트 항목 수
+     * @param  int  $maxContextItems  Maximum number of context items
      */
     public function translate(int $maxContextItems = 100): void
     {
@@ -389,7 +389,7 @@ class TranslateStrings extends Command
             $this->displayTranslationSummary($locale, $localeFileCount, $localeStringCount, $localeTranslatedCount);
         }
 
-        // 전체 번역 완료 메시지
+        // All translations completed message
         $this->line("\n".$this->colors['green_bg'].$this->colors['white'].$this->colors['bold'].' All translations completed '.$this->colors['reset']);
         $this->line($this->colors['yellow'].'Total files processed: '.$this->colors['reset'].$fileCount);
         $this->line($this->colors['yellow'].'Total strings found: '.$this->colors['reset'].$totalStringCount);
@@ -424,7 +424,7 @@ class TranslateStrings extends Command
     }
 
     /**
-     * 번역 완료 요약 표시
+     * Display translation completion summary
      */
     protected function displayTranslationSummary(string $locale, int $fileCount, int $stringCount, int $translatedCount): void
     {
@@ -444,7 +444,7 @@ class TranslateStrings extends Command
     }
 
     /**
-     * 레퍼런스 번역 로드 (모든 파일에서)
+     * Load reference translations (from all files)
      */
     protected function loadReferenceTranslations(string $file, string $targetLocale, array $sourceStringList): array
     {
@@ -553,7 +553,7 @@ class TranslateStrings extends Command
     }
 
     /**
-     * 전역 번역 컨텍스트 가져오기
+     * Get global translation context
      */
     protected function getGlobalContext(string $file, string $locale, int $maxContextItems): array
     {
@@ -582,7 +582,7 @@ class TranslateStrings extends Command
     }
 
     /**
-     * 번역기 설정
+     * Setup translator
      */
     protected function setupTranslator(
         string $file,
@@ -626,7 +626,7 @@ class TranslateStrings extends Command
             $this->line($this->colors['gray'].'    '.'Thinking completed.'.$this->colors['reset']);
         });
 
-        // 번역 진행 상황 표시를 위한 콜백 설정
+        // Set callback for displaying translation progress
         $translator->setOnTranslated(function ($item, $status, $translatedItems) use ($chunk) {
             if ($status === TranslationStatus::COMPLETED) {
                 $totalCount = $chunk->count();
@@ -693,9 +693,9 @@ class TranslateStrings extends Command
     {
         $root = $this->sourceDirectory;
         $directories = array_diff(scandir($root), ['.', '..']);
-        // 디렉토리만 필터링
+        // 디렉토리만 필터링하고 _로 시작하는 디렉토리 제외
         $directories = array_filter($directories, function ($directory) use ($root) {
-            return is_dir($root.'/'.$directory);
+            return is_dir($root.'/'.$directory) && !str_starts_with($directory, '_');
         });
 
         return collect($directories)->values()->toArray();

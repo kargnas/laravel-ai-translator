@@ -220,7 +220,7 @@ it('can delete unused keys and verify files are updated correctly', function () 
         ->and($jsonData)->not->toHaveKey('json_unused');
     
     // Verify backup was created
-    $backupDirs = glob(__DIR__.'/../../backups/*');
+    $backupDirs = glob(__DIR__.'/../../_backup/*');
     expect(count($backupDirs))->toBeGreaterThanOrEqual(1);
     
     // Verify backup contains original files if created

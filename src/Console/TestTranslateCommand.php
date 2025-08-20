@@ -114,13 +114,13 @@ class TestTranslateCommand extends Command
             switch ($status) {
                 case TranslationStatus::STARTED:
                     $this->line("\n".str_repeat('─', 80));
-                    $this->line("\033[1;44;37m 번역시작 \033[0m \033[1;43;30m {$item->key} \033[0m");
+                    $this->line("\033[1;44;37m Translation Start \033[0m \033[1;43;30m {$item->key} \033[0m");
                     $this->line("\033[90m원본:\033[0m ".substr($originalText, 0, 100).
                         (strlen($originalText) > 100 ? '...' : ''));
                     break;
 
                 case TranslationStatus::COMPLETED:
-                    $this->line("\033[1;32m번역:\033[0m \033[1m".substr($item->translated, 0, 100).
+                    $this->line("\033[1;32mTranslation:\033[0m \033[1m".substr($item->translated, 0, 100).
                         (strlen($item->translated) > 100 ? '...' : '')."\033[0m");
                     break;
             }

@@ -108,7 +108,7 @@ class CleanCommand extends Command
     {
         $this->source_directory = rtrim(config('ai-translator.source_directory', 'lang'), '/');
         $this->source_locale = $this->option('source') ?? config('ai-translator.source_locale', 'en');
-        $this->backup_directory = $this->source_directory . '/backup';
+        $this->backup_directory = $this->source_directory . '/_backup';
     }
 
     protected function backupExists(): bool
@@ -203,8 +203,8 @@ class CleanCommand extends Command
                 continue;
             }
             
-            // Skip any directory that starts with 'backup'
-            if (str_starts_with($locale, 'backup')) {
+            // Skip any directory that starts with underscore (like _backup)
+            if (str_starts_with($locale, '_')) {
                 continue;
             }
             
@@ -221,8 +221,8 @@ class CleanCommand extends Command
                 continue;
             }
             
-            // Skip any file that starts with 'backup'
-            if (str_starts_with($locale, 'backup')) {
+            // Skip any file that starts with underscore (like _backup)
+            if (str_starts_with($locale, '_')) {
                 continue;
             }
             
@@ -319,6 +319,7 @@ class CleanCommand extends Command
             foreach ($iterator as $file) {
                 // Skip symlinks to avoid potential issues
                 if ($file->isLink()) {
+                    $this->warn("Skipping symlink: {$file->getPathname()}");
                     continue;
                 }
                 
@@ -393,6 +394,19 @@ class CleanCommand extends Command
             return count($flat);
         }
 
+        // For JSON files, pattern is just the key name (e.g., "Login", "Register")
+        if ($type === 'json') {
+            // Pattern is a key or key prefix
+            $count = 0;
+            foreach (array_keys($flat) as $key) {
+                if (str_starts_with($key, $pattern . '.') || $key === $pattern) {
+                    $count++;
+                }
+            }
+            return $count;
+        }
+
+        // PHP file handling
         // Check for specific key pattern
         if (str_contains($pattern, '.')) {
             // Extract the file pattern and key pattern
@@ -400,7 +414,7 @@ class CleanCommand extends Command
             $file_pattern = $pattern_parts[0];
             
             // Get the file name without extension
-            $file_without_ext = preg_replace('/\.(php|json)$/', '', basename($file_path));
+            $file_without_ext = preg_replace('/\.php$/', '', basename($file_path));
             
             // For subdirectory patterns like foo/bar.key
             if (str_contains($file_pattern, '/')) {
@@ -433,7 +447,6 @@ class CleanCommand extends Command
 
         // For file pattern, count all strings if file matches
         $file_name = basename($file_path, '.php');
-        $file_name = basename($file_name, '.json');
         
         // Check subdirectory pattern
         if (str_contains($pattern, '/')) {
@@ -586,21 +599,22 @@ class CleanCommand extends Command
             return;
         }
 
-        // Handle specific key pattern
+        $file_name = basename($file_path, '.json');
+        
+        // Handle patterns with dot notation (e.g., "ko.Login" or "ko.Login.Welcome.Message")
         if (str_contains($pattern, '.')) {
-            // Extract the file pattern (locale) and key pattern
-            $pattern_parts = explode('.', $pattern, 2);
-            $locale_pattern = $pattern_parts[0];
+            // Find the first dot to separate locale from key pattern
+            $first_dot_pos = strpos($pattern, '.');
+            $locale_pattern = substr($pattern, 0, $first_dot_pos);
+            $key_pattern = substr($pattern, $first_dot_pos + 1);
             
             // Check if this JSON file matches the locale pattern
-            $file_name = basename($file_path, '.json');
             if ($file_name !== $locale_pattern) {
                 return; // File doesn't match pattern
             }
             
             // If there's a key pattern, remove matching keys
-            if (isset($pattern_parts[1])) {
-                $key_pattern = $pattern_parts[1];
+            if ($key_pattern !== '') {
                 $keys_to_remove = [];
                 
                 foreach (array_keys($data) as $key) {
@@ -617,6 +631,23 @@ class CleanCommand extends Command
                 $data = [];
             }
 
+            $this->saveJsonFile($file_path, $data);
+            return;
+        }
+        
+        // Simple key pattern (e.g., "Login", "Register")
+        // This pattern should match keys in any JSON file
+        $keys_to_remove = [];
+        foreach (array_keys($data) as $key) {
+            if (str_starts_with($key, $pattern . '.') || $key === $pattern) {
+                $keys_to_remove[] = $key;
+            }
+        }
+        
+        if (!empty($keys_to_remove)) {
+            foreach ($keys_to_remove as $key) {
+                unset($data[$key]);
+            }
             $this->saveJsonFile($file_path, $data);
         }
     }

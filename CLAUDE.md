@@ -11,13 +11,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Coverage report**: `./vendor/bin/pest --coverage`
 
 ### Testing in Host Project
-- **Publish config**: `cd /Volumes/Data/projects/test.af && php artisan vendor:publish --provider="Kargnas\LaravelAiTranslator\ServiceProvider" && cd modules/libraries/laravel-ai-translator`
-- **Run translator**: `cd /Volumes/Data/projects/test.af && php artisan ai-translator:translate && cd modules/libraries/laravel-ai-translator`
-- **Run parallel translator**: `cd /Volumes/Data/projects/test.af && php artisan ai-translator:translate-parallel && cd modules/libraries/laravel-ai-translator`
-- **Test translate**: `cd /Volumes/Data/projects/test.af && php artisan ai-translator:test && cd modules/libraries/laravel-ai-translator`
-- **Translate JSON files**: `cd /Volumes/Data/projects/test.af && php artisan ai-translator:translate-json && cd modules/libraries/laravel-ai-translator`
-- **Translate strings**: `cd /Volumes/Data/projects/test.af && php artisan ai-translator:translate-strings && cd modules/libraries/laravel-ai-translator`
-- **Translate single file**: `cd /Volumes/Data/projects/test.af && php artisan ai-translator:translate-file lang/en/test.php && cd modules/libraries/laravel-ai-translator`
+- **Publish config**: `./scripts/test-setup.sh && cd ./laravel-ai-translator-test && php artisan vendor:publish --provider="Kargnas\LaravelAiTranslator\ServiceProvider" && cd modules/libraries/laravel-ai-translator`
+- **Run translator**: `./scripts/test-setup.sh && cd ./laravel-ai-translator-test && php artisan ai-translator:translate && cd modules/libraries/laravel-ai-translator`
+- **Run parallel translator**: `./scripts/test-setup.sh && cd ./laravel-ai-translator-test && php artisan ai-translator:translate-parallel && cd modules/libraries/laravel-ai-translator`
+- **Test translate**: `./scripts/test-setup.sh && cd ./laravel-ai-translator-test && php artisan ai-translator:test && cd modules/libraries/laravel-ai-translator`
+- **Translate JSON files**: `./scripts/test-setup.sh && cd ./laravel-ai-translator-test && php artisan ai-translator:translate-json && cd modules/libraries/laravel-ai-translator`
+- **Translate strings**: `./scripts/test-setup.sh && cd ./laravel-ai-translator-test && php artisan ai-translator:translate-strings && cd modules/libraries/laravel-ai-translator`
+- **Translate single file**: `./scripts/test-setup.sh && cd ./laravel-ai-translator-test && php artisan ai-translator:translate-file lang/en/test.php && cd modules/libraries/laravel-ai-translator`
 
 ## Lint/Format Commands
 - **PHP lint (Laravel Pint)**: `./vendor/bin/pint`

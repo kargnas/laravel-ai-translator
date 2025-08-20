@@ -19,3 +19,5 @@ node_modules
 .php-cs-fixer.cache
 .vscode
 .claude
+
+laravel-ai-translator-test

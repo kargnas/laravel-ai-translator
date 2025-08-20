@@ -693,9 +693,9 @@ class TranslateStrings extends Command
     {
         $root = $this->sourceDirectory;
         $directories = array_diff(scandir($root), ['.', '..']);
-        // 디렉토리만 필터링
+        // 디렉토리만 필터링하고 _로 시작하는 디렉토리 제외
         $directories = array_filter($directories, function ($directory) use ($root) {
-            return is_dir($root.'/'.$directory);
+            return is_dir($root.'/'.$directory) && !str_starts_with($directory, '_');
         });
 
         return collect($directories)->values()->toArray();

@@ -3,15 +3,18 @@
 namespace Kargnas\LaravelAiTranslator\Core;
 
 /**
- * PipelineStages - Defines all pipeline stage constants
+ * PipelineStages - Defines core pipeline stage constants
  * 
  * Core Responsibilities:
- * - Provides centralized definition of all pipeline stages
- * - Ensures consistency across plugins and pipeline
- * - Documents the purpose and order of each stage
- * - Prevents typos and magic strings in stage references
+ * - Provides constants for core pipeline stages only
+ * - Ensures consistency across core functionality
+ * - Documents the purpose and order of core stages
+ * - Prevents typos and magic strings in core stage references
  * 
- * Stage Execution Order:
+ * Note: This class only defines core stages required by the framework.
+ * Plugins can define and use their own custom stages as needed.
+ * 
+ * Core Stage Execution Order:
  * 1. PRE_PROCESS - Initial request validation and setup
  * 2. DIFF_DETECTION - Detect changes from previous translations
  * 3. PREPARATION - Prepare texts for translation

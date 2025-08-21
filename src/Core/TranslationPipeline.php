@@ -92,7 +92,7 @@ class TranslationPipeline
     {
         $this->pluginManager = $pluginManager;
         
-        // Initialize stages using constants
+        // Initialize core stages using constants
         foreach (PipelineStages::all() as $stage) {
             $this->stages[$stage] = [];
             $this->stageMiddlewares[$stage] = [];
@@ -125,11 +125,16 @@ class TranslationPipeline
 
     /**
      * Register a handler for a specific stage.
+     * 
+     * If the stage doesn't exist, it will be created dynamically.
+     * This allows plugins to define custom stages beyond the core ones.
      */
     public function registerStage(string $stage, callable $handler, int $priority = 0): void
     {
+        // Dynamically create stage if it doesn't exist
         if (!isset($this->stages[$stage])) {
             $this->stages[$stage] = [];
+            $this->stageMiddlewares[$stage] = [];
         }
 
         $this->stages[$stage][] = [
@@ -143,10 +148,15 @@ class TranslationPipeline
     
     /**
      * Register middleware for a specific stage.
+     * 
+     * If the stage doesn't exist, it will be created dynamically.
+     * This allows plugins to define custom stages with middleware.
      */
     public function registerMiddleware(string $stage, callable $middleware, int $priority = 0): void
     {
+        // Dynamically create stage if it doesn't exist
         if (!isset($this->stageMiddlewares[$stage])) {
+            $this->stages[$stage] = $this->stages[$stage] ?? [];
             $this->stageMiddlewares[$stage] = [];
         }
 
@@ -159,6 +169,27 @@ class TranslationPipeline
         usort($this->stageMiddlewares[$stage], fn($a, $b) => $b['priority'] <=> $a['priority']);
     }
 
+    /**
+     * Get all registered stages (core + dynamic).
+     * 
+     * @return array<string> List of all stage names
+     */
+    public function getStages(): array
+    {
+        return array_keys($this->stages);
+    }
+    
+    /**
+     * Check if a stage exists.
+     * 
+     * @param string $stage Stage name to check
+     * @return bool True if stage exists
+     */
+    public function hasStage(string $stage): bool
+    {
+        return isset($this->stages[$stage]);
+    }
+    
     /**
      * Register a service.
      */
@@ -360,13 +391,6 @@ class TranslationPipeline
         }
     }
 
-    /**
-     * Get available stages.
-     */
-    public function getStages(): array
-    {
-        return array_keys($this->stages);
-    }
 
     /**
      * Get registered services.

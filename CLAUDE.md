@@ -44,6 +44,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **File structure**: One class per file, match filename to class name
 - **Imports**: Group by type (PHP core, Laravel, third-party, project), alphabetize within groups
 - **Comments**: Use PHPDoc for public methods, inline comments sparingly for complex logic
+- **Using Facade**: Always use Laravel Facade with import when it's available. (e.g. Log, HTTP, Cache, ...)
 
 ## Plugin-Based Pipeline Architecture
 

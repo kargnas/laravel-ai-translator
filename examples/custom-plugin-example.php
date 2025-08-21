@@ -15,6 +15,10 @@ use Kargnas\LaravelAiTranslator\Plugins\AbstractMiddlewarePlugin;
 use Kargnas\LaravelAiTranslator\Plugins\AbstractObserverPlugin;
 use Kargnas\LaravelAiTranslator\Core\TranslationContext;
 use Kargnas\LaravelAiTranslator\Core\TranslationPipeline;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
 
 // ============================================================================
 // Example 1: Full Plugin Class
@@ -38,7 +42,7 @@ class LoggingPlugin extends AbstractObserverPlugin
     
     public function onTranslationStarted(TranslationContext $context): void
     {
-        \Log::info('Translation started', [
+        Log::info('Translation started', [
             'source_locale' => $context->request->sourceLocale,
             'target_locales' => $context->request->targetLocales,
             'text_count' => count($context->texts),
@@ -47,7 +51,7 @@ class LoggingPlugin extends AbstractObserverPlugin
     
     public function onTranslationCompleted(TranslationContext $context): void
     {
-        \Log::info('Translation completed', [
+        Log::info('Translation completed', [
             'duration' => microtime(true) - ($context->metadata['start_time'] ?? 0),
             'translations' => array_sum(array_map('count', $context->translations)),
         ]);
@@ -55,7 +59,7 @@ class LoggingPlugin extends AbstractObserverPlugin
     
     public function onTranslationStageStarted(TranslationContext $context): void
     {
-        \Log::debug('Translation stage started', [
+        Log::debug('Translation stage started', [
             'stage' => $context->currentStage,
         ]);
     }
@@ -79,14 +83,14 @@ class RateLimitPlugin extends AbstractMiddlewarePlugin
         $key = "translation_rate_limit:{$userId}";
         
         // Check rate limit (example: 100 requests per hour)
-        $attempts = \Cache::get($key, 0);
+        $attempts = Cache::get($key, 0);
         
         if ($attempts >= 100) {
             throw new \Exception('Rate limit exceeded. Please try again later.');
         }
         
-        \Cache::increment($key);
-        \Cache::expire($key, 3600); // 1 hour
+        Cache::increment($key);
+        Cache::put($key, $attempts + 1, 3600); // 1 hour
         
         return $next($context);
     }
@@ -155,7 +159,22 @@ $translator = TranslationBuilder::make()
     });
 
 // ============================================================================
-// Example 3: Advanced - Custom Provider Plugin
+// Example 3: Using CustomStageExamplePlugin (from src/Plugins)
+// ============================================================================
+
+use Kargnas\LaravelAiTranslator\Plugins\CustomStageExamplePlugin;
+
+// This plugin adds a custom 'custom_processing' stage to the pipeline
+$translator = TranslationBuilder::make()
+    ->from('en')
+    ->to('ko')
+    ->withPlugin(new CustomStageExamplePlugin());
+
+// The custom stage will automatically be executed in the pipeline
+// and you can see logs for 'custom_processing' stage events
+
+// ============================================================================
+// Example 4: Advanced - Custom Provider Plugin
 // ============================================================================
 
 use Kargnas\LaravelAiTranslator\Plugins\AbstractProviderPlugin;
@@ -184,7 +203,7 @@ class CustomApiProvider extends AbstractProviderPlugin
         $endpoint = $this->getConfigValue('endpoint', 'https://api.example.com/translate');
         
         // Make API call
-        $response = \Http::post($endpoint, [
+        $response = Http::post($endpoint, [
             'api_key' => $apiKey,
             'source' => $context->request->sourceLocale,
             'target' => $context->request->targetLocales,
@@ -215,7 +234,7 @@ $translator = TranslationBuilder::make()
     ]));
 
 // ============================================================================
-// Example 4: Combining multiple plugins for complex workflow
+// Example 5: Combining multiple plugins for complex workflow
 // ============================================================================
 
 $translator = TranslationBuilder::make()
@@ -235,11 +254,11 @@ $translator = TranslationBuilder::make()
     ->withClosure('performance_timer', function($pipeline) {
         $startTime = null;
         
-        $pipeline->on('translation.started', function($context) use (&$startTime) {
+        $pipeline->on('translation.started', function() use (&$startTime) {
             $startTime = microtime(true);
         });
         
-        $pipeline->on('translation.completed', function($context) use (&$startTime) {
+        $pipeline->on('translation.completed', function() use (&$startTime) {
             $duration = microtime(true) - $startTime;
             logger()->info("Translation took {$duration} seconds");
         });
@@ -247,7 +266,8 @@ $translator = TranslationBuilder::make()
     ->withClosure('error_notifier', function($pipeline) {
         $pipeline->on('translation.failed', function($context) {
             // Send notification on failure
-            \Mail::to('admin@example.com')->send(new TranslationFailedMail($context));
+            // Example: Mail::to('admin@example.com')->send(new TranslationFailedMail($context));
+            logger()->error('Translation failed', ['error' => $context->errors ?? []]);
         });
     });
 

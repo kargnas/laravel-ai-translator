@@ -182,13 +182,69 @@ class TranslationBuilder
     }
 
     /**
-     * Add a custom plugin.
+     * Add a custom plugin instance.
+     * 
+     * Example:
+     * $plugin = new MyCustomPlugin(['option' => 'value']);
+     * $builder->withPlugin($plugin);
      */
     public function withPlugin(TranslationPlugin $plugin): self
     {
         $this->pluginManager->register($plugin);
         $this->plugins[] = $plugin->getName();
         return $this;
+    }
+    
+    /**
+     * Add a plugin by class name with optional config.
+     * 
+     * Example:
+     * $builder->withPluginClass(MyCustomPlugin::class, ['option' => 'value']);
+     */
+    public function withPluginClass(string $class, array $config = []): self
+    {
+        if (!class_exists($class)) {
+            throw new \InvalidArgumentException("Plugin class {$class} not found");
+        }
+        
+        $plugin = new $class($config);
+        
+        if (!$plugin instanceof TranslationPlugin) {
+            throw new \InvalidArgumentException("Class {$class} must implement TranslationPlugin interface");
+        }
+        
+        return $this->withPlugin($plugin);
+    }
+    
+    /**
+     * Add a simple closure-based plugin for quick customization.
+     * 
+     * Example:
+     * $builder->withClosure('my_logger', function($pipeline) {
+     *     $pipeline->registerStage('logging', function($context) {
+     *         logger()->info('Processing', ['count' => count($context->texts)]);
+     *     });
+     * });
+     */
+    public function withClosure(string $name, callable $closure): self
+    {
+        $plugin = new class($name, $closure) extends AbstractTranslationPlugin {
+            private $closure;
+            
+            public function __construct(string $name, callable $closure)
+            {
+                parent::__construct();
+                $this->name = $name;
+                $this->closure = $closure;
+            }
+            
+            public function boot(TranslationPipeline $pipeline): void
+            {
+                ($this->closure)($pipeline);
+            }
+        };
+        
+        return $this->withPlugin($plugin);
     }
 
     /**

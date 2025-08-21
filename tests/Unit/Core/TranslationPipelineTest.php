@@ -22,8 +22,8 @@ beforeEach(function () {
 test('pipeline executes stages in correct order', function () {
     $executedStages = [];
     
-    // Register handlers for each stage
-    $stages = PipelineStages::all();
+    // Register handlers for each common stage
+    $stages = PipelineStages::common();
     
     foreach ($stages as $stage) {
         $this->pipeline->registerStage($stage, function ($context) use ($stage, &$executedStages) {

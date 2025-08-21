@@ -5,7 +5,6 @@ namespace Kargnas\LaravelAiTranslator\Plugins;
 use Closure;
 use Kargnas\LaravelAiTranslator\Core\TranslationContext;
 use Kargnas\LaravelAiTranslator\Core\TranslationOutput;
-use Kargnas\LaravelAiTranslator\Core\PipelineStages;
 use Generator;
 
 class TokenChunkingPlugin extends AbstractMiddlewarePlugin
@@ -38,7 +37,7 @@ class TokenChunkingPlugin extends AbstractMiddlewarePlugin
      */
     protected function getStage(): string
     {
-        return PipelineStages::CHUNKING;
+        return 'chunking';
     }
 
     /**

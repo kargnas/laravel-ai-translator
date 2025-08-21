@@ -41,6 +41,8 @@ class ValidationPlugin extends AbstractMiddlewarePlugin
 
     /**
      * Get the pipeline stage
+     * 
+     * Using the VALIDATION constant since it's an essential stage
      */
     protected function getStage(): string
     {

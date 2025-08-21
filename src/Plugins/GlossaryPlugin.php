@@ -3,7 +3,6 @@
 namespace Kargnas\LaravelAiTranslator\Plugins;
 
 use Kargnas\LaravelAiTranslator\Core\TranslationContext;
-use Kargnas\LaravelAiTranslator\Core\PipelineStages;
 
 /**
  * GlossaryPlugin - Manages terminology consistency across translations
@@ -83,7 +82,7 @@ class GlossaryPlugin extends AbstractProviderPlugin
      */
     public function when(): array
     {
-        return [PipelineStages::PREPARATION];
+        return ['preparation'];
     }
 
     /**

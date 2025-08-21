@@ -19,7 +19,7 @@ abstract class AbstractProviderPlugin extends AbstractTranslationPlugin implemen
      */
     public function when(): array
     {
-        return [PipelineStages::TRANSLATION, PipelineStages::CONSENSUS]; // Default stages
+        return [PipelineStages::TRANSLATION, 'consensus']; // Default stages
     }
 
     /**

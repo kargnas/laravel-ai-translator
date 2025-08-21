@@ -92,8 +92,10 @@ class TranslationPipeline
     {
         $this->pluginManager = $pluginManager;
         
-        // Initialize core stages using constants
-        foreach (PipelineStages::all() as $stage) {
+        // Initialize common stages (both essential and non-essential)
+        // This provides a standard pipeline structure while allowing
+        // plugins to add custom stages as needed
+        foreach (PipelineStages::common() as $stage) {
             $this->stages[$stage] = [];
             $this->stageMiddlewares[$stage] = [];
         }

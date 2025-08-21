@@ -64,55 +64,339 @@ class PluginManager {
 }
 ```
 
+## Plugin Architecture
+
+### Plugin Pattern Interfaces
+
+#### Middleware Plugin Interface
+Middleware plugins transform data as it flows through the pipeline, similar to Laravel's HTTP middleware.
+
+```php
+interface MiddlewarePlugin extends TranslationPlugin {
+    // Transform data before main processing
+    public function handle(TranslationContext $context, Closure $next): mixed;
+    
+    // Optional: reverse transformation after processing
+    public function terminate(TranslationContext $context, mixed $response): void;
+}
+
+abstract class AbstractMiddlewarePlugin extends AbstractTranslationPlugin implements MiddlewarePlugin {
+    public function boot(TranslationPipeline $pipeline): void {
+        // Register in appropriate pipeline stages
+        $pipeline->registerStage($this->getStage(), [$this, 'handle'], $this->getPriority());
+    }
+    
+    abstract protected function getStage(): string; // 'pre_process', 'post_process', etc.
+}
+```
+
+**Example Implementation:**
+```php
+class PIIMaskingPlugin extends AbstractMiddlewarePlugin {
+    protected array $masks = [];
+    
+    public function handle(TranslationContext $context, Closure $next): mixed {
+        // Mask sensitive data before translation
+        $context->texts = $this->maskSensitiveData($context->texts);
+        
+        // Pass to next middleware/stage
+        $response = $next($context);
+        
+        return $response;
+    }
+    
+    public function terminate(TranslationContext $context, mixed $response): void {
+        // Unmask data after translation
+        $response->translations = $this->unmaskSensitiveData($response->translations);
+    }
+    
+    protected function getStage(): string {
+        return 'pre_process';
+    }
+}
+```
+
+#### Provider Plugin Interface
+Provider plugins register services and provide core functionality to the translation pipeline.
+
+```php
+interface ProviderPlugin extends TranslationPlugin {
+    // Register services in the container
+    public function provides(): array;
+    
+    // Bootstrap services when needed
+    public function when(): array;
+    
+    // Execute the main service logic
+    public function execute(TranslationContext $context): mixed;
+}
+
+abstract class AbstractProviderPlugin extends AbstractTranslationPlugin implements ProviderPlugin {
+    public function boot(TranslationPipeline $pipeline): void {
+        // Register as a service provider
+        foreach ($this->provides() as $service) {
+            $pipeline->registerService($service, [$this, 'execute']);
+        }
+    }
+    
+    public function when(): array {
+        return ['translation', 'consensus']; // Default stages where services are needed
+    }
+}
+```
+
+**Example Implementation:**
+```php
+class MultiProviderPlugin extends AbstractProviderPlugin {
+    protected array $providers = [];
+    
+    public function provides(): array {
+        return ['translation.multi_provider', 'consensus.judge'];
+    }
+    
+    public async function execute(TranslationContext $context): mixed {
+        // Execute multiple providers in parallel
+        $promises = [];
+        foreach ($this->providers as $name => $config) {
+            $promises[$name] = $this->executeProvider($config, $context);
+        }
+        
+        $results = await Promise::all($promises);
+        
+        // Use consensus judge if multiple results
+        if (count($results) > 1) {
+            return $this->selectBestTranslation($results, $context);
+        }
+        
+        return reset($results);
+    }
+    
+    protected function executeProvider(array $config, TranslationContext $context): Promise {
+        // Special handling for gpt-5
+        if ($config['model'] === 'gpt-5') {
+            $config['temperature'] = 1.0; // Always fixed
+        }
+        
+        return AIProvider::create($config)->translateAsync($context->texts);
+    }
+}
+```
+
+#### Observer Plugin Interface
+Observer plugins watch for events and state changes, performing actions without modifying the main data flow.
+
+```php
+interface ObserverPlugin extends TranslationPlugin {
+    // Subscribe to events
+    public function subscribe(): array;
+    
+    // Handle observed events
+    public function observe(string $event, TranslationContext $context): void;
+    
+    // Optional: emit custom events
+    public function emit(string $event, mixed $data): void;
+}
+
+abstract class AbstractObserverPlugin extends AbstractTranslationPlugin implements ObserverPlugin {
+    public function boot(TranslationPipeline $pipeline): void {
+        // Subscribe to pipeline events
+        foreach ($this->subscribe() as $event => $handler) {
+            $pipeline->on($event, [$this, $handler]);
+        }
+    }
+    
+    public function emit(string $event, mixed $data): void {
+        event(new TranslationEvent($event, $data));
+    }
+}
+```
+
+**Example Implementation:**
+```php
+class DiffTrackingPlugin extends AbstractObserverPlugin {
+    protected StorageInterface $storage;
+    
+    public function subscribe(): array {
+        return [
+            'translation.started' => 'onTranslationStarted',
+            'translation.completed' => 'onTranslationCompleted',
+        ];
+    }
+    
+    public function onTranslationStarted(TranslationContext $context): void {
+        // Load previous state
+        $previousState = $this->storage->get($this->getStateKey($context));
+        
+        if ($previousState) {
+            // Mark unchanged items for skipping
+            $context->metadata['skip_unchanged'] = $this->detectUnchanged(
+                $context->texts,
+                $previousState
+            );
+        }
+    }
+    
+    public function onTranslationCompleted(TranslationContext $context): void {
+        // Save current state for future diff tracking
+        $this->storage->put(
+            $this->getStateKey($context),
+            [
+                'texts' => $context->texts,
+                'translations' => $context->result->translations,
+                'timestamp' => now(),
+            ]
+        );
+        
+        // Emit statistics
+        $this->emit('diff.stats', [
+            'total' => count($context->texts),
+            'changed' => count($context->texts) - count($context->metadata['skip_unchanged'] ?? []),
+        ]);
+    }
+}
+```
+
+### Plugin Registration and Execution
+
+#### Pipeline Integration
+```php
+class TranslationPipeline {
+    protected array $middlewares = [];
+    protected array $providers = [];
+    protected array $observers = [];
+    
+    public function registerPlugin(TranslationPlugin $plugin): void {
+        // Detect plugin type and register appropriately
+        if ($plugin instanceof MiddlewarePlugin) {
+            $this->middlewares[] = $plugin;
+        }
+        
+        if ($plugin instanceof ProviderPlugin) {
+            foreach ($plugin->provides() as $service) {
+                $this->providers[$service] = $plugin;
+            }
+        }
+        
+        if ($plugin instanceof ObserverPlugin) {
+            $this->observers[] = $plugin;
+            $plugin->boot($this); // Observers self-register their events
+        }
+    }
+    
+    public async function* process(TranslationRequest $request): AsyncGenerator {
+        $context = new TranslationContext($request);
+        
+        // Execute middleware chain
+        $response = $this->executeMiddlewares($context);
+        
+        // Yield results as they become available
+        yield from $response;
+    }
+    
+    protected function executeMiddlewares(TranslationContext $context): mixed {
+        $pipeline = array_reduce(
+            array_reverse($this->middlewares),
+            function ($next, $middleware) {
+                return function ($context) use ($middleware, $next) {
+                    return $middleware->handle($context, $next);
+                };
+            },
+            function ($context) {
+                // Core translation logic using providers
+                return $this->executeProviders($context);
+            }
+        );
+        
+        return $pipeline($context);
+    }
+}
+```
+
+#### Plugin Lifecycle
+```
+1. Registration Phase
+   ├── Plugin instantiation
+   ├── Configuration injection
+   └── Registration with pipeline
+
+2. Boot Phase  
+   ├── Middleware: Register stages
+   ├── Provider: Register services
+   └── Observer: Subscribe to events
+
+3. Execution Phase
+   ├── Middleware: Transform data in sequence
+   ├── Provider: Execute when services needed
+   └── Observer: React to events asynchronously
+
+4. Termination Phase
+   ├── Middleware: Reverse transformations
+   ├── Provider: Cleanup resources
+   └── Observer: Final event emissions
+```
+
 ## Built-in Plugins
 
-### 1. Style Plugin (`src/Plugins/StylePlugin.php`)
-- Pre-configured language-specific styles (formal, casual, technical, marketing)
-- Language defaults (e.g., Korean: 존댓말/반말, Japanese: 敬語/タメ口)
-- Custom prompt injection support
+Plugins are categorized into three types based on Laravel's lifecycle patterns:
 
-### 2. Diff Tracking Plugin (`src/Plugins/DiffTrackingPlugin.php`)
-- Tracks changes between translation sessions
-- Stores state using Laravel Storage Facade
-- Default path: `storage/app/ai-translator/states/`
-- Supports file, database, and Redis adapters
+### Middleware Plugins (Pipeline Transformers)
+Plugins that transform and validate data as it passes through the pipeline.
 
-### 3. Multi-Provider Plugin (`src/Plugins/MultiProviderPlugin.php`)
-- Configurable providers with model, temperature, and thinking mode
-- Special handling: gpt-5 always uses temperature 1.0
-- Parallel execution for multiple providers
-- Consensus selection using specified judge model (default: gpt-5 with temperature 0.3)
+#### PII Masking Plugin (`src/Plugins/PIIMaskingPlugin.php`)
+- Masks/unmasks sensitive information (emails, phones, SSNs, credit cards)
+- Bidirectional transformation in pre_process and post_process stages
+- Supports custom patterns
 
-### 4. Annotation Context Plugin (`src/Plugins/AnnotationContextPlugin.php`)
-- Extracts translation context from PHP docblocks
-- Supports @translate-context, @translate-style, @translate-glossary annotations
+#### Token Chunking Plugin (`src/Plugins/TokenChunkingPlugin.php`)
+- Language-aware token estimation (CJK: 1.5 tokens/char, Latin: 0.25 tokens/char)
+- Dynamic chunking based on token count (not item count)
+- Executes in chunking stage
 
-### 5. Token Chunking Plugin (`src/Plugins/TokenChunkingPlugin.php`)
-- Language-aware token estimation
-- Dynamic chunk size based on token count (not item count)
-- CJK languages: 1.5 tokens per character
-- Latin languages: 0.25 tokens per character
-
-### 6. Validation Plugin (`src/Plugins/ValidationPlugin.php`)
+#### Validation Plugin (`src/Plugins/ValidationPlugin.php`)
 - HTML tag preservation check
 - Variable/placeholder validation (`:var`, `{{var}}`, `%s`)
-- Length ratio verification
-- Optional back-translation
+- Length ratio verification and optional back-translation
+- Executes in validation stage
 
-### 7. PII Masking Plugin (`src/Plugins/PIIMaskingPlugin.php`)
-- Masks emails, phones, SSNs, credit cards
-- Token-based replacement and restoration
-- Configurable patterns
+### Provider Plugins (Service Providers)
+Plugins that provide core translation functionality and services.
 
-### 8. Streaming Output Plugin (`src/Plugins/StreamingOutputPlugin.php`)
-- AsyncGenerator-based streaming
-- Real-time translation output
-- Cached vs. new translation differentiation
+#### Multi-Provider Plugin (`src/Plugins/MultiProviderPlugin.php`)
+- Configurable AI providers with model, temperature, and thinking mode
+- Special handling: gpt-5 always uses temperature 1.0
+- Parallel execution and consensus selection (default judge: gpt-5 at temperature 0.3)
+- Executes in translation and consensus stages
 
-### 9. Glossary Plugin (`src/Plugins/GlossaryPlugin.php`)
-- In-memory term management
-- Domain-specific glossaries
-- Auto-applied during preparation stage
+#### Style Plugin (`src/Plugins/StylePlugin.php`)
+- Language-specific default styles (formal, casual, technical, marketing)
+- Language-specific settings (Korean: 존댓말/반말, Japanese: 敬語/タメ口)
+- Custom prompt injection support
+- Sets context in pre_process stage
+
+#### Glossary Plugin (`src/Plugins/GlossaryPlugin.php`)
+- In-memory glossary management
+- Domain-specific terminology support
+- Auto-applied in preparation stage
+
+### Observer Plugins (Event Watchers)
+Plugins that monitor state and perform auxiliary actions.
+
+#### Diff Tracking Plugin (`src/Plugins/DiffTrackingPlugin.php`)
+- Tracks changes between translation sessions
+- State storage via Laravel Storage Facade
+- Default path: `storage/app/ai-translator/states/`
+- Supports file, database, and Redis adapters
+- Executes in diff_detection stage
+
+#### Streaming Output Plugin (`src/Plugins/StreamingOutputPlugin.php`)
+- AsyncGenerator-based real-time streaming
+- Differentiates cached vs. new translations
+- Executes in output stage
+
+#### Annotation Context Plugin (`src/Plugins/AnnotationContextPlugin.php`)
+- Extracts translation context from PHP docblocks
+- Supports @translate-context, @translate-style, @translate-glossary annotations
+- Collects metadata in preparation stage
 
 ## User API: TranslationBuilder (Chaining Interface)
 

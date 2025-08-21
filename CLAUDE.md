@@ -45,6 +45,103 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Imports**: Group by type (PHP core, Laravel, third-party, project), alphabetize within groups
 - **Comments**: Use PHPDoc for public methods, inline comments sparingly for complex logic
 
+## Plugin-Based Pipeline Architecture
+
+### Architecture Pattern
+The package now implements a **plugin-based pipeline architecture** that provides modular, extensible translation processing. This architecture follows Laravel's design patterns and enables easy customization without modifying core code.
+
+### Core Architecture Components
+
+#### 1. **Pipeline System** (`src/Core/`)
+- **TranslationPipeline**: Orchestrates the entire translation workflow through 9 defined stages
+- **TranslationContext**: Central state container that maintains all translation data
+- **PluginManager**: Manages plugin lifecycle, dependencies, and multi-tenant configurations
+- **PluginRegistry**: Tracks plugin metadata and dependency graphs
+
+#### 2. **Plugin Types** (Laravel-inspired patterns)
+
+**Middleware Plugins** (`src/Plugins/Abstract/MiddlewarePlugin.php`)
+- Transform data as it flows through the pipeline
+- Examples: TokenChunkingPlugin, ValidationPlugin, PIIMaskingPlugin
+- Similar to Laravel's HTTP middleware pattern
+
+**Provider Plugins** (`src/Plugins/Abstract/ProviderPlugin.php`)
+- Supply core services and functionality
+- Examples: MultiProviderPlugin, StylePlugin, GlossaryPlugin
+- Similar to Laravel's Service Providers
+
+**Observer Plugins** (`src/Plugins/Abstract/ObserverPlugin.php`)
+- React to events without modifying data flow
+- Examples: DiffTrackingPlugin, StreamingOutputPlugin, AnnotationContextPlugin
+- Similar to Laravel's Event Listeners
+
+#### 3. **User API** (`src/TranslationBuilder.php`)
+Fluent, chainable interface for building translation requests:
+```php
+$result = TranslationBuilder::make()
+    ->from('en')->to(['ko', 'ja'])
+    ->withStyle('formal')
+    ->withProviders(['claude', 'gpt-4'])
+    ->trackChanges()
+    ->translate($texts);
+```
+
+### Pipeline Stages
+1. **pre_process**: Initial text preparation and style configuration
+2. **diff_detection**: Identify changed content to avoid retranslation
+3. **preparation**: Apply glossaries and extract context
+4. **chunking**: Split texts into optimal token sizes
+5. **translation**: Execute AI translation
+6. **consensus**: Select best translation from multiple providers
+7. **validation**: Verify translation quality and accuracy
+8. **post_process**: Final transformations and cleanup
+9. **output**: Stream results to client
+
+### Plugin Development Guide
+
+#### Creating a Custom Plugin
+1. Choose the appropriate base class:
+   - Extend `AbstractMiddlewarePlugin` for data transformation
+   - Extend `AbstractProviderPlugin` for service provision
+   - Extend `AbstractObserverPlugin` for event monitoring
+
+2. Implement required methods:
+```php
+class MyCustomPlugin extends AbstractMiddlewarePlugin {
+    protected string $name = 'my_custom_plugin';
+    
+    protected function getStage(): string {
+        return 'preparation'; // Choose appropriate stage
+    }
+    
+    public function handle(TranslationContext $context, Closure $next): mixed {
+        // Your logic here
+        return $next($context);
+    }
+}
+```
+
+3. Register the plugin:
+```php
+TranslationBuilder::make()
+    ->withPlugin(new MyCustomPlugin())
+    ->translate($texts);
+```
+
+### Multi-Tenant Support
+Plugins can be configured per tenant for SaaS applications:
+```php
+$pluginManager->enableForTenant('tenant-123', 'style', [
+    'default_style' => 'casual'
+]);
+```
+
+### Storage Adapters
+The architecture supports multiple storage backends for state persistence:
+- **FileStorage**: Local filesystem storage
+- **DatabaseStorage**: Laravel database storage
+- **RedisStorage**: Redis-based storage for high performance
+
 ## Architecture Overview
 
 ### Package Type

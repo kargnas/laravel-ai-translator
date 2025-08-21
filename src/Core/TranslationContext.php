@@ -5,6 +5,28 @@ namespace Kargnas\LaravelAiTranslator\Core;
 use Kargnas\LaravelAiTranslator\Core\TranslationRequest;
 use Illuminate\Support\Collection;
 
+/**
+ * TranslationContext - Central state container for the entire translation process
+ * 
+ * Core Responsibilities:
+ * - Maintains the complete state of a translation operation from start to finish
+ * - Tracks original texts, translations, and all intermediate transformations
+ * - Manages plugin-specific data storage in an isolated namespace
+ * - Collects and aggregates errors, warnings, and performance metrics
+ * - Provides token usage tracking for cost calculation
+ * - Records timing information for performance analysis
+ * 
+ * State Management:
+ * The context acts as a shared blackboard where plugins can read and write
+ * data throughout the translation process. Each plugin can store its own
+ * data without interfering with others.
+ * 
+ * Data Flow:
+ * 1. Initialized with TranslationRequest containing source texts
+ * 2. Modified by plugins during each pipeline stage
+ * 3. Accumulates translations, metrics, and metadata
+ * 4. Provides final snapshot for result generation
+ */
 class TranslationContext
 {
     /**
@@ -81,7 +103,13 @@ class TranslationContext
     }
 
     /**
-     * Get plugin-specific data.
+     * Get plugin-specific data
+     * 
+     * Retrieves data stored by a specific plugin, maintaining isolation
+     * between different plugins' data spaces
+     * 
+     * @param string $pluginName The name of the plugin
+     * @return mixed The stored data or null if not found
      */
     public function getPluginData(string $pluginName): mixed
     {
@@ -167,7 +195,12 @@ class TranslationContext
     }
 
     /**
-     * Create a snapshot of the current context state.
+     * Create a snapshot of the current context state
+     * 
+     * Captures the complete state at a point in time, useful for
+     * debugging, logging, and creating immutable checkpoints
+     * 
+     * @return array Complete state representation
      */
     public function snapshot(): array
     {

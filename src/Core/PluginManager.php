@@ -5,6 +5,32 @@ namespace Kargnas\LaravelAiTranslator\Core;
 use Kargnas\LaravelAiTranslator\Contracts\TranslationPlugin;
 use Illuminate\Support\Collection;
 
+/**
+ * PluginManager - Centralized plugin lifecycle and dependency management system
+ * 
+ * Primary Responsibilities:
+ * - Registers and manages all translation plugins in the system
+ * - Resolves plugin dependencies and ensures correct loading order
+ * - Provides multi-tenant plugin configuration capabilities
+ * - Handles plugin instantiation with proper configuration injection
+ * - Implements dependency graph sorting to prevent circular dependencies
+ * - Manages plugin state across different execution contexts
+ * 
+ * Tenant Support:
+ * The manager supports multi-tenant scenarios where different tenants
+ * can have different plugin configurations and enabled/disabled states.
+ * This is crucial for SaaS applications where each customer may need
+ * different translation behaviors.
+ * 
+ * Dependency Resolution:
+ * Uses topological sorting to ensure plugins are loaded in the correct
+ * order based on their declared dependencies. Detects and prevents
+ * circular dependencies that could cause infinite loops.
+ * 
+ * Plugin Lifecycle:
+ * 1. Registration -> 2. Dependency Check -> 3. Configuration
+ * 4. Sorting -> 5. Booting -> 6. Execution
+ */
 class PluginManager
 {
     /**
@@ -246,7 +272,14 @@ class PluginManager
     }
 
     /**
-     * Check plugin dependencies.
+     * Check plugin dependencies
+     * 
+     * Validates that all required dependencies for a plugin are satisfied
+     * before allowing registration. This prevents runtime errors from
+     * missing dependencies.
+     * 
+     * @param TranslationPlugin $plugin Plugin to check
+     * @throws \RuntimeException If dependencies are not met
      */
     protected function checkDependencies(TranslationPlugin $plugin): void
     {
@@ -260,7 +293,15 @@ class PluginManager
     }
 
     /**
-     * Sort plugins by dependencies.
+     * Sort plugins by dependencies using topological sort
+     * 
+     * Implements depth-first search to create a valid execution order
+     * where all dependencies are loaded before dependent plugins.
+     * Detects circular dependencies during traversal.
+     * 
+     * @param array $plugins Plugins to sort
+     * @return array Sorted plugins in dependency order
+     * @throws \RuntimeException If circular dependency detected
      */
     protected function sortByDependencies(array $plugins): array
     {

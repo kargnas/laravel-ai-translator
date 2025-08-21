@@ -10,6 +10,36 @@ use Kargnas\LaravelAiTranslator\Core\PluginManager;
 use Kargnas\LaravelAiTranslator\Results\TranslationResult;
 use Kargnas\LaravelAiTranslator\Contracts\TranslationPlugin;
 
+/**
+ * TranslationBuilder - Fluent API for constructing and executing translations
+ * 
+ * Core Responsibilities:
+ * - Provides an intuitive, chainable interface for translation configuration
+ * - Manages plugin selection and configuration through method chaining
+ * - Handles translation execution with both synchronous and streaming modes
+ * - Validates configuration before execution to prevent runtime errors
+ * - Integrates with Laravel's service container for dependency injection
+ * 
+ * Design Pattern:
+ * Implements the Builder pattern with a fluent interface, allowing
+ * developers to construct complex translation configurations through
+ * simple, readable method chains.
+ * 
+ * Usage Example:
+ * ```php
+ * $result = TranslationBuilder::make()
+ *     ->from('en')->to('ko')
+ *     ->withStyle('formal')
+ *     ->withProviders(['gpt-4', 'claude'])
+ *     ->trackChanges()
+ *     ->translate($texts);
+ * ```
+ * 
+ * Plugin Management:
+ * The builder automatically loads and configures plugins based on
+ * the methods called, hiding the complexity of plugin management
+ * from the end user.
+ */
 class TranslationBuilder
 {
     /**
@@ -240,7 +270,15 @@ class TranslationBuilder
     }
 
     /**
-     * Execute the translation.
+     * Execute the translation synchronously
+     * 
+     * Processes the entire translation pipeline and returns a complete
+     * result object. This method blocks until all translations are complete.
+     * 
+     * @param array $texts Key-value pairs of texts to translate
+     * @return TranslationResult Complete translation results with metadata
+     * @throws \InvalidArgumentException If configuration is invalid
+     * @throws \RuntimeException If translation fails
      */
     public function translate(array $texts): TranslationResult
     {
@@ -299,9 +337,15 @@ class TranslationBuilder
     }
 
     /**
-     * Execute translation and return a generator for streaming.
+     * Execute translation with streaming output
      * 
-     * @return Generator<TranslationOutput>
+     * Returns a generator that yields translation outputs as they become
+     * available, enabling real-time UI updates and reduced memory usage
+     * for large translation batches.
+     * 
+     * @param array $texts Key-value pairs of texts to translate
+     * @return Generator<TranslationOutput> Stream of translation outputs
+     * @throws \InvalidArgumentException If configuration is invalid
      */
     public function stream(array $texts): Generator
     {

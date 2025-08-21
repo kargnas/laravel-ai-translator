@@ -10,6 +10,32 @@ use Kargnas\LaravelAiTranslator\Contracts\ObserverPlugin;
 use Kargnas\LaravelAiTranslator\Contracts\TranslationPlugin;
 use Illuminate\Support\Collection;
 
+/**
+ * TranslationPipeline - Core execution engine for the translation process
+ * 
+ * Primary Responsibilities:
+ * - Orchestrates the entire translation workflow through defined stages
+ * - Manages plugin lifecycle and execution order based on priorities
+ * - Implements middleware chain pattern for request/response transformation
+ * - Provides service registry for plugin-provided capabilities
+ * - Handles event emission and listener management throughout the pipeline
+ * - Supports streaming output via PHP Generators for memory efficiency
+ * - Ensures proper error handling and cleanup via termination handlers
+ * 
+ * Architecture Pattern:
+ * The pipeline follows a multi-stage processing model where each stage
+ * can have multiple handlers. Plugins can register handlers for specific
+ * stages, and the pipeline ensures they execute in the correct order.
+ * 
+ * Execution Flow:
+ * 1. Pre-process -> 2. Diff Detection -> 3. Preparation -> 4. Chunking
+ * 5. Translation -> 6. Consensus -> 7. Validation -> 8. Post-process -> 9. Output
+ * 
+ * Plugin Integration:
+ * - Middleware: Wraps the entire pipeline for transformation
+ * - Providers: Supply services at specific stages
+ * - Observers: React to events without modifying data flow
+ */
 class TranslationPipeline
 {
     /**

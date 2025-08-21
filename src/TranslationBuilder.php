@@ -1,0 +1,420 @@
+<?php
+
+namespace Kargnas\LaravelAiTranslator;
+
+use Generator;
+use Kargnas\LaravelAiTranslator\Core\TranslationPipeline;
+use Kargnas\LaravelAiTranslator\Core\TranslationRequest;
+use Kargnas\LaravelAiTranslator\Core\TranslationOutput;
+use Kargnas\LaravelAiTranslator\Core\PluginManager;
+use Kargnas\LaravelAiTranslator\Results\TranslationResult;
+use Kargnas\LaravelAiTranslator\Contracts\TranslationPlugin;
+
+class TranslationBuilder
+{
+    /**
+     * @var TranslationPipeline The translation pipeline
+     */
+    protected TranslationPipeline $pipeline;
+
+    /**
+     * @var PluginManager The plugin manager
+     */
+    protected PluginManager $pluginManager;
+
+    /**
+     * @var array Configuration
+     */
+    protected array $config = [];
+
+    /**
+     * @var array<string> Enabled plugins
+     */
+    protected array $plugins = [];
+
+    /**
+     * @var array<string, array> Plugin configurations
+     */
+    protected array $pluginConfigs = [];
+
+    /**
+     * @var callable|null Progress callback
+     */
+    protected $progressCallback = null;
+
+    /**
+     * @var string|null Tenant ID
+     */
+    protected ?string $tenantId = null;
+
+    /**
+     * @var array Request metadata
+     */
+    protected array $metadata = [];
+
+    /**
+     * @var array Request options
+     */
+    protected array $options = [];
+
+    public function __construct(?TranslationPipeline $pipeline = null, ?PluginManager $pluginManager = null)
+    {
+        $this->pipeline = $pipeline ?? app(TranslationPipeline::class);
+        $this->pluginManager = $pluginManager ?? app(PluginManager::class);
+    }
+
+    /**
+     * Create a new builder instance.
+     */
+    public static function make(): self
+    {
+        return new self();
+    }
+
+    /**
+     * Set the source locale.
+     */
+    public function from(string $locale): self
+    {
+        $this->config['source_locale'] = $locale;
+        return $this;
+    }
+
+    /**
+     * Set the target locale(s).
+     */
+    public function to(string|array $locales): self
+    {
+        $this->config['target_locales'] = $locales;
+        return $this;
+    }
+
+    /**
+     * Set translation style.
+     */
+    public function withStyle(string $style, ?string $customPrompt = null): self
+    {
+        $this->plugins[] = 'style';
+        $this->pluginConfigs['style'] = [
+            'style' => $style,
+            'custom_prompt' => $customPrompt,
+        ];
+        return $this;
+    }
+
+    /**
+     * Configure AI providers.
+     */
+    public function withProviders(array $providers): self
+    {
+        $this->plugins[] = 'multi_provider';
+        $this->pluginConfigs['multi_provider'] = [
+            'providers' => $providers,
+        ];
+        return $this;
+    }
+
+    /**
+     * Set glossary terms.
+     */
+    public function withGlossary(array $terms): self
+    {
+        $this->plugins[] = 'glossary';
+        $this->pluginConfigs['glossary'] = [
+            'terms' => $terms,
+        ];
+        return $this;
+    }
+
+    /**
+     * Enable change tracking.
+     */
+    public function trackChanges(bool $enable = true): self
+    {
+        if ($enable) {
+            $this->plugins[] = 'diff_tracking';
+        } else {
+            $this->plugins = array_filter($this->plugins, fn($p) => $p !== 'diff_tracking');
+        }
+        return $this;
+    }
+
+    /**
+     * Set translation context.
+     */
+    public function withContext(?string $description = null, ?string $screenshot = null): self
+    {
+        $this->metadata['context'] = [
+            'description' => $description,
+            'screenshot' => $screenshot,
+        ];
+        return $this;
+    }
+
+    /**
+     * Add a custom plugin.
+     */
+    public function withPlugin(TranslationPlugin $plugin): self
+    {
+        $this->pluginManager->register($plugin);
+        $this->plugins[] = $plugin->getName();
+        return $this;
+    }
+
+    /**
+     * Configure token chunking.
+     */
+    public function withTokenChunking(int $maxTokens = 2000): self
+    {
+        $this->plugins[] = 'token_chunking';
+        $this->pluginConfigs['token_chunking'] = [
+            'max_tokens' => $maxTokens,
+        ];
+        return $this;
+    }
+
+    /**
+     * Configure validation checks.
+     */
+    public function withValidation(array $checks = ['all']): self
+    {
+        $this->plugins[] = 'validation';
+        $this->pluginConfigs['validation'] = [
+            'checks' => $checks,
+        ];
+        return $this;
+    }
+
+    /**
+     * Enable PII masking for security.
+     */
+    public function secure(): self
+    {
+        $this->plugins[] = 'pii_masking';
+        return $this;
+    }
+
+    /**
+     * Set tenant ID for multi-tenant support.
+     */
+    public function forTenant(string $tenantId): self
+    {
+        $this->tenantId = $tenantId;
+        return $this;
+    }
+
+    /**
+     * Set reference locales for context.
+     */
+    public function withReference(array $referenceLocales): self
+    {
+        $this->metadata['reference_locales'] = $referenceLocales;
+        return $this;
+    }
+
+    /**
+     * Set progress callback.
+     */
+    public function onProgress(callable $callback): self
+    {
+        $this->progressCallback = $callback;
+        return $this;
+    }
+
+    /**
+     * Set a specific option.
+     */
+    public function option(string $key, mixed $value): self
+    {
+        $this->options[$key] = $value;
+        return $this;
+    }
+
+    /**
+     * Set multiple options.
+     */
+    public function options(array $options): self
+    {
+        $this->options = array_merge($this->options, $options);
+        return $this;
+    }
+
+    /**
+     * Execute the translation.
+     */
+    public function translate(array $texts): TranslationResult
+    {
+        // Validate configuration
+        $this->validate();
+
+        // Create translation request
+        $request = new TranslationRequest(
+            $texts,
+            $this->config['source_locale'],
+            $this->config['target_locales'],
+            $this->metadata,
+            $this->options,
+            $this->tenantId,
+            array_unique($this->plugins),
+            $this->pluginConfigs
+        );
+
+        // Load and configure plugins
+        $this->loadPlugins();
+
+        // Boot plugins with pipeline
+        $this->pluginManager->boot($this->pipeline);
+
+        // Process translation
+        $outputs = [];
+        $generator = $this->pipeline->process($request);
+
+        foreach ($generator as $output) {
+            if ($output instanceof TranslationOutput) {
+                $outputs[] = $output;
+                
+                // Call progress callback if set
+                if ($this->progressCallback) {
+                    ($this->progressCallback)($output);
+                }
+            }
+        }
+
+        // Get final context
+        $context = $this->pipeline->getContext();
+
+        // Create and return result
+        return new TranslationResult(
+            $context->translations,
+            $context->tokenUsage,
+            $request->sourceLocale,
+            $request->targetLocales,
+            [
+                'errors' => $context->errors,
+                'warnings' => $context->warnings,
+                'duration' => $context->getDuration(),
+                'outputs' => $outputs,
+            ]
+        );
+    }
+
+    /**
+     * Execute translation and return a generator for streaming.
+     * 
+     * @return Generator<TranslationOutput>
+     */
+    public function stream(array $texts): Generator
+    {
+        // Validate configuration
+        $this->validate();
+
+        // Create translation request
+        $request = new TranslationRequest(
+            $texts,
+            $this->config['source_locale'],
+            $this->config['target_locales'],
+            $this->metadata,
+            $this->options,
+            $this->tenantId,
+            array_unique($this->plugins),
+            $this->pluginConfigs
+        );
+
+        // Load and configure plugins
+        $this->loadPlugins();
+
+        // Boot plugins with pipeline
+        $this->pluginManager->boot($this->pipeline);
+
+        // Process and yield outputs
+        yield from $this->pipeline->process($request);
+    }
+
+    /**
+     * Validate configuration.
+     */
+    protected function validate(): void
+    {
+        if (!isset($this->config['source_locale'])) {
+            throw new \InvalidArgumentException('Source locale is required');
+        }
+
+        if (!isset($this->config['target_locales'])) {
+            throw new \InvalidArgumentException('Target locale(s) required');
+        }
+    }
+
+    /**
+     * Load configured plugins.
+     */
+    protected function loadPlugins(): void
+    {
+        foreach ($this->plugins as $pluginName) {
+            // Skip if already registered
+            if ($this->pluginManager->has($pluginName)) {
+                // Update configuration if provided
+                if (isset($this->pluginConfigs[$pluginName])) {
+                    $plugin = $this->pluginManager->get($pluginName);
+                    if ($plugin) {
+                        $plugin->configure($this->pluginConfigs[$pluginName]);
+                    }
+                }
+                continue;
+            }
+
+            // Try to load the plugin
+            $config = $this->pluginConfigs[$pluginName] ?? [];
+            $plugin = $this->pluginManager->load($pluginName, $config);
+
+            if (!$plugin) {
+                // Plugin not found in registry, skip
+                // This allows for forward compatibility with new plugins
+                continue;
+            }
+
+            // Enable for tenant if specified
+            if ($this->tenantId) {
+                $this->pluginManager->enableForTenant($this->tenantId, $pluginName, $config);
+            }
+        }
+    }
+
+    /**
+     * Clone the builder.
+     */
+    public function clone(): self
+    {
+        return clone $this;
+    }
+
+    /**
+     * Reset the builder.
+     */
+    public function reset(): self
+    {
+        $this->config = [];
+        $this->plugins = [];
+        $this->pluginConfigs = [];
+        $this->progressCallback = null;
+        $this->tenantId = null;
+        $this->metadata = [];
+        $this->options = [];
+        
+        return $this;
+    }
+
+    /**
+     * Get the current configuration.
+     */
+    public function getConfig(): array
+    {
+        return [
+            'config' => $this->config,
+            'plugins' => $this->plugins,
+            'plugin_configs' => $this->pluginConfigs,
+            'tenant_id' => $this->tenantId,
+            'metadata' => $this->metadata,
+            'options' => $this->options,
+        ];
+    }
+}

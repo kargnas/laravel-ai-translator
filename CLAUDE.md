@@ -46,6 +46,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Comments**: Use PHPDoc for public methods, inline comments sparingly for complex logic
 - **Using Facade**: Always use Laravel Facade with import when it's available. (e.g. Log, HTTP, Cache, ...)
 
+### GIT
+- Always write git commit message in English
+- Always run `phpstan` before commit
+
 ## Plugin-Based Pipeline Architecture
 
 ### Architecture Pattern

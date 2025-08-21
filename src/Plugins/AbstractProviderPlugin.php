@@ -5,6 +5,7 @@ namespace Kargnas\LaravelAiTranslator\Plugins;
 use Kargnas\LaravelAiTranslator\Contracts\ProviderPlugin;
 use Kargnas\LaravelAiTranslator\Core\TranslationContext;
 use Kargnas\LaravelAiTranslator\Core\TranslationPipeline;
+use Kargnas\LaravelAiTranslator\Core\PipelineStages;
 
 abstract class AbstractProviderPlugin extends AbstractTranslationPlugin implements ProviderPlugin
 {
@@ -18,7 +19,7 @@ abstract class AbstractProviderPlugin extends AbstractTranslationPlugin implemen
      */
     public function when(): array
     {
-        return ['translation', 'consensus']; // Default stages
+        return [PipelineStages::TRANSLATION, PipelineStages::CONSENSUS]; // Default stages
     }
 
     /**

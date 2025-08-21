@@ -30,8 +30,18 @@ beforeEach(function () {
 afterEach(function () {
     // Clean up temp directory
     if (is_dir($this->tempDir)) {
-        array_map('unlink', glob($this->tempDir . '/*'));
-        rmdir($this->tempDir);
+        $files = glob($this->tempDir . '/**/*');
+        foreach ($files as $file) {
+            if (is_file($file)) {
+                @unlink($file);
+            }
+        }
+        // Clean subdirectories
+        $dirs = glob($this->tempDir . '/*', GLOB_ONLYDIR);
+        foreach ($dirs as $dir) {
+            @rmdir($dir);
+        }
+        @rmdir($this->tempDir);
     }
 });
 

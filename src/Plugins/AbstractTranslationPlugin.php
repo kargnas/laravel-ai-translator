@@ -43,6 +43,11 @@ abstract class AbstractTranslationPlugin implements TranslationPlugin
      */
     protected array $tenantStatus = [];
 
+    /**
+     * @var array<string, array> Tenant-specific configurations
+     */
+    protected array $tenantConfigs = [];
+
     public function __construct(array $config = [])
     {
         $this->config = array_merge($this->getDefaultConfig(), $config);
@@ -110,19 +115,23 @@ abstract class AbstractTranslationPlugin implements TranslationPlugin
     }
 
     /**
-     * Enable plugin for a specific tenant.
+     * {@inheritDoc}
      */
-    public function enableForTenant(string $tenant): void
+    public function enableForTenant(string $tenant, array $config = []): void
     {
         $this->tenantStatus[$tenant] = true;
+        if (!empty($config)) {
+            $this->tenantConfigs[$tenant] = $config;
+        }
     }
 
     /**
-     * Disable plugin for a specific tenant.
+     * {@inheritDoc}
      */
     public function disableForTenant(string $tenant): void
     {
         $this->tenantStatus[$tenant] = false;
+        unset($this->tenantConfigs[$tenant]);
     }
 
     /**

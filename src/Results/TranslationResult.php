@@ -182,7 +182,7 @@ class TranslationResult implements Arrayable, Jsonable
     /**
      * Get metadata.
      */
-    public function getMetadata(string $key = null): mixed
+    public function getMetadata(?string $key = null): mixed
     {
         if ($key === null) {
             return $this->metadata;

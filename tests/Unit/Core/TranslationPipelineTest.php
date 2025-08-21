@@ -4,8 +4,8 @@ use Kargnas\LaravelAiTranslator\Core\TranslationPipeline;
 use Kargnas\LaravelAiTranslator\Core\TranslationRequest;
 use Kargnas\LaravelAiTranslator\Core\TranslationContext;
 use Kargnas\LaravelAiTranslator\Core\PluginManager;
+use Kargnas\LaravelAiTranslator\Core\PipelineStages;
 use Kargnas\LaravelAiTranslator\Plugins\AbstractMiddlewarePlugin;
-use Closure;
 
 /**
  * TranslationPipeline 핵심 기능 테스트
@@ -23,8 +23,7 @@ test('pipeline executes stages in correct order', function () {
     $executedStages = [];
     
     // Register handlers for each stage
-    $stages = ['pre_process', 'diff_detection', 'preparation', 'chunking', 
-               'translation', 'consensus', 'validation', 'post_process', 'output'];
+    $stages = PipelineStages::all();
     
     foreach ($stages as $stage) {
         $this->pipeline->registerStage($stage, function ($context) use ($stage, &$executedStages) {
@@ -56,10 +55,10 @@ test('middleware chain wraps pipeline execution', function () {
         }
         
         protected function getStage(): string {
-            return 'translation';
+            return PipelineStages::TRANSLATION;
         }
         
-        public function handle(TranslationContext $context, Closure $next): mixed {
+        public function handle(TranslationContext $context, \Closure $next): mixed {
             $this->order[] = 'before';
             $result = $next($context);
             $this->order[] = 'after';
@@ -101,7 +100,7 @@ test('pipeline emits lifecycle events', function () {
 
 test('pipeline handles errors gracefully', function () {
     // Register failing handler
-    $this->pipeline->registerStage('translation', function ($context) {
+    $this->pipeline->registerStage(PipelineStages::TRANSLATION, function ($context) {
         throw new RuntimeException('Translation failed');
     });
     

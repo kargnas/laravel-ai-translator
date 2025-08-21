@@ -41,17 +41,7 @@ class TranslationPipeline
     /**
      * @var array<string, array> Pipeline stages and their handlers
      */
-    protected array $stages = [
-        'pre_process' => [],
-        'diff_detection' => [],
-        'preparation' => [],
-        'chunking' => [],
-        'translation' => [],
-        'consensus' => [],
-        'validation' => [],
-        'post_process' => [],
-        'output' => [],
-    ];
+    protected array $stages = [];
 
     /**
      * @var array<MiddlewarePlugin> Registered middleware plugins
@@ -96,6 +86,11 @@ class TranslationPipeline
     public function __construct(PluginManager $pluginManager)
     {
         $this->pluginManager = $pluginManager;
+        
+        // Initialize stages using constants
+        foreach (PipelineStages::all() as $stage) {
+            $this->stages[$stage] = [];
+        }
     }
 
     /**

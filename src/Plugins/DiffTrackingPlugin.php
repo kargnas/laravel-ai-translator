@@ -3,6 +3,7 @@
 namespace Kargnas\LaravelAiTranslator\Plugins;
 
 use Kargnas\LaravelAiTranslator\Core\TranslationContext;
+use Kargnas\LaravelAiTranslator\Core\PipelineStages;
 use Kargnas\LaravelAiTranslator\Contracts\StorageInterface;
 use Kargnas\LaravelAiTranslator\Storage\FileStorage;
 
@@ -117,7 +118,7 @@ class DiffTrackingPlugin extends AbstractObserverPlugin
             'translation.started' => 'onTranslationStarted',
             'translation.completed' => 'onTranslationCompleted',
             'translation.failed' => 'onTranslationFailed',
-            'stage.diff_detection.started' => 'performDiffDetection',
+            'stage.' . PipelineStages::DIFF_DETECTION . '.started' => 'performDiffDetection',
         ];
     }
 
@@ -244,7 +245,9 @@ class DiffTrackingPlugin extends AbstractObserverPlugin
         }
 
         // Emit statistics
-        $this->emitStatistics($context, $pluginData);
+        if ($pluginData) {
+            $this->emitStatistics($context, $pluginData);
+        }
         
         $this->info('Translation state saved', [
             'key' => $stateKey,
@@ -509,9 +512,9 @@ class DiffTrackingPlugin extends AbstractObserverPlugin
      * @param TranslationContext $context Translation context
      * @param array $pluginData Plugin data
      */
-    protected function emitStatistics(TranslationContext $context, array $pluginData): void
+    protected function emitStatistics(TranslationContext $context, ?array $pluginData): void
     {
-        if (!isset($pluginData['changes'])) {
+        if (!$pluginData || !isset($pluginData['changes'])) {
             return;
         }
 

@@ -4,6 +4,7 @@ namespace Kargnas\LaravelAiTranslator\Plugins;
 
 use Closure;
 use Kargnas\LaravelAiTranslator\Core\TranslationContext;
+use Kargnas\LaravelAiTranslator\Core\PipelineStages;
 
 class ValidationPlugin extends AbstractMiddlewarePlugin
 {
@@ -43,7 +44,7 @@ class ValidationPlugin extends AbstractMiddlewarePlugin
      */
     protected function getStage(): string
     {
-        return 'validation';
+        return PipelineStages::VALIDATION;
     }
 
     /**

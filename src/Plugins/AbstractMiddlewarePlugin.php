@@ -21,10 +21,8 @@ abstract class AbstractMiddlewarePlugin extends AbstractTranslationPlugin implem
     {
         $pipeline->registerStage($this->getStage(), [$this, 'handle'], $this->getPriority());
 
-        // Register termination handler if the plugin implements it
-        if (method_exists($this, 'terminate')) {
-            $pipeline->registerTerminator([$this, 'terminate'], $this->getPriority());
-        }
+        // Register termination handler
+        $pipeline->registerTerminator([$this, 'terminate'], $this->getPriority());
     }
 
     /**

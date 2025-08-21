@@ -53,4 +53,14 @@ interface TranslationPlugin
      * Get plugin configuration.
      */
     public function getConfig(): array;
+
+    /**
+     * Enable plugin for a specific tenant with optional configuration.
+     */
+    public function enableForTenant(string $tenant, array $config = []): void;
+
+    /**
+     * Disable plugin for a specific tenant.
+     */
+    public function disableForTenant(string $tenant): void;
 }

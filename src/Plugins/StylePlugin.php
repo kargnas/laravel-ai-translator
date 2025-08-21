@@ -3,6 +3,7 @@
 namespace Kargnas\LaravelAiTranslator\Plugins;
 
 use Kargnas\LaravelAiTranslator\Core\TranslationContext;
+use Kargnas\LaravelAiTranslator\Core\PipelineStages;
 
 /**
  * StylePlugin - Manages translation styles and language-specific formatting preferences
@@ -143,7 +144,7 @@ class StylePlugin extends AbstractProviderPlugin
      */
     public function when(): array
     {
-        return ['pre_process'];
+        return [PipelineStages::PRE_PROCESS];
     }
 
     /**

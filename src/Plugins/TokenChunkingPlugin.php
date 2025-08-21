@@ -5,6 +5,7 @@ namespace Kargnas\LaravelAiTranslator\Plugins;
 use Closure;
 use Kargnas\LaravelAiTranslator\Core\TranslationContext;
 use Kargnas\LaravelAiTranslator\Core\TranslationOutput;
+use Kargnas\LaravelAiTranslator\Core\PipelineStages;
 use Generator;
 
 class TokenChunkingPlugin extends AbstractMiddlewarePlugin
@@ -37,7 +38,7 @@ class TokenChunkingPlugin extends AbstractMiddlewarePlugin
      */
     protected function getStage(): string
     {
-        return 'chunking';
+        return PipelineStages::CHUNKING;
     }
 
     /**
@@ -76,7 +77,8 @@ class TokenChunkingPlugin extends AbstractMiddlewarePlugin
                 'size' => count($chunk),
             ];
 
-            $this->debug("Processing chunk {$chunkIndex}/{$chunks}", [
+            $totalChunks = count($chunks);
+            $this->debug("Processing chunk {$chunkIndex}/{$totalChunks}", [
                 'chunk_size' => count($chunk),
                 'estimated_tokens' => $this->estimateTokens($chunk),
             ]);

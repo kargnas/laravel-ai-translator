@@ -38,16 +38,18 @@ test('estimates tokens correctly for different languages', function () {
     $method->setAccessible(true);
     
     // English (Latin) should use ~0.25 multiplier
+    // "Hello world this is a test" = 26 chars * 0.25 + 20 overhead = ~26 tokens
     $englishTokens = $method->invoke($this->plugin, $request->texts['english']);
-    expect($englishTokens)->toBeLessThan(20);
+    expect($englishTokens)->toBeLessThan(30);
     
     // Chinese (CJK) should use ~1.5 multiplier
+    // "你好世界这是一个测试" = 10 chars * 1.5 + 20 overhead = ~35 tokens
     $chineseTokens = $method->invoke($this->plugin, $request->texts['chinese']);
-    expect($chineseTokens)->toBeGreaterThan(20);
+    expect($chineseTokens)->toBeGreaterThan(30);
     
     // Korean (CJK) should use ~1.5 multiplier
     $koreanTokens = $method->invoke($this->plugin, $request->texts['korean']);
-    expect($koreanTokens)->toBeGreaterThan(30);
+    expect($koreanTokens)->toBeGreaterThan(35);
 });
 
 test('splits texts into chunks based on token limit', function () {

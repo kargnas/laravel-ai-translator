@@ -19,8 +19,9 @@ abstract class AbstractMiddlewarePlugin extends AbstractTranslationPlugin implem
      */
     public function boot(TranslationPipeline $pipeline): void
     {
-        $pipeline->registerStage($this->getStage(), [$this, 'handle'], $this->getPriority());
-
+        // Register as middleware for the specific stage
+        $pipeline->registerMiddleware($this->getStage(), [$this, 'handle'], $this->getPriority());
+        
         // Register termination handler
         $pipeline->registerTerminator([$this, 'terminate'], $this->getPriority());
     }

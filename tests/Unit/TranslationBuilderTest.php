@@ -64,16 +64,24 @@ test('configures plugins with options', function () {
 
 test('validates required configuration before translation', function () {
     // Missing source locale
-    $builder = $this->builder->to('ko');
+    $builder1 = new TranslationBuilder(
+        new TranslationPipeline(new PluginManager()),
+        new PluginManager()
+    );
+    $builder1->to('ko');
     
-    expect(fn() => $builder->translate(['test' => 'text']))
-        ->toThrow(InvalidArgumentException::class, 'Source locale is required');
+    expect(fn() => $builder1->translate(['test' => 'text']))
+        ->toThrow(\InvalidArgumentException::class, 'Source locale is required');
     
     // Missing target locale
-    $builder = $this->builder->from('en');
+    $builder2 = new TranslationBuilder(
+        new TranslationPipeline(new PluginManager()),
+        new PluginManager()
+    );
+    $builder2->from('en');
     
-    expect(fn() => $builder->translate(['test' => 'text']))
-        ->toThrow(InvalidArgumentException::class, 'Target locale(s) required');
+    expect(fn() => $builder2->translate(['test' => 'text']))
+        ->toThrow(\InvalidArgumentException::class, 'Target locale(s) required');
 });
 
 test('supports multi-tenant configuration', function () {

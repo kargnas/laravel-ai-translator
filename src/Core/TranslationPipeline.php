@@ -42,6 +42,11 @@ class TranslationPipeline
      * @var array<string, array> Pipeline stages and their handlers
      */
     protected array $stages = [];
+    
+    /**
+     * @var array<string, array> Stage-specific middleware
+     */
+    protected array $stageMiddlewares = [];
 
     /**
      * @var array<MiddlewarePlugin> Registered middleware plugins
@@ -90,6 +95,7 @@ class TranslationPipeline
         // Initialize stages using constants
         foreach (PipelineStages::all() as $stage) {
             $this->stages[$stage] = [];
+            $this->stageMiddlewares[$stage] = [];
         }
     }
 
@@ -133,6 +139,24 @@ class TranslationPipeline
 
         // Sort by priority (higher priority first)
         usort($this->stages[$stage], fn($a, $b) => $b['priority'] <=> $a['priority']);
+    }
+    
+    /**
+     * Register middleware for a specific stage.
+     */
+    public function registerMiddleware(string $stage, callable $middleware, int $priority = 0): void
+    {
+        if (!isset($this->stageMiddlewares[$stage])) {
+            $this->stageMiddlewares[$stage] = [];
+        }
+
+        $this->stageMiddlewares[$stage][] = [
+            'handler' => $middleware,
+            'priority' => $priority,
+        ];
+
+        // Sort by priority (higher priority first)
+        usort($this->stageMiddlewares[$stage], fn($a, $b) => $b['priority'] <=> $a['priority']);
     }
 
     /**
@@ -257,11 +281,39 @@ class TranslationPipeline
             $context->currentStage = $stage;
             $this->emit("stage.{$stage}.started", $context);
 
-            foreach ($handlers as $handlerData) {
-                $handler = $handlerData['handler'];
-                $result = $handler($context);
+            // Build middleware chain for this stage
+            $stageExecution = function($context) use ($stage, $handlers) {
+                $results = [];
+                foreach ($handlers as $handlerData) {
+                    $handler = $handlerData['handler'];
+                    $result = $handler($context);
+                    
+                    if ($result !== null) {
+                        $results[] = $result;
+                    }
+                }
+                return $results;
+            };
+            
+            // Wrap with stage-specific middleware
+            if (isset($this->stageMiddlewares[$stage]) && !empty($this->stageMiddlewares[$stage])) {
+                $pipeline = array_reduce(
+                    array_reverse($this->stageMiddlewares[$stage]),
+                    function ($next, $middlewareData) {
+                        $middleware = $middlewareData['handler'];
+                        return function ($context) use ($middleware, $next) {
+                            return $middleware($context, $next);
+                        };
+                    },
+                    $stageExecution
+                );
+                $results = $pipeline($context);
+            } else {
+                $results = $stageExecution($context);
+            }
 
-                // If handler returns a generator, yield from it
+            // Yield results
+            foreach ($results as $result) {
                 if ($result instanceof Generator) {
                     yield from $result;
                 } elseif ($result instanceof TranslationOutput) {

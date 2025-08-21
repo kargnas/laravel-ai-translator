@@ -29,7 +29,6 @@ use Generator;
  */
 class StreamingOutputPlugin extends AbstractObserverPlugin
 {
-    protected string $name = 'streaming_output';
     
     protected int $priority = 10; // Low priority to run last
 
@@ -314,7 +313,8 @@ class StreamingOutputPlugin extends AbstractObserverPlugin
     protected function isCachedTranslation(TranslationContext $context, string $key, string $locale): bool
     {
         // Check if DiffTrackingPlugin marked this as cached
-        $diffData = $context->getPluginData('diff_tracking');
+        // Check DiffTrackingPlugin data
+        $diffData = $context->getPluginData('DiffTrackingPlugin');
         if ($diffData && isset($diffData['changes']['unchanged'][$key])) {
             return true;
         }

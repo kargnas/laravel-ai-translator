@@ -28,7 +28,6 @@ use Kargnas\LaravelAiTranslator\Core\TranslationContext;
  */
 class AnnotationContextPlugin extends AbstractObserverPlugin
 {
-    protected string $name = 'annotation_context';
     
     protected int $priority = 85; // High priority to extract context early
 

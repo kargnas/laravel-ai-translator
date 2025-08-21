@@ -51,7 +51,10 @@ abstract class AbstractTranslationPlugin implements TranslationPlugin
     public function __construct(array $config = [])
     {
         $this->config = array_merge($this->getDefaultConfig(), $config);
-        $this->name = $this->name ?? static::class;
+        // Use short class name if name is not explicitly set
+        if (!isset($this->name)) {
+            $this->name = (new \ReflectionClass($this))->getShortName();
+        }
     }
 
     /**

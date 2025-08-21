@@ -8,7 +8,6 @@ use Kargnas\LaravelAiTranslator\Core\PipelineStages;
 
 class ValidationPlugin extends AbstractMiddlewarePlugin
 {
-    protected string $name = 'validation';
     
     protected int $priority = -100; // Run after translation
 

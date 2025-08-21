@@ -30,7 +30,6 @@ use Kargnas\LaravelAiTranslator\Storage\FileStorage;
  */
 class DiffTrackingPlugin extends AbstractObserverPlugin
 {
-    protected string $name = 'diff_tracking';
     
     protected int $priority = 95; // Very high priority to run early
 
@@ -415,7 +414,8 @@ class DiffTrackingPlugin extends AbstractObserverPlugin
         }
 
         if ($this->getConfigValue('tracking.track_providers', true)) {
-            $state['providers'] = $context->request->getPluginConfig('multi_provider')['providers'] ?? [];
+            // Get MultiProviderPlugin config using class name
+            $state['providers'] = $context->request->getPluginConfig(MultiProviderPlugin::class)['providers'] ?? [];
         }
 
         return $state;

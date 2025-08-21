@@ -28,7 +28,6 @@ use Kargnas\LaravelAiTranslator\Core\TranslationContext;
  */
 class GlossaryPlugin extends AbstractProviderPlugin
 {
-    protected string $name = 'glossary';
     
     protected int $priority = 80; // High priority to apply early
 

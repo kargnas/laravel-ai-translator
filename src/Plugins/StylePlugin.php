@@ -23,7 +23,6 @@ use Kargnas\LaravelAiTranslator\Core\TranslationContext;
  */
 class StylePlugin extends AbstractProviderPlugin
 {
-    protected string $name = 'style';
     
     protected int $priority = 90; // High priority to set context early
 

@@ -28,7 +28,6 @@ use Generator;
  */
 class MultiProviderPlugin extends AbstractProviderPlugin
 {
-    protected string $name = 'multi_provider';
     
     protected int $priority = 50;
 

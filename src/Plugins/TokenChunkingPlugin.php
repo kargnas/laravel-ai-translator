@@ -9,8 +9,6 @@ use Generator;
 
 class TokenChunkingPlugin extends AbstractMiddlewarePlugin
 {
-    protected string $name = 'token_chunking';
-    
     protected int $priority = 100;
 
     /**

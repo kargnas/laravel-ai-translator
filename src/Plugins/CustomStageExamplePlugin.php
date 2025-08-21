@@ -19,7 +19,6 @@ use Kargnas\LaravelAiTranslator\Core\TranslationPipeline;
  */
 class CustomStageExamplePlugin extends AbstractObserverPlugin
 {
-    protected string $name = 'custom_stage_example';
     
     /**
      * Custom stage name that this plugin defines

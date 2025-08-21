@@ -3,6 +3,7 @@
 use Kargnas\LaravelAiTranslator\Plugins\DiffTrackingPlugin;
 use Kargnas\LaravelAiTranslator\Core\TranslationContext;
 use Kargnas\LaravelAiTranslator\Core\TranslationRequest;
+use ReflectionClass;
 use Kargnas\LaravelAiTranslator\Storage\FileStorage;
 
 /**
@@ -81,7 +82,8 @@ test('detects unchanged texts and skips retranslation', function () {
     
     $this->plugin->onTranslationStarted($context2);
     
-    $pluginData = $context2->getPluginData('diff_tracking');
+    $pluginName = (new ReflectionClass(DiffTrackingPlugin::class))->getShortName();
+    $pluginData = $context2->getPluginData($pluginName);
     $changes = $pluginData['changes'];
     
     expect($changes['unchanged'])->toHaveKeys(['key1', 'key3'])
@@ -201,7 +203,8 @@ test('provides significant cost savings metrics', function () {
     
     $this->plugin->onTranslationStarted($context2);
     
-    $pluginData = $context2->getPluginData('diff_tracking');
+    $pluginName = (new ReflectionClass(DiffTrackingPlugin::class))->getShortName();
+    $pluginData = $context2->getPluginData($pluginName);
     $changes = $pluginData['changes'];
     
     // Should detect 80% unchanged (80% cost savings)

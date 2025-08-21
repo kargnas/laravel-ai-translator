@@ -9,6 +9,14 @@ use Kargnas\LaravelAiTranslator\Core\TranslationOutput;
 use Kargnas\LaravelAiTranslator\Core\PluginManager;
 use Kargnas\LaravelAiTranslator\Results\TranslationResult;
 use Kargnas\LaravelAiTranslator\Contracts\TranslationPlugin;
+use Kargnas\LaravelAiTranslator\Plugins\StylePlugin;
+use Kargnas\LaravelAiTranslator\Plugins\MultiProviderPlugin;
+use Kargnas\LaravelAiTranslator\Plugins\GlossaryPlugin;
+use Kargnas\LaravelAiTranslator\Plugins\DiffTrackingPlugin;
+use Kargnas\LaravelAiTranslator\Plugins\TokenChunkingPlugin;
+use Kargnas\LaravelAiTranslator\Plugins\ValidationPlugin;
+// use Kargnas\LaravelAiTranslator\Plugins\PIIMaskingPlugin; // Not implemented yet
+use Kargnas\LaravelAiTranslator\Plugins\AbstractTranslationPlugin;
 
 /**
  * TranslationBuilder - Fluent API for constructing and executing translations
@@ -124,8 +132,8 @@ class TranslationBuilder
      */
     public function withStyle(string $style, ?string $customPrompt = null): self
     {
-        $this->plugins[] = 'style';
-        $this->pluginConfigs['style'] = [
+        $this->plugins[] = StylePlugin::class;
+        $this->pluginConfigs[StylePlugin::class] = [
             'style' => $style,
             'custom_prompt' => $customPrompt,
         ];
@@ -137,8 +145,8 @@ class TranslationBuilder
      */
     public function withProviders(array $providers): self
     {
-        $this->plugins[] = 'multi_provider';
-        $this->pluginConfigs['multi_provider'] = [
+        $this->plugins[] = MultiProviderPlugin::class;
+        $this->pluginConfigs[MultiProviderPlugin::class] = [
             'providers' => $providers,
         ];
         return $this;
@@ -149,8 +157,8 @@ class TranslationBuilder
      */
     public function withGlossary(array $terms): self
     {
-        $this->plugins[] = 'glossary';
-        $this->pluginConfigs['glossary'] = [
+        $this->plugins[] = GlossaryPlugin::class;
+        $this->pluginConfigs[GlossaryPlugin::class] = [
             'terms' => $terms,
         ];
         return $this;
@@ -162,9 +170,9 @@ class TranslationBuilder
     public function trackChanges(bool $enable = true): self
     {
         if ($enable) {
-            $this->plugins[] = 'diff_tracking';
+            $this->plugins[] = DiffTrackingPlugin::class;
         } else {
-            $this->plugins = array_filter($this->plugins, fn($p) => $p !== 'diff_tracking');
+            $this->plugins = array_filter($this->plugins, fn($p) => $p !== DiffTrackingPlugin::class);
         }
         return $this;
     }
@@ -252,8 +260,8 @@ class TranslationBuilder
      */
     public function withTokenChunking(int $maxTokens = 2000): self
     {
-        $this->plugins[] = 'token_chunking';
-        $this->pluginConfigs['token_chunking'] = [
+        $this->plugins[] = TokenChunkingPlugin::class;
+        $this->pluginConfigs[TokenChunkingPlugin::class] = [
             'max_tokens' => $maxTokens,
         ];
         return $this;
@@ -264,8 +272,8 @@ class TranslationBuilder
      */
     public function withValidation(array $checks = ['all']): self
     {
-        $this->plugins[] = 'validation';
-        $this->pluginConfigs['validation'] = [
+        $this->plugins[] = ValidationPlugin::class;
+        $this->pluginConfigs[ValidationPlugin::class] = [
             'checks' => $checks,
         ];
         return $this;
@@ -273,10 +281,12 @@ class TranslationBuilder
 
     /**
      * Enable PII masking for security.
+     * @todo Implement PIIMaskingPlugin
      */
     public function secure(): self
     {
-        $this->plugins[] = 'pii_masking';
+        // $this->plugins[] = PIIMaskingPlugin::class;
+        // Not implemented yet
         return $this;
     }
 
@@ -449,26 +459,43 @@ class TranslationBuilder
      */
     protected function loadPlugins(): void
     {
-        foreach ($this->plugins as $pluginName) {
+        foreach ($this->plugins as $pluginIdentifier) {
+            // Determine if it's a class name or a plugin name
+            $pluginName = $pluginIdentifier;
+            
+            // If it's a class name, get the short name for the plugin identifier
+            if (class_exists($pluginIdentifier)) {
+                $pluginName = (new \ReflectionClass($pluginIdentifier))->getShortName();
+            }
+            
             // Skip if already registered
             if ($this->pluginManager->has($pluginName)) {
                 // Update configuration if provided
-                if (isset($this->pluginConfigs[$pluginName])) {
+                if (isset($this->pluginConfigs[$pluginIdentifier])) {
                     $plugin = $this->pluginManager->get($pluginName);
                     if ($plugin) {
-                        $plugin->configure($this->pluginConfigs[$pluginName]);
+                        $plugin->configure($this->pluginConfigs[$pluginIdentifier]);
                     }
                 }
                 continue;
             }
 
-            // Try to load the plugin
-            $config = $this->pluginConfigs[$pluginName] ?? [];
-            $plugin = $this->pluginManager->load($pluginName, $config);
+            // Try to create the plugin if it's a class
+            $config = $this->pluginConfigs[$pluginIdentifier] ?? [];
+            
+            if (class_exists($pluginIdentifier)) {
+                // Instantiate the plugin directly
+                $plugin = new $pluginIdentifier($config);
+                if ($plugin instanceof TranslationPlugin) {
+                    $this->pluginManager->register($plugin);
+                }
+            } else {
+                // Try to load from registry (backward compatibility)
+                $plugin = $this->pluginManager->load($pluginIdentifier, $config);
+            }
 
             if (!$plugin) {
-                // Plugin not found in registry, skip
-                // This allows for forward compatibility with new plugins
+                // Plugin not found, skip
                 continue;
             }
 

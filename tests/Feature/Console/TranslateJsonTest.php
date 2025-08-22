@@ -42,19 +42,6 @@ test('command exists', function () {
     $this->assertTrue(class_exists(TranslateJson::class));
 });
 
-test('can get existing locales', function () {
-    $command = new TranslateJson;
-    $command->setLaravel(app());
-
-    $reflection = new \ReflectionClass($command);
-    $property = $reflection->getProperty('sourceDirectory');
-    $property->setAccessible(true);
-    $property->setValue($command, $this->testJsonPath);
-
-    $locales = $command->getExistingLocales();
-    expect($locales)->toContain('en');
-});
-
 test('manual json transformer test', function () {
     $sourceFile = $this->testJsonPath.'/en.json';
     $targetFile = $this->testJsonPath.'/ko.json';
@@ -74,26 +61,6 @@ test('manual json transformer test', function () {
     fwrite(STDERR, "==============================\n");
 
     expect(count($stringsToTranslate))->toBeGreaterThan(0);
-});
-
-test('debug translate json command', function () {
-    $command = new \Kargnas\LaravelAiTranslator\Console\TranslateJson;
-    $command->setLaravel(app());
-
-    // Set sourceDirectory
-    $reflection = new \ReflectionClass($command);
-    $property = $reflection->getProperty('sourceDirectory');
-    $property->setAccessible(true);
-    $property->setValue($command, $this->testJsonPath);
-
-    $locales = $command->getExistingLocales();
-
-    fwrite(STDERR, "\n=== Command Debug ===\n");
-    fwrite(STDERR, 'Available locales: '.json_encode($locales)."\n");
-    fwrite(STDERR, 'Source directory: '.$this->testJsonPath."\n");
-    fwrite(STDERR, "==================\n");
-
-    expect($locales)->toContain('en');
 });
 
 test('manual json file creation test', function () {

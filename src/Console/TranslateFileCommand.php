@@ -4,8 +4,7 @@ namespace Kargnas\LaravelAiTranslator\Console;
 
 use Illuminate\Console\Command;
 use Kargnas\LaravelAiTranslator\TranslationBuilder;
-use Kargnas\LaravelAiTranslator\AI\Printer\TokenUsagePrinter;
-use Kargnas\LaravelAiTranslator\AI\TranslationContextProvider;
+use Kargnas\LaravelAiTranslator\Support\Printer\TokenUsagePrinter;
 
 class TranslateFileCommand extends Command
 {
@@ -239,8 +238,9 @@ class TranslateFileCommand extends Command
             
             $finalTokenUsage = $result->getTokenUsage();
             if (!empty($finalTokenUsage)) {
-                $printer = new TokenUsagePrinter($this->output);
-                $printer->printTokenUsage($finalTokenUsage);
+                $model = config('ai-translator.ai.model');
+                $printer = new TokenUsagePrinter($model);
+                $printer->printTokenUsageSummary($this, $finalTokenUsage);
             }
 
             $this->info("\nTranslation completed. Output written to: {$outputFilePath}");

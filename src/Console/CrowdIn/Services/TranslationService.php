@@ -10,7 +10,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Kargnas\LaravelAiTranslator\TranslationBuilder;
-use Kargnas\LaravelAiTranslator\AI\TranslationContextProvider;
+use Kargnas\LaravelAiTranslator\Plugins\TranslationContextPlugin;
 
 class TranslationService
 {
@@ -259,7 +259,7 @@ class TranslationService
             return [];
         }
 
-        $contextProvider = new TranslationContextProvider;
+        $contextProvider = new TranslationContextPlugin();
         $globalContext = $contextProvider->getGlobalTranslationContext(
             $this->projectService->getSelectedProject()['sourceLanguage']['name'],
             $targetLanguage['name'],

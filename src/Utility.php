@@ -2,7 +2,7 @@
 
 namespace Kargnas\LaravelAiTranslator;
 
-use Kargnas\LaravelAiTranslator\AI\Language\Language;
+use Kargnas\LaravelAiTranslator\Support\Language\Language;
 
 class Utility
 {

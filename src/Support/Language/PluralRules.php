@@ -1,6 +1,6 @@
 <?php
 
-namespace Kargnas\LaravelAiTranslator\AI\Language;
+namespace Kargnas\LaravelAiTranslator\Support\Language;
 
 class PluralRules
 {
@@ -9,7 +9,7 @@ class PluralRules
         $rules = [];
 
         // Skip plural rules if language doesn't have plural forms
-        if (! $language->hasPlural()) {
+        if (!$language->hasPlural()) {
             return $rules;
         }
 

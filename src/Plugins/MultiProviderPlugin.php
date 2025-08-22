@@ -543,28 +543,25 @@ class MultiProviderPlugin extends AbstractProviderPlugin
      */
     protected function createProvider(array $config): mixed
     {
-        // This would create actual AI provider instance
-        // For now, returning mock
-        return new class($config) {
-            private array $config;
-            
-            public function __construct(array $config) {
-                $this->config = $config;
-            }
-            
-            public function translate($texts, $from, $to, $metadata) {
-                // Mock implementation
-                $translations = [];
-                foreach ($texts as $key => $text) {
-                    $translations[$key] = "[{$to}] " . $text;
-                }
-                return ['translations' => $translations, 'token_usage' => ['input' => 100, 'output' => 150]];
-            }
-            
-            public function complete($prompt, $config) {
-                return "1"; // Mock judge response
-            }
-        };
+        $providerType = $config['provider'] ?? 'mock';
+        
+        // Map provider types to classes
+        $providerMap = [
+            'mock' => \Kargnas\LaravelAiTranslator\Providers\AI\MockProvider::class,
+            'anthropic' => \Kargnas\LaravelAiTranslator\Providers\AI\AnthropicProvider::class,
+            'openai' => \Kargnas\LaravelAiTranslator\Providers\AI\OpenAIProvider::class,
+            'gemini' => \Kargnas\LaravelAiTranslator\Providers\AI\GeminiProvider::class,
+        ];
+        
+        $providerClass = $providerMap[$providerType] ?? $providerMap['mock'];
+        
+        // Check if class exists, fall back to mock if not
+        if (!class_exists($providerClass)) {
+            $this->warning("Provider class '{$providerClass}' not found, using MockProvider");
+            $providerClass = $providerMap['mock'];
+        }
+        
+        return new $providerClass($config);
     }
 
     /**

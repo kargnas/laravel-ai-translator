@@ -1,26 +1,68 @@
 <?php
 
-namespace Kargnas\LaravelAiTranslator\AI;
+namespace Kargnas\LaravelAiTranslator\Plugins;
 
+use Closure;
+use Kargnas\LaravelAiTranslator\Core\TranslationContext;
+use Kargnas\LaravelAiTranslator\Plugins\AbstractMiddlewarePlugin;
 use Kargnas\LaravelAiTranslator\Transformers\PHPLangTransformer;
 
 /**
- * Purpose: Provides global translation context for improving translation consistency across files
- * Objectives:
- * - Collect existing translations from already translated files
+ * TranslationContextPlugin - Provides global translation context for consistency
+ * 
+ * This plugin replaces the legacy TranslationContextProvider by collecting
+ * existing translations from already translated files to improve consistency
+ * across the entire application.
+ * 
+ * Responsibilities:
+ * - Collect existing translations from translated files
  * - Include both source and target language strings for context
  * - Prioritize most relevant translations for context
  * - Manage context size to prevent context window overflows
  */
-class TranslationContextProvider
+class TranslationContextPlugin extends AbstractMiddlewarePlugin
 {
+    protected string $name = 'translation_context_plugin';
+
+    protected int $defaultMaxContextItems = 100;
+    protected int $maxPerFile = 20;
+
+    /**
+     * Get the pipeline stage where this plugin should run
+     */
+    protected function getStage(): string
+    {
+        return 'preparation';
+    }
+
+    /**
+     * Handle the translation context
+     */
+    public function handle(TranslationContext $context, Closure $next): mixed
+    {
+        $request = $context->getRequest();
+        $maxContextItems = $request->getOption('max_context_items', $this->defaultMaxContextItems);
+        
+        $globalContext = $this->getGlobalTranslationContext(
+            $request->getSourceLanguage(),
+            $request->getTargetLanguage(),
+            $request->getMetadata('current_file_path', ''),
+            $maxContextItems
+        );
+        
+        $context->setData('global_translation_context', $globalContext);
+        $context->setData('context_provider', $this);
+        
+        return $next($context);
+    }
+
     /**
      * Get global translation context for improving consistency
      *
      * @param  string  $sourceLocale  Source language locale code
      * @param  string  $targetLocale  Target language locale code
      * @param  string  $currentFilePath  Current file being translated
-     * @param  int  $maxContextItems  Maximum number of context items to include (to prevent context overflow)
+     * @param  int  $maxContextItems  Maximum number of context items to include
      * @return array Context data organized by file with both source and target strings
      */
     public function getGlobalTranslationContext(
@@ -37,7 +79,7 @@ class TranslationContextProvider
         $targetLocaleDir = $this->getLanguageDirectory($langDirectory, $targetLocale);
 
         // Return empty array if source directory doesn't exist
-        if (! is_dir($sourceLocaleDir)) {
+        if (!is_dir($sourceLocaleDir)) {
             return [];
         }
 
@@ -90,11 +132,11 @@ class TranslationContextProvider
                 }
 
                 // Limit maximum items per file
-                $maxPerFile = min(20, intval($maxContextItems / count($sourceFiles) / 2) + 1);
+                $maxPerFile = min($this->maxPerFile, intval($maxContextItems / count($sourceFiles) / 2) + 1);
 
                 // Prioritize high-priority items from longer files
                 if (count($sourceStrings) > $maxPerFile) {
-                    if ($hasTargetFile && ! empty($targetStrings)) {
+                    if ($hasTargetFile && !empty($targetStrings)) {
                         // If target exists, apply both source and target prioritization
                         $prioritizedItems = $this->getPrioritizedStrings($sourceStrings, $targetStrings, $maxPerFile);
                         $sourceStrings = $prioritizedItems['source'];
@@ -108,7 +150,7 @@ class TranslationContextProvider
                 // Construct translation context - include both source and target strings
                 $fileContext = [];
                 foreach ($sourceStrings as $key => $sourceValue) {
-                    if ($hasTargetFile && ! empty($targetStrings)) {
+                    if ($hasTargetFile && !empty($targetStrings)) {
                         // If target file exists, include both source and target
                         $targetValue = $targetStrings[$key] ?? null;
                         if ($targetValue !== null) {
@@ -126,7 +168,7 @@ class TranslationContextProvider
                     }
                 }
 
-                if (! empty($fileContext)) {
+                if (!empty($fileContext)) {
                     // Remove extension from filename and save as root key
                     $rootKey = pathinfo(basename($sourceFile), PATHINFO_FILENAME);
                     $context[$rootKey] = $fileContext;
@@ -187,7 +229,7 @@ class TranslationContextProvider
 
         // 2. Add remaining items
         foreach ($commonKeys as $key) {
-            if (! isset($prioritizedSource[$key]) && count($prioritizedSource) < $maxItems) {
+            if (!isset($prioritizedSource[$key]) && count($prioritizedSource) < $maxItems) {
                 $prioritizedSource[$key] = $sourceStrings[$key];
                 $prioritizedTarget[$key] = $targetStrings[$key];
             }
@@ -219,7 +261,7 @@ class TranslationContextProvider
 
         // 2. Add remaining items
         foreach ($sourceStrings as $key => $value) {
-            if (! isset($prioritizedSource[$key]) && count($prioritizedSource) < $maxItems) {
+            if (!isset($prioritizedSource[$key]) && count($prioritizedSource) < $maxItems) {
                 $prioritizedSource[$key] = $value;
             }
 

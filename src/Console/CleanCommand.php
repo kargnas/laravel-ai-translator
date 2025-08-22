@@ -3,7 +3,7 @@
 namespace Kargnas\LaravelAiTranslator\Console;
 
 use Illuminate\Console\Command;
-use Kargnas\LaravelAiTranslator\AI\Language\LanguageConfig;
+use Kargnas\LaravelAiTranslator\Support\Language\LanguageConfig;
 use Kargnas\LaravelAiTranslator\Transformers\JSONLangTransformer;
 use Kargnas\LaravelAiTranslator\Transformers\PHPLangTransformer;
 

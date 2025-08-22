@@ -1,10 +1,10 @@
 <?php
 
-namespace Kargnas\LaravelAiTranslator\AI\Language;
+namespace Kargnas\LaravelAiTranslator\Support\Language;
 
 class LanguageConfig
 {
-    protected static array $localeNames = [
+    private const LANGUAGE_NAMES = [
         'aa' => 'Afar',
         'ab' => 'Abkhazian',
         'af' => 'Afrikaans',
@@ -228,24 +228,52 @@ class LanguageConfig
         'zu' => 'Zulu',
     ];
 
+    private const PLURAL_FORMS = [
+        'en' => 2,
+        'ko' => 1,
+        'ja' => 1,
+        'zh' => 1,
+        'zh_cn' => 1,
+        'zh_tw' => 1,
+        'es' => 2,
+        'fr' => 2,
+        'de' => 2,
+        'ru' => 3,
+        'ar' => 6,
+        'pt' => 2,
+        'it' => 2,
+        'nl' => 2,
+        'pl' => 3,
+    ];
+
     public static function getLanguageName(string $code): ?string
     {
         $code = Language::normalizeCode($code);
-
-        if (isset(static::$localeNames[$code])) {
-            return static::$localeNames[$code];
+        
+        if (isset(self::LANGUAGE_NAMES[$code])) {
+            return self::LANGUAGE_NAMES[$code];
         }
 
-        // Try base code if full code not found
         $baseCode = substr($code, 0, 2);
+        return self::LANGUAGE_NAMES[$baseCode] ?? null;
+    }
 
-        return static::$localeNames[$baseCode] ?? null;
+    public static function getPluralForms(string $code): int
+    {
+        $code = Language::normalizeCode($code);
+        
+        if (isset(self::PLURAL_FORMS[$code])) {
+            return self::PLURAL_FORMS[$code];
+        }
+
+        $baseCode = substr($code, 0, 2);
+        return self::PLURAL_FORMS[$baseCode] ?? 2;
     }
 
     public static function getAllLanguages(): array
     {
         $languages = [];
-        foreach (static::$localeNames as $code => $name) {
+        foreach (self::LANGUAGE_NAMES as $code => $name) {
             $languages[$code] = Language::fromCode($code);
         }
 
@@ -254,6 +282,6 @@ class LanguageConfig
 
     public static function isValidLanguage(string $code): bool
     {
-        return static::getLanguageName($code) !== null;
+        return self::getLanguageName($code) !== null;
     }
 }

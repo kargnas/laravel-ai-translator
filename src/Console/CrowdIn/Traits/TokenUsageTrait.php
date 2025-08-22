@@ -2,7 +2,7 @@
 
 namespace Kargnas\LaravelAiTranslator\Console\CrowdIn\Traits;
 
-use Kargnas\LaravelAiTranslator\AI\Printer\TokenUsagePrinter;
+use Kargnas\LaravelAiTranslator\Support\Printer\TokenUsagePrinter;
 use Kargnas\LaravelAiTranslator\Results\TranslationResult;
 
 trait TokenUsageTrait
@@ -70,7 +70,8 @@ trait TokenUsageTrait
     protected function displayCostEstimation(TranslationResult $result): void
     {
         $usage = $result->getTokenUsage();
-        $printer = new TokenUsagePrinter($this->output);
-        $printer->printTokenUsage($usage);
+        $model = config('ai-translator.ai.model');
+        $printer = new TokenUsagePrinter($model);
+        $printer->printTokenUsageSummary($this, $usage);
     }
 }

@@ -5,9 +5,8 @@ namespace Kargnas\LaravelAiTranslator\Console;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 use Kargnas\LaravelAiTranslator\TranslationBuilder;
-use Kargnas\LaravelAiTranslator\AI\Language\LanguageConfig;
-use Kargnas\LaravelAiTranslator\AI\Printer\TokenUsagePrinter;
-use Kargnas\LaravelAiTranslator\AI\TranslationContextProvider;
+use Kargnas\LaravelAiTranslator\Support\Language\LanguageConfig;
+use Kargnas\LaravelAiTranslator\Support\Printer\TokenUsagePrinter;
 use Kargnas\LaravelAiTranslator\Transformers\JSONLangTransformer;
 
 /**
@@ -392,8 +391,9 @@ class TranslateJson extends Command
 
         // Display token usage
         if ($this->tokenUsage['total_tokens'] > 0) {
-            $printer = new TokenUsagePrinter($this->output);
-            $printer->printTokenUsage($this->tokenUsage);
+            $model = config('ai-translator.ai.model');
+            $printer = new TokenUsagePrinter($model);
+            $printer->printTokenUsageSummary($this, $this->tokenUsage);
         }
 
         $this->line($this->colors['cyan'].'═══════════════════════════════════════════════════════'.$this->colors['reset']."\n");

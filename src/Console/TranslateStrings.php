@@ -5,16 +5,17 @@ namespace Kargnas\LaravelAiTranslator\Console;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 use Kargnas\LaravelAiTranslator\TranslationBuilder;
-use Kargnas\LaravelAiTranslator\AI\Language\LanguageConfig;
-use Kargnas\LaravelAiTranslator\AI\Printer\TokenUsagePrinter;
-use Kargnas\LaravelAiTranslator\AI\TranslationContextProvider;
+use Kargnas\LaravelAiTranslator\Support\Language\LanguageConfig;
+use Kargnas\LaravelAiTranslator\Support\Printer\TokenUsagePrinter;
 use Kargnas\LaravelAiTranslator\Transformers\PHPLangTransformer;
-use Kargnas\LaravelAiTranslator\Plugins\MultiProviderPlugin;
-use Kargnas\LaravelAiTranslator\Plugins\TokenChunkingPlugin;
+use Kargnas\LaravelAiTranslator\Plugins\TranslationContextPlugin;
+use Kargnas\LaravelAiTranslator\Plugins\PromptPlugin;
 
 /**
- * Artisan command that translates PHP language files using the new plugin-based architecture
- * while maintaining backward compatibility with existing commands
+ * Artisan command that translates PHP language files using the plugin-based architecture
+ * 
+ * This command has been refactored to use the new TranslationBuilder and plugin system,
+ * removing all legacy AI dependencies while maintaining the same user interface.
  */
 class TranslateStrings extends Command
 {
@@ -28,7 +29,7 @@ class TranslateStrings extends Command
         {--show-prompt : Show the whole AI prompts during translation}
         {--non-interactive : Run in non-interactive mode, using default or provided values}';
 
-    protected $description = 'Translates PHP language files using the new plugin-based architecture';
+    protected $description = 'Translates PHP language files using AI technology with plugin-based architecture';
 
     /**
      * Translation settings
@@ -47,11 +48,13 @@ class TranslateStrings extends Command
     protected array $tokenUsage = [
         'input_tokens' => 0,
         'output_tokens' => 0,
+        'cache_creation_input_tokens' => 0,
+        'cache_read_input_tokens' => 0,
         'total_tokens' => 0,
     ];
 
     /**
-     * Color codes
+     * Color codes for console output
      */
     protected array $colors = [
         'reset' => "\033[0m",
@@ -124,7 +127,7 @@ class TranslateStrings extends Command
             $this->referenceLocales = $this->option('reference')
                 ? explode(',', (string) $this->option('reference'))
                 : [];
-            if (! empty($this->referenceLocales)) {
+            if (!empty($this->referenceLocales)) {
                 $this->info($this->colors['green'].'✓ Selected reference locales: '.
                     $this->colors['reset'].$this->colors['bold'].implode(', ', $this->referenceLocales).
                     $this->colors['reset']);
@@ -172,14 +175,14 @@ class TranslateStrings extends Command
     }
 
     /**
-     * Execute translation using the new TranslationBuilder
+     * Execute translation using TranslationBuilder
      */
     public function translate(int $maxContextItems = 100): void
     {
         // Get locales to translate
         $specifiedLocales = $this->option('locale');
         $availableLocales = $this->getExistingLocales();
-        $locales = ! empty($specifiedLocales)
+        $locales = !empty($specifiedLocales)
             ? $this->validateAndFilterLocales($specifiedLocales, $availableLocales)
             : $availableLocales;
 
@@ -200,7 +203,7 @@ class TranslateStrings extends Command
             }
 
             $targetLanguageName = LanguageConfig::getLanguageName($locale);
-            if (! $targetLanguageName) {
+            if (!$targetLanguageName) {
                 $this->error("Language name not found for locale: {$locale}. Please add it to the config file.");
                 continue;
             }
@@ -237,113 +240,76 @@ class TranslateStrings extends Command
 
                 $this->info("\n".$this->colors['cyan']."Translating {$relativeFilePath}".$this->colors['reset']." ({$stringCount} strings)");
 
-                // Prepare references
-                $references = [];
-                foreach ($this->referenceLocales as $refLocale) {
-                    $refFile = str_replace("/{$this->sourceLocale}/", "/{$refLocale}/", $file);
-                    if (file_exists($refFile)) {
-                        $refTransformer = new PHPLangTransformer($refFile);
-                        $references[$refLocale] = $refTransformer->getTranslatable();
+                try {
+                    // Create TranslationBuilder instance with plugins
+                    $builder = TranslationBuilder::make()
+                        ->from($this->sourceLocale)
+                        ->to($locale)
+                        ->trackChanges()
+                        ->withPlugin(new TranslationContextPlugin())
+                        ->withPlugin(new PromptPlugin());
+
+                    // Configure providers from config
+                    $providerConfig = $this->getProviderConfig();
+                    if ($providerConfig) {
+                        $builder->withProviders(['default' => $providerConfig]);
                     }
-                }
 
-                // Prepare global context
-                $globalContext = [];
-                $contextProvider = new TranslationContextProvider($file);
-                $contextFiles = $contextProvider->getContextFilePaths($maxContextItems);
-                
-                foreach ($contextFiles as $contextFile) {
-                    $contextTransformer = new PHPLangTransformer($contextFile);
-                    $contextStrings = $contextTransformer->getTranslatable();
-                    foreach ($contextStrings as $key => $value) {
-                        $contextKey = $this->getFilePrefix($contextFile) . '.' . $key;
-                        $globalContext[$contextKey] = $value;
+                    // Configure token chunking
+                    $builder->withTokenChunking($this->chunkSize);
+
+                    // Add metadata for context
+                    $builder->withMetadata([
+                        'current_file_path' => $file,
+                        'filename' => basename($file),
+                        'parent_key' => $this->getFilePrefix($file),
+                        'max_context_items' => $maxContextItems,
+                    ]);
+
+                    // Set progress callback
+                    $builder->onProgress(function($output) {
+                        if ($output->type === 'thinking' && $this->option('show-prompt')) {
+                            $this->line($this->colors['purple']."Thinking: {$output->value}".$this->colors['reset']);
+                        } elseif ($output->type === 'translated') {
+                            $this->line($this->colors['green']."  ✓ {$output->key}".$this->colors['reset']);
+                        } elseif ($output->type === 'progress') {
+                            $this->line($this->colors['gray']."  Progress: {$output->value}".$this->colors['reset']);
+                        }
+                    });
+
+                    // Execute translation
+                    $result = $builder->translate($strings);
+
+                    // Process results and save to target file
+                    $translations = $result->getTranslations();
+                    $targetFile = str_replace("/{$this->sourceLocale}/", "/{$locale}/", $file);
+                    $targetTransformer = new PHPLangTransformer($targetFile);
+
+                    foreach ($translations as $key => $value) {
+                        $targetTransformer->setTranslation($key, $value);
+                        $localeTranslatedCount++;
+                        $totalTranslatedCount++;
                     }
-                }
 
-                // Chunk the strings
-                $chunks = collect($strings)->chunk($this->chunkSize);
-                
-                foreach ($chunks as $chunkIndex => $chunk) {
-                    $chunkNumber = $chunkIndex + 1;
-                    $totalChunks = $chunks->count();
-                    $chunkCount = $chunk->count();
-                    
-                    $this->info($this->colors['gray']."  Chunk {$chunkNumber}/{$totalChunks} ({$chunkCount} strings)".$this->colors['reset']);
+                    // Save the file
+                    $targetTransformer->save();
 
-                    try {
-                        // Create TranslationBuilder instance
-                        $builder = TranslationBuilder::make()
-                            ->from($this->sourceLocale)
-                            ->to($locale)
-                            ->trackChanges(); // Enable diff tracking for efficiency
+                    // Update token usage
+                    $tokenUsageData = $result->getTokenUsage();
+                    $this->tokenUsage['input_tokens'] += $tokenUsageData['input_tokens'] ?? 0;
+                    $this->tokenUsage['output_tokens'] += $tokenUsageData['output_tokens'] ?? 0;
+                    $this->tokenUsage['cache_creation_input_tokens'] += $tokenUsageData['cache_creation_input_tokens'] ?? 0;
+                    $this->tokenUsage['cache_read_input_tokens'] += $tokenUsageData['cache_read_input_tokens'] ?? 0;
+                    $this->tokenUsage['total_tokens'] += $tokenUsageData['total_tokens'] ?? 0;
 
-                        // Configure providers from config
-                        $providerConfig = $this->getProviderConfig();
-                        if ($providerConfig) {
-                            $builder->withProviders(['default' => $providerConfig]);
-                        }
-
-                        // Add references if available
-                        if (!empty($references)) {
-                            $builder->withReference($references);
-                        }
-
-                        // Configure chunking - already chunked manually, so use the full chunk
-                        $builder->withTokenChunking($this->chunkSize * 100); // Large enough to handle our chunk
-
-                        // Add additional rules from config
-                        $additionalRules = $this->getAdditionalRules($locale);
-                        if (!empty($additionalRules)) {
-                            $builder->withStyle('custom', implode("\n", $additionalRules));
-                        }
-
-                        // Set progress callback
-                        $builder->onProgress(function($output) {
-                            if ($output->type === 'thinking' && $this->option('show-prompt')) {
-                                $this->line($this->colors['purple']."Thinking: {$output->value}".$this->colors['reset']);
-                            } elseif ($output->type === 'translated') {
-                                $this->line($this->colors['green']."  ✓ {$output->key}".$this->colors['reset']);
-                            }
-                        });
-
-                        // Prepare texts with file prefix
-                        $prefix = $this->getFilePrefix($file);
-                        $textsToTranslate = [];
-                        foreach ($chunk->toArray() as $key => $value) {
-                            $textsToTranslate["{$prefix}.{$key}"] = $value;
-                        }
-
-                        // Execute translation
-                        $result = $builder->translate($textsToTranslate);
-
-                        // Process results
-                        $translations = $result->getTranslations();
-                        $targetFile = str_replace("/{$this->sourceLocale}/", "/{$locale}/", $file);
-                        $targetTransformer = new PHPLangTransformer($targetFile);
-
-                        foreach ($translations as $key => $value) {
-                            // Remove prefix from key
-                            $cleanKey = str_replace("{$prefix}.", '', $key);
-                            $targetTransformer->setTranslation($cleanKey, $value);
-                            $localeTranslatedCount++;
-                            $totalTranslatedCount++;
-                        }
-
-                        // Save the file
-                        $targetTransformer->save();
-
-                        // Update token usage
-                        $tokenUsageData = $result->getTokenUsage();
-                        $this->tokenUsage['input_tokens'] += $tokenUsageData['input'] ?? 0;
-                        $this->tokenUsage['output_tokens'] += $tokenUsageData['output'] ?? 0;
-                        $this->tokenUsage['total_tokens'] += $tokenUsageData['total'] ?? 0;
-
-                    } catch (\Exception $e) {
-                        $this->error("Translation failed for chunk {$chunkNumber}: " . $e->getMessage());
-                        Log::error("Translation failed", ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
-                        continue;
-                    }
+                } catch (\Exception $e) {
+                    $this->error("Translation failed for {$relativeFilePath}: " . $e->getMessage());
+                    Log::error("Translation failed", [
+                        'file' => $relativeFilePath,
+                        'error' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString()
+                    ]);
+                    continue;
                 }
 
                 $localeFileCount++;
@@ -381,37 +347,6 @@ class TranslateStrings extends Command
             'retries' => config('ai-translator.ai.retries', 1),
             'max_tokens' => config('ai-translator.ai.max_tokens', 4096),
         ];
-    }
-
-    /**
-     * Get additional rules for target language
-     */
-    protected function getAdditionalRules(string $locale): array
-    {
-        $rules = [];
-        
-        // Get default rules
-        $defaultRules = config('ai-translator.additional_rules.default', []);
-        if (!empty($defaultRules)) {
-            $rules = array_merge($rules, $defaultRules);
-        }
-
-        // Get language-specific rules
-        $localeRules = config("ai-translator.additional_rules.{$locale}", []);
-        if (!empty($localeRules)) {
-            $rules = array_merge($rules, $localeRules);
-        }
-
-        // Also check for language code without region (e.g., 'en' for 'en_US')
-        $langCode = explode('_', $locale)[0];
-        if ($langCode !== $locale) {
-            $langRules = config("ai-translator.additional_rules.{$langCode}", []);
-            if (!empty($langRules)) {
-                $rules = array_merge($rules, $langRules);
-            }
-        }
-
-        return $rules;
     }
 
     /**
@@ -456,8 +391,9 @@ class TranslateStrings extends Command
 
         // Display token usage
         if ($this->tokenUsage['total_tokens'] > 0) {
-            $printer = new TokenUsagePrinter($this->output);
-            $printer->printTokenUsage($this->tokenUsage);
+            $model = config('ai-translator.ai.model');
+            $printer = new TokenUsagePrinter($model);
+            $printer->printTokenUsageSummary($this, $this->tokenUsage);
         }
 
         $this->line($this->colors['cyan'].'═══════════════════════════════════════════════════════'.$this->colors['reset']."\n");

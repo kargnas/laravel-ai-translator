@@ -41,6 +41,15 @@ class PHPLangTransformer
         return $this->flattenArray($this->content);
     }
 
+    /**
+     * Get translatable strings from the file
+     * This is an alias for flatten() to maintain backward compatibility
+     */
+    public function getTranslatable(): array
+    {
+        return $this->flatten();
+    }
+
     private function flattenArray(array $array, string $prefix = ''): array
     {
         $result = [];

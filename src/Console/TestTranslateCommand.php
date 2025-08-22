@@ -5,7 +5,7 @@ namespace Kargnas\LaravelAiTranslator\Console;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 use Kargnas\LaravelAiTranslator\TranslationBuilder;
-use Kargnas\LaravelAiTranslator\AI\Printer\TokenUsagePrinter;
+use Kargnas\LaravelAiTranslator\Support\Printer\TokenUsagePrinter;
 
 /**
  * Command to test translation using the new TranslationBuilder
@@ -92,31 +92,43 @@ class TestTranslateCommand extends Command
 
         // Add progress callback
         $builder->onProgress(function($output) use ($showThinking, &$tokenUsage, $text) {
-            if ($output->type === 'thinking_start' && $showThinking) {
-                $this->thinkingBlockCount++;
-                $this->line('');
-                $this->line($this->colors['purple'].'🧠 AI Thinking Block #'.$this->thinkingBlockCount.' Started...'.$this->colors['reset']);
-            } elseif ($output->type === 'thinking' && $showThinking) {
-                echo $this->colors['gray'].$output->value.$this->colors['reset'];
-            } elseif ($output->type === 'thinking_end' && $showThinking) {
-                $this->line('');
-                $this->line($this->colors['purple'].'🧠 AI Thinking Block #'.$this->thinkingBlockCount.' Completed'.$this->colors['reset']);
-                $this->line('');
-            } elseif ($output->type === 'translation_start') {
+            // Handle TranslationOutput objects
+            if ($output instanceof \Kargnas\LaravelAiTranslator\Core\TranslationOutput) {
+                // Translation completed for a key
                 $this->line("\n".str_repeat('─', 80));
-                $this->line("\033[1;44;37m Translation Start \033[0m");
-                $this->line("\033[90m원본:\033[0m ".substr($text, 0, 100).
-                    (strlen($text) > 100 ? '...' : ''));
-            } elseif ($output->type === 'token_usage' && isset($output->data)) {
-                // Update token usage
-                $usage = $output->data;
-                $tokenUsage['input_tokens'] = $usage['input_tokens'] ?? $tokenUsage['input_tokens'];
-                $tokenUsage['output_tokens'] = $usage['output_tokens'] ?? $tokenUsage['output_tokens'];
-                $tokenUsage['cache_creation_input_tokens'] = $usage['cache_creation_input_tokens'] ?? $tokenUsage['cache_creation_input_tokens'];
-                $tokenUsage['cache_read_input_tokens'] = $usage['cache_read_input_tokens'] ?? $tokenUsage['cache_read_input_tokens'];
-                $tokenUsage['total_tokens'] = $usage['total_tokens'] ?? $tokenUsage['total_tokens'];
+                $this->line("\033[1;44;37m Translation Complete \033[0m");
+                $this->line("\033[90m키:\033[0m ".$output->key);
+                $this->line("\033[90m번역:\033[0m ".$output->value);
+                return;
+            }
+            
+            // Handle legacy streaming output format (if still used by some plugins)
+            if (isset($output->type)) {
+                if ($output->type === 'thinking_start' && $showThinking) {
+                    $this->thinkingBlockCount++;
+                    $this->line('');
+                    $this->line($this->colors['purple'].'🧠 AI Thinking Block #'.$this->thinkingBlockCount.' Started...'.$this->colors['reset']);
+                } elseif ($output->type === 'thinking' && $showThinking) {
+                    echo $this->colors['gray'].$output->value.$this->colors['reset'];
+                } elseif ($output->type === 'thinking_end' && $showThinking) {
+                    $this->line('');
+                    $this->line($this->colors['purple'].'🧠 AI Thinking Block #'.$this->thinkingBlockCount.' Completed'.$this->colors['reset']);
+                    $this->line('');
+                } elseif ($output->type === 'translation_start') {
+                    $this->line("\n".str_repeat('─', 80));
+                    $this->line("\033[1;44;37m Translation Start \033[0m");
+                    $this->line("\033[90m원본:\033[0m ".substr($text, 0, 100).
+                        (strlen($text) > 100 ? '...' : ''));
+                } elseif ($output->type === 'token_usage' && isset($output->data)) {
+                    // Update token usage
+                    $usage = $output->data;
+                    $tokenUsage['input_tokens'] = $usage['input_tokens'] ?? $tokenUsage['input_tokens'];
+                    $tokenUsage['output_tokens'] = $usage['output_tokens'] ?? $tokenUsage['output_tokens'];
+                    $tokenUsage['cache_creation_input_tokens'] = $usage['cache_creation_input_tokens'] ?? $tokenUsage['cache_creation_input_tokens'];
+                    $tokenUsage['cache_read_input_tokens'] = $usage['cache_read_input_tokens'] ?? $tokenUsage['cache_read_input_tokens'];
+                    $tokenUsage['total_tokens'] = $usage['total_tokens'] ?? $tokenUsage['total_tokens'];
 
-                // Display token usage
+                    // Display token usage
                 $this->output->write("\033[2K\r");
                 $this->output->write(
                     '<fg=magenta>Tokens:</> '.
@@ -126,8 +138,9 @@ class TestTranslateCommand extends Command
                     "Cache read: <fg=blue>{$tokenUsage['cache_read_input_tokens']}</> | ".
                     "Total: <fg=yellow>{$tokenUsage['total_tokens']}</>"
                 );
-            } elseif ($output->type === 'raw_xml' && $showXml) {
-                $this->rawXmlResponse = $output->value;
+                } elseif ($output->type === 'raw_xml' && $showXml) {
+                    $this->rawXmlResponse = $output->value;
+                }
             }
         });
 
@@ -166,8 +179,9 @@ class TestTranslateCommand extends Command
             
             $finalTokenUsage = $result->getTokenUsage();
             if (!empty($finalTokenUsage)) {
-                $printer = new TokenUsagePrinter($this->output);
-                $printer->printTokenUsage($finalTokenUsage);
+                $model = config('ai-translator.ai.model');
+                $printer = new TokenUsagePrinter($model);
+                $printer->printTokenUsageSummary($this, $finalTokenUsage);
             }
 
             $this->line(str_repeat('─', 80));

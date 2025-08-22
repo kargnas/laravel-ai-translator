@@ -15,7 +15,7 @@ use Kargnas\LaravelAiTranslator\Plugins\GlossaryPlugin;
 use Kargnas\LaravelAiTranslator\Plugins\DiffTrackingPlugin;
 use Kargnas\LaravelAiTranslator\Plugins\TokenChunkingPlugin;
 use Kargnas\LaravelAiTranslator\Plugins\ValidationPlugin;
-// use Kargnas\LaravelAiTranslator\Plugins\PIIMaskingPlugin; // Not implemented yet
+use Kargnas\LaravelAiTranslator\Plugins\PIIMaskingPlugin;
 use Kargnas\LaravelAiTranslator\Plugins\AbstractTranslationPlugin;
 
 /**
@@ -281,12 +281,10 @@ class TranslationBuilder
 
     /**
      * Enable PII masking for security.
-     * @todo Implement PIIMaskingPlugin
      */
     public function secure(): self
     {
-        // $this->plugins[] = PIIMaskingPlugin::class;
-        // Not implemented yet
+        $this->plugins[] = PIIMaskingPlugin::class;
         return $this;
     }
 

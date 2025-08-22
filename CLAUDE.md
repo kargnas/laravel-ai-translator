@@ -9,6 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Run tests**: `./vendor/bin/pest`
 - **Run specific test**: `./vendor/bin/pest --filter=TestName`
 - **Coverage report**: `./vendor/bin/pest --coverage`
+- **Static analysis**: `phpstan` (uses phpstan.neon configuration)
 
 ### Testing in Host Project
 - **Publish config**: `./scripts/test-setup.sh && cd ./laravel-ai-translator-test && php artisan vendor:publish --provider="Kargnas\LaravelAiTranslator\ServiceProvider" && cd modules/libraries/laravel-ai-translator`
@@ -18,6 +19,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Translate JSON files**: `./scripts/test-setup.sh && cd ./laravel-ai-translator-test && php artisan ai-translator:translate-json && cd modules/libraries/laravel-ai-translator`
 - **Translate strings**: `./scripts/test-setup.sh && cd ./laravel-ai-translator-test && php artisan ai-translator:translate-strings && cd modules/libraries/laravel-ai-translator`
 - **Translate single file**: `./scripts/test-setup.sh && cd ./laravel-ai-translator-test && php artisan ai-translator:translate-file lang/en/test.php && cd modules/libraries/laravel-ai-translator`
+- **Find unused translations**: `./scripts/test-setup.sh && cd ./laravel-ai-translator-test && php artisan ai-translator:find-unused && cd modules/libraries/laravel-ai-translator`
+- **Clean translations**: `./scripts/test-setup.sh && cd ./laravel-ai-translator-test && php artisan ai-translator:clean && cd modules/libraries/laravel-ai-translator`
 
 ## Lint/Format Commands
 - **PHP lint (Laravel Pint)**: `./vendor/bin/pint`
@@ -27,12 +30,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Code Style Guidelines
 
 ### PHP Standards
-- **Version**: Minimum PHP 8.0, use PHP 8.1+ features where available
+- **Version**: Minimum PHP 8.1
 - **Standards**: Follow PSR-12 coding standard
 - **Testing**: Use Pest for tests, follow existing test patterns
 
 ### Naming Conventions
-- **Classes**: PascalCase (e.g., `TranslateStrings`)
+- **Classes**: PascalCase (e.g., `TranslationPipeline`)
 - **Methods/Functions**: camelCase (e.g., `getTranslation`)
 - **Variables**: snake_case (e.g., `$source_locale`)
 - **Constants**: UPPER_SNAKE_CASE (e.g., `DEFAULT_LOCALE`)
@@ -58,24 +61,24 @@ The package now implements a **plugin-based pipeline architecture** that provide
 ### Core Architecture Components
 
 #### 1. **Pipeline System** (`src/Core/`)
-- **TranslationPipeline**: Orchestrates the entire translation workflow through 9 defined stages
+- **TranslationPipeline**: Orchestrates the entire translation workflow through defined stages
 - **TranslationContext**: Central state container that maintains all translation data
 - **PluginManager**: Manages plugin lifecycle, dependencies, and multi-tenant configurations
-- **PluginRegistry**: Tracks plugin metadata and dependency graphs
+- **PipelineStages**: Defines 3 essential constants (TRANSLATION, VALIDATION, OUTPUT) with flexible string-based stages
 
 #### 2. **Plugin Types** (Laravel-inspired patterns)
 
-**Middleware Plugins** (`src/Plugins/Abstract/MiddlewarePlugin.php`)
+**Middleware Plugins** (`src/Plugins/Abstract/AbstractMiddlewarePlugin.php`)
 - Transform data as it flows through the pipeline
 - Examples: TokenChunkingPlugin, ValidationPlugin, PIIMaskingPlugin
 - Similar to Laravel's HTTP middleware pattern
 
-**Provider Plugins** (`src/Plugins/Abstract/ProviderPlugin.php`)
-- Supply core services and functionality
+**Provider Plugins** (`src/Plugins/Abstract/AbstractProviderPlugin.php`)
+- Supply core services and functionality  
 - Examples: MultiProviderPlugin, StylePlugin, GlossaryPlugin
 - Similar to Laravel's Service Providers
 
-**Observer Plugins** (`src/Plugins/Abstract/ObserverPlugin.php`)
+**Observer Plugins** (`src/Plugins/Abstract/AbstractObserverPlugin.php`)
 - React to events without modifying data flow
 - Examples: DiffTrackingPlugin, StreamingOutputPlugin, AnnotationContextPlugin
 - Similar to Laravel's Event Listeners
@@ -88,35 +91,49 @@ $result = TranslationBuilder::make()
     ->withStyle('formal')
     ->withProviders(['claude', 'gpt-4'])
     ->trackChanges()
+    ->secure()  // Uses PIIMaskingPlugin
     ->translate($texts);
 ```
 
 ### Pipeline Stages
-1. **pre_process**: Initial text preparation and style configuration
-2. **diff_detection**: Identify changed content to avoid retranslation
-3. **preparation**: Apply glossaries and extract context
-4. **chunking**: Split texts into optimal token sizes
-5. **translation**: Execute AI translation
-6. **consensus**: Select best translation from multiple providers
-7. **validation**: Verify translation quality and accuracy
-8. **post_process**: Final transformations and cleanup
-9. **output**: Stream results to client
+- **Essential Constants** (type-safe):
+  - `PipelineStages::TRANSLATION`: Core translation execution
+  - `PipelineStages::VALIDATION`: Translation quality validation
+  - `PipelineStages::OUTPUT`: Final output handling
+- **Flexible String Stages**: Plugins can define custom stages as strings (e.g., 'pre_process', 'chunking', 'consensus')
 
-### Plugin Development Guide
+### Plugin Registration
 
-#### Creating a Custom Plugin
-1. Choose the appropriate base class:
-   - Extend `AbstractMiddlewarePlugin` for data transformation
-   - Extend `AbstractProviderPlugin` for service provision
-   - Extend `AbstractObserverPlugin` for event monitoring
+#### Simple Registration Methods
+1. **Plugin Instance**: `withPlugin(new MyPlugin())`
+2. **Plugin Class**: `withPluginClass(MyPlugin::class, $config)`
+3. **Inline Closure**: `withClosure('name', $callback)`
 
-2. Implement required methods:
+#### Auto-Registration
+- Default plugins are registered automatically via ServiceProvider
+- Custom plugins from `app/Plugins/Translation/` are discovered and loaded
+- No configuration file changes needed for basic plugin usage
+
+### Available Core Plugins
+
+1. **StylePlugin**: Custom translation styles and tones
+2. **GlossaryPlugin**: Consistent term translation
+3. **DiffTrackingPlugin**: Skip unchanged content (60-80% cost reduction)
+4. **TokenChunkingPlugin**: Optimal API chunking
+5. **ValidationPlugin**: Quality assurance checks
+6. **PIIMaskingPlugin**: PII protection (emails, phones, SSN, cards, IPs)
+7. **StreamingOutputPlugin**: Real-time progress updates
+8. **MultiProviderPlugin**: Consensus-based translation
+9. **AnnotationContextPlugin**: Context from code comments
+
+### Creating Custom Plugins
+
 ```php
 class MyCustomPlugin extends AbstractMiddlewarePlugin {
     protected string $name = 'my_custom_plugin';
     
     protected function getStage(): string {
-        return 'preparation'; // Choose appropriate stage
+        return 'preparation'; // Or use custom string stage
     }
     
     public function handle(TranslationContext $context, Closure $next): mixed {
@@ -124,10 +141,8 @@ class MyCustomPlugin extends AbstractMiddlewarePlugin {
         return $next($context);
     }
 }
-```
 
-3. Register the plugin:
-```php
+// Usage
 TranslationBuilder::make()
     ->withPlugin(new MyCustomPlugin())
     ->translate($texts);
@@ -136,15 +151,15 @@ TranslationBuilder::make()
 ### Multi-Tenant Support
 Plugins can be configured per tenant for SaaS applications:
 ```php
-$pluginManager->enableForTenant('tenant-123', 'style', [
+$pluginManager->enableForTenant('tenant-123', StylePlugin::class, [
     'default_style' => 'casual'
 ]);
 ```
 
 ### Storage Adapters
-The architecture supports multiple storage backends for state persistence:
+The architecture supports multiple storage backends:
 - **FileStorage**: Local filesystem storage
-- **DatabaseStorage**: Laravel database storage
+- **DatabaseStorage**: Laravel database storage  
 - **RedisStorage**: Redis-based storage for high performance
 
 ## Architecture Overview
@@ -155,7 +170,6 @@ Laravel package for AI-powered translations supporting multiple AI providers (Op
 ### Key Components
 
 1. **AI Layer** (`src/AI/`)
-   - `AIProvider.php`: Factory for creating AI clients
    - `Clients/`: Provider-specific implementations (OpenAI, Anthropic, Gemini)
    - `TranslationContextProvider.php`: Manages translation context and prompts
    - System and user prompts in `prompt-system.txt` and `prompt-user.txt`
@@ -166,6 +180,8 @@ Laravel package for AI-powered translations supporting multiple AI providers (Op
    - `TranslateJson.php`: Translate JSON language files
    - `TranslateFileCommand.php`: Translate single file
    - `TestTranslateCommand.php`: Test translations with sample strings
+   - `FindUnusedTranslations.php`: Find and remove unused translation keys
+   - `CleanCommand.php`: Remove translations for re-generation
    - `CrowdIn/`: Integration with CrowdIn translation platform
 
 3. **Transformers** (`src/Transformers/`)
@@ -184,18 +200,58 @@ Laravel package for AI-powered translations supporting multiple AI providers (Op
 
 ### Translation Flow
 1. Command reads source language files
-2. Transformer converts to translatable format
-3. AIProvider chunks strings for efficient API usage
-4. AI translates with context from TranslationContextProvider
-5. Parser validates and extracts translations
-6. Transformer writes back to target language files
+2. TranslationBuilder creates pipeline with configured plugins
+3. Transformer converts to translatable format
+4. Plugins process through 9 pipeline stages (pre_process, diff_detection, preparation, chunking, translation, consensus, validation, post_process, output)
+5. MultiProviderPlugin executes AI translation with context
+6. Parser validates and extracts translations
+7. Plugins apply post-processing transformations
+8. Transformer writes back to target language files
 
 ### Key Features
-- Chunking for cost-effective API calls
+- Plugin-based architecture for extensibility
+- Chunking for cost-effective API calls (60-80% cost reduction with DiffTrackingPlugin)
 - Validation to ensure translation accuracy
 - Support for variables, pluralization, and HTML
 - Custom language styles (e.g., regional dialects)
 - Token usage tracking and reporting
+- PII protection with PIIMaskingPlugin
+- Multi-tenant support for SaaS applications
+
+### Plugin Usage Examples
+
+```php
+// E-commerce with PII protection
+TranslationBuilder::make()
+    ->from('en')->to(['ko', 'ja'])
+    ->trackChanges()  // Skip unchanged products
+    ->withTokenChunking(3000)  // Optimal chunk size
+    ->withStyle('marketing', 'Use persuasive language')
+    ->withGlossary(['Free Shipping' => ['ko' => '무료 배송']])
+    ->secure()  // Mask customer data
+    ->translate($texts);
+
+// Multi-tenant configuration
+TranslationBuilder::make()
+    ->forTenant($tenantId)
+    ->withStyle($tenant->style)
+    ->withGlossary($tenant->glossary)
+    ->secure()  // If tenant requires PII protection
+    ->translate($texts);
+
+// API documentation with code preservation
+TranslationBuilder::make()
+    ->withPlugin(new CodePreservationPlugin())
+    ->withStyle('technical')
+    ->withValidation(['variables'])
+    ->translate($texts);
+```
 
 ### Version Notes
 - When tagging versions, use `commit version 1.7.13` instead of `v1.7.13`
+
+## important-instruction-reminders
+Do what has been asked; nothing more, nothing less.
+NEVER create files unless they're absolutely necessary for achieving your goal.
+ALWAYS prefer editing an existing file to creating a new one.
+NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.

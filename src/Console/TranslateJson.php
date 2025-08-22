@@ -3,14 +3,16 @@
 namespace Kargnas\LaravelAiTranslator\Console;
 
 use Illuminate\Console\Command;
-use Kargnas\LaravelAiTranslator\AI\AIProvider;
+use Illuminate\Support\Facades\Log;
+use Kargnas\LaravelAiTranslator\TranslationBuilder;
 use Kargnas\LaravelAiTranslator\AI\Language\LanguageConfig;
 use Kargnas\LaravelAiTranslator\AI\Printer\TokenUsagePrinter;
 use Kargnas\LaravelAiTranslator\AI\TranslationContextProvider;
-use Kargnas\LaravelAiTranslator\Enums\PromptType;
-use Kargnas\LaravelAiTranslator\Enums\TranslationStatus;
 use Kargnas\LaravelAiTranslator\Transformers\JSONLangTransformer;
 
+/**
+ * Command to translate root JSON language files using the new plugin-based architecture
+ */
 class TranslateJson extends Command
 {
     protected $signature = 'ai-translator:translate-json
@@ -26,17 +28,11 @@ class TranslateJson extends Command
     protected $description = 'Translate root JSON language files such as lang/en.json';
 
     protected string $sourceLocale;
-
     protected string $sourceDirectory;
-
     protected int $chunkSize;
-
     protected array $referenceLocales = [];
-
     protected int $defaultChunkSize = 100;
-
     protected int $defaultMaxContextItems = 1000;
-
     protected int $warningStringCount = 500;
 
     /**
@@ -138,25 +134,22 @@ class TranslateJson extends Command
         // Set chunk size
         if ($nonInteractive || $this->option('chunk')) {
             $this->chunkSize = (int) ($this->option('chunk') ?? $this->defaultChunkSize);
-            $this->info($this->colors['green'].'✓ Chunk size: '.
+            $this->info($this->colors['green'].'✓ Set chunk size: '.
                 $this->colors['reset'].$this->colors['bold'].$this->chunkSize.
                 $this->colors['reset']);
         } else {
             $this->chunkSize = (int) $this->ask(
-                $this->colors['yellow'].'Enter the chunk size for translation. Translate strings in a batch. The higher, the cheaper.'.$this->colors['reset'],
+                $this->colors['yellow'].'Enter chunk size (default: '.$this->defaultChunkSize.')'.$this->colors['reset'],
                 $this->defaultChunkSize
             );
         }
 
-        // Set context items count
+        // Set max context items
         if ($nonInteractive || $this->option('max-context')) {
             $maxContextItems = (int) ($this->option('max-context') ?? $this->defaultMaxContextItems);
-            $this->info($this->colors['green'].'✓ Maximum context items: '.
-                $this->colors['reset'].$this->colors['bold'].$maxContextItems.
-                $this->colors['reset']);
         } else {
             $maxContextItems = (int) $this->ask(
-                $this->colors['yellow'].'Maximum number of context items to include for consistency (set 0 to disable)'.$this->colors['reset'],
+                $this->colors['yellow'].'Enter maximum context items (default: '.$this->defaultMaxContextItems.')'.$this->colors['reset'],
                 $this->defaultMaxContextItems
             );
         }
@@ -164,7 +157,218 @@ class TranslateJson extends Command
         // Execute translation
         $this->translate($maxContextItems);
 
-        return 0;
+        // Display summary
+        $this->displaySummary();
+    }
+
+    /**
+     * Execute translation using the new TranslationBuilder
+     */
+    public function translate(int $maxContextItems = 100): void
+    {
+        // Get locales to translate
+        $specifiedLocales = $this->option('locale');
+        $availableLocales = $this->getExistingJsonLocales();
+        $locales = ! empty($specifiedLocales)
+            ? $this->validateAndFilterLocales($specifiedLocales, $availableLocales)
+            : $availableLocales;
+
+        if (empty($locales)) {
+            $this->error('No valid locales specified or found for translation.');
+            return;
+        }
+
+        $totalTranslatedCount = 0;
+
+        foreach ($locales as $locale) {
+            // Skip source locale and configured skip locales
+            if ($locale === $this->sourceLocale || in_array($locale, config('ai-translator.skip_locales', []))) {
+                $this->warn("Skipping locale {$locale}.");
+                continue;
+            }
+
+            $targetLanguageName = LanguageConfig::getLanguageName($locale);
+            if (! $targetLanguageName) {
+                $this->error("Language name not found for locale: {$locale}. Please add it to the config file.");
+                continue;
+            }
+
+            $this->line(str_repeat('─', 80));
+            $this->line("\n".$this->colors['blue_bg'].$this->colors['white'].$this->colors['bold']." Starting {$targetLanguageName} ({$locale}) ".$this->colors['reset']);
+
+            // Get source file path
+            $sourceFile = base_path("{$this->sourceDirectory}/{$this->sourceLocale}.json");
+            if (!file_exists($sourceFile)) {
+                $this->error("Source file not found: {$sourceFile}");
+                continue;
+            }
+
+            // Load source strings
+            $transformer = new JSONLangTransformer($sourceFile);
+            $strings = $transformer->getTranslatable();
+
+            if (empty($strings)) {
+                $this->warn("No strings found in {$sourceFile}");
+                continue;
+            }
+
+            $stringCount = count($strings);
+            if ($stringCount > $this->warningStringCount && !$this->option('force-big-files')) {
+                $this->warn("Skipping {$locale}.json with {$stringCount} strings. Use --force-big-files to translate large files.");
+                continue;
+            }
+
+            $this->info("\n".$this->colors['cyan']."Translating {$locale}.json".$this->colors['reset']." ({$stringCount} strings)");
+
+            // Prepare references
+            $references = [];
+            foreach ($this->referenceLocales as $refLocale) {
+                $refFile = base_path("{$this->sourceDirectory}/{$refLocale}.json");
+                if (file_exists($refFile)) {
+                    $refTransformer = new JSONLangTransformer($refFile);
+                    $references[$refLocale] = $refTransformer->getTranslatable();
+                }
+            }
+
+            // Prepare global context - for JSON files, use the source file itself as context
+            $globalContext = $strings;
+
+            // Chunk the strings
+            $chunks = collect($strings)->chunk($this->chunkSize);
+            $localeTranslatedCount = 0;
+
+            foreach ($chunks as $chunkIndex => $chunk) {
+                $chunkNumber = $chunkIndex + 1;
+                $totalChunks = $chunks->count();
+                $chunkCount = $chunk->count();
+                
+                $this->info($this->colors['gray']."  Chunk {$chunkNumber}/{$totalChunks} ({$chunkCount} strings)".$this->colors['reset']);
+
+                try {
+                    // Create TranslationBuilder instance
+                    $builder = TranslationBuilder::make()
+                        ->from($this->sourceLocale)
+                        ->to($locale)
+                        ->trackChanges(); // Enable diff tracking for efficiency
+
+                    // Configure providers from config
+                    $providerConfig = $this->getProviderConfig();
+                    if ($providerConfig) {
+                        $builder->withProviders(['default' => $providerConfig]);
+                    }
+
+                    // Add references if available
+                    if (!empty($references)) {
+                        $builder->withReference($references);
+                    }
+
+                    // Configure chunking
+                    $builder->withTokenChunking($this->chunkSize * 100);
+
+                    // Add additional rules from config
+                    $additionalRules = $this->getAdditionalRules($locale);
+                    if (!empty($additionalRules)) {
+                        $builder->withStyle('custom', implode("\n", $additionalRules));
+                    }
+
+                    // Set progress callback
+                    $builder->onProgress(function($output) {
+                        if ($output->type === 'thinking' && $this->option('show-prompt')) {
+                            $this->line($this->colors['purple']."Thinking: {$output->value}".$this->colors['reset']);
+                        } elseif ($output->type === 'translated') {
+                            $this->line($this->colors['green']."  ✓ Translated".$this->colors['reset']);
+                        }
+                    });
+
+                    // Execute translation
+                    $result = $builder->translate($chunk->toArray());
+
+                    // Process results
+                    $translations = $result->getTranslations();
+                    $targetFile = base_path("{$this->sourceDirectory}/{$locale}.json");
+                    $targetTransformer = new JSONLangTransformer($targetFile);
+
+                    foreach ($translations as $key => $value) {
+                        $targetTransformer->setTranslation($key, $value);
+                        $localeTranslatedCount++;
+                        $totalTranslatedCount++;
+                    }
+
+                    // Save the file
+                    $targetTransformer->save();
+
+                    // Update token usage
+                    $tokenUsageData = $result->getTokenUsage();
+                    $this->tokenUsage['input_tokens'] += $tokenUsageData['input'] ?? 0;
+                    $this->tokenUsage['output_tokens'] += $tokenUsageData['output'] ?? 0;
+                    $this->tokenUsage['total_tokens'] += $tokenUsageData['total'] ?? 0;
+
+                } catch (\Exception $e) {
+                    $this->error("Translation failed for chunk {$chunkNumber}: " . $e->getMessage());
+                    Log::error("Translation failed", ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+                    continue;
+                }
+            }
+
+            $this->info("\n".$this->colors['green']."✓ Completed {$targetLanguageName} ({$locale}): {$localeTranslatedCount} strings translated".$this->colors['reset']);
+        }
+
+        $this->info("\n".$this->colors['green'].$this->colors['bold']."Translation complete! Total: {$totalTranslatedCount} strings translated".$this->colors['reset']);
+    }
+
+    /**
+     * Get provider configuration from config file
+     */
+    protected function getProviderConfig(): array
+    {
+        $provider = config('ai-translator.ai.provider');
+        $model = config('ai-translator.ai.model');
+        $apiKey = config('ai-translator.ai.api_key');
+        
+        if (!$provider || !$model || !$apiKey) {
+            throw new \Exception('AI provider configuration is incomplete. Please check your config/ai-translator.php file.');
+        }
+
+        return [
+            'provider' => $provider,
+            'model' => $model,
+            'api_key' => $apiKey,
+            'temperature' => config('ai-translator.ai.temperature', 0.3),
+            'thinking' => config('ai-translator.ai.use_extended_thinking', false),
+            'retries' => config('ai-translator.ai.retries', 1),
+            'max_tokens' => config('ai-translator.ai.max_tokens', 4096),
+        ];
+    }
+
+    /**
+     * Get additional rules for target language
+     */
+    protected function getAdditionalRules(string $locale): array
+    {
+        $rules = [];
+        
+        // Get default rules
+        $defaultRules = config('ai-translator.additional_rules.default', []);
+        if (!empty($defaultRules)) {
+            $rules = array_merge($rules, $defaultRules);
+        }
+
+        // Get language-specific rules
+        $localeRules = config("ai-translator.additional_rules.{$locale}", []);
+        if (!empty($localeRules)) {
+            $rules = array_merge($rules, $localeRules);
+        }
+
+        // Also check for language code without region (e.g., 'en' for 'en_US')
+        $langCode = explode('_', $locale)[0];
+        if ($langCode !== $locale) {
+            $langRules = config("ai-translator.additional_rules.{$langCode}", []);
+            if (!empty($langRules)) {
+                $rules = array_merge($rules, $langRules);
+            }
+        }
+
+        return $rules;
     }
 
     /**
@@ -172,431 +376,47 @@ class TranslateJson extends Command
      */
     protected function displayHeader(): void
     {
-        $this->line("\n".$this->colors['blue_bg'].$this->colors['white'].$this->colors['bold'].' Laravel AI Translator - JSON Files '.$this->colors['reset']);
-        $this->line($this->colors['gray'].'Translating JSON language files using AI technology'.$this->colors['reset']);
-        $this->line(str_repeat('─', 80)."\n");
+        $this->line("\n".$this->colors['cyan'].'╔═══════════════════════════════════════════════════════╗'.$this->colors['reset']);
+        $this->line($this->colors['cyan'].'║'.$this->colors['reset'].$this->colors['bold'].'       Laravel AI Translator - JSON Translation         '.$this->colors['reset'].$this->colors['cyan'].'║'.$this->colors['reset']);
+        $this->line($this->colors['cyan'].'╚═══════════════════════════════════════════════════════╝'.$this->colors['reset']."\n");
     }
 
     /**
-     * Language selection helper method
-     *
-     * @param  string  $question  Question
-     * @param  bool  $multiple  Multiple selection
-     * @param  string|null  $default  Default value
-     * @return array|string Selected language(s)
+     * Display summary
      */
-    public function choiceLanguages(string $question, bool $multiple, ?string $default = null): array|string
+    protected function displaySummary(): void
     {
-        $locales = $this->getExistingLocales();
+        $this->line("\n".$this->colors['cyan'].'═══════════════════════════════════════════════════════'.$this->colors['reset']);
+        $this->line($this->colors['bold'].'Translation Summary'.$this->colors['reset']);
+        $this->line($this->colors['cyan'].'═══════════════════════════════════════════════════════'.$this->colors['reset']);
 
-        $selectedLocales = $this->choice(
-            $question,
-            $locales,
-            $default,
-            3,
-            $multiple
-        );
-
-        if (is_array($selectedLocales)) {
-            $this->info($this->colors['green'].'✓ Selected locales: '.
-                $this->colors['reset'].$this->colors['bold'].implode(', ', $selectedLocales).
-                $this->colors['reset']);
-        } else {
-            $this->info($this->colors['green'].'✓ Selected locale: '.
-                $this->colors['reset'].$this->colors['bold'].$selectedLocales.
-                $this->colors['reset']);
-        }
-
-        return $selectedLocales;
-    }
-
-    /**
-     * Execute translation
-     *
-     * @param  int  $maxContextItems  Maximum context items
-     */
-    public function translate(int $maxContextItems = 100): void
-    {
-        // Get specified locales from command line
-        $specifiedLocales = $this->option('locale');
-
-        // Get all available locales
-        $availableLocales = $this->getExistingLocales();
-
-        // Use specified locales if provided, otherwise use all locales
-        // For JSON translation, we allow non-existing target locales
-        $locales = ! empty($specifiedLocales)
-            ? $specifiedLocales
-            : $availableLocales;
-
-        if (empty($locales)) {
-            $this->error('No valid locales specified or found for translation.');
-
-            return;
-        }
-
-        $totalStringCount = 0;
-        $totalTranslatedCount = 0;
-
-        foreach ($locales as $locale) {
-            // Skip source language and skip list
-            if ($locale === $this->sourceLocale || in_array($locale, config('ai-translator.skip_locales', []))) {
-                $this->warn('Skipping locale '.$locale.'.');
-
-                continue;
-            }
-
-            $targetLanguageName = LanguageConfig::getLanguageName($locale);
-
-            if (! $targetLanguageName) {
-                $this->error("Language name not found for locale: {$locale}. Please add it to the config file.");
-
-                continue;
-            }
-
-            $this->line(str_repeat('─', 80));
-            $this->line(str_repeat('─', 80));
-            $this->line("\n".$this->colors['blue_bg'].$this->colors['white'].$this->colors['bold']." Starting {$targetLanguageName} ({$locale}) ".$this->colors['reset']);
-
-            $result = $this->translateLocale($locale, $maxContextItems);
-            $totalStringCount += $result['stringCount'];
-            $totalTranslatedCount += $result['translatedCount'];
-        }
-
-        // Display total completion message
-        $this->line("\n".$this->colors['green_bg'].$this->colors['white'].$this->colors['bold'].' All translations completed '.$this->colors['reset']);
-        $this->line($this->colors['yellow'].'Total strings found: '.$this->colors['reset'].$totalStringCount);
-        $this->line($this->colors['yellow'].'Total strings translated: '.$this->colors['reset'].$totalTranslatedCount);
-
-        // Display accumulated token usage
+        // Display token usage
         if ($this->tokenUsage['total_tokens'] > 0) {
-            $this->line("\n".$this->colors['blue_bg'].$this->colors['white'].$this->colors['bold'].' Total Token Usage '.$this->colors['reset']);
-            $this->line($this->colors['yellow'].'Input Tokens: '.$this->colors['reset'].$this->colors['green'].$this->tokenUsage['input_tokens'].$this->colors['reset']);
-            $this->line($this->colors['yellow'].'Output Tokens: '.$this->colors['reset'].$this->colors['green'].$this->tokenUsage['output_tokens'].$this->colors['reset']);
-            $this->line($this->colors['yellow'].'Total Tokens: '.$this->colors['reset'].$this->colors['bold'].$this->colors['purple'].$this->tokenUsage['total_tokens'].$this->colors['reset']);
+            $printer = new TokenUsagePrinter($this->output);
+            $printer->printTokenUsage($this->tokenUsage);
         }
+
+        $this->line($this->colors['cyan'].'═══════════════════════════════════════════════════════'.$this->colors['reset']."\n");
     }
 
     /**
-     * Translate single locale
-     *
-     * @param  string  $locale  Target locale
-     * @param  int  $maxContextItems  Maximum context items
-     * @return array Translation result
+     * Get existing JSON locales
      */
-    protected function translateLocale(string $locale, int $maxContextItems): array
+    protected function getExistingJsonLocales(): array
     {
-        $sourceFile = "{$this->sourceDirectory}/{$this->sourceLocale}.json";
-        if (! file_exists($sourceFile)) {
-            $this->error("Source file not found: {$sourceFile}");
-
-            return ['stringCount' => 0, 'translatedCount' => 0];
-        }
-
-        $targetFile = "{$this->sourceDirectory}/{$locale}.json";
-
-        $this->displayFileInfo($sourceFile, $locale, $targetFile);
-
-        $sourceTransformer = new JSONLangTransformer($sourceFile);
-        $targetTransformer = new JSONLangTransformer($targetFile);
-
-        $sourceStrings = $sourceTransformer->flatten();
-        $stringsToTranslate = collect($sourceStrings)
-            ->filter(fn ($v, $k) => ! $targetTransformer->isTranslated($k))
-            ->toArray();
-
-        if (count($stringsToTranslate) === 0) {
-            $this->info($this->colors['green'].'  ✓ '.$this->colors['reset'].'All strings are already translated. Skipping.');
-
-            return ['stringCount' => 0, 'translatedCount' => 0];
-        }
-
-        $stringCount = count($stringsToTranslate);
-        $translatedCount = 0;
-
-        // Check if there are many strings to translate
-        if ($stringCount > $this->warningStringCount && ! $this->option('force-big-files')) {
-            if (
-                ! $this->confirm(
-                    $this->colors['yellow'].'⚠️ Warning: '.$this->colors['reset'].
-                    "File has {$stringCount} strings to translate. This could be expensive. Continue?",
-                    true
-                )
-            ) {
-                $this->warn('Translation stopped by user.');
-
-                return ['stringCount' => 0, 'translatedCount' => 0];
+        $locales = [];
+        $langPath = base_path($this->sourceDirectory);
+        
+        if (is_dir($langPath)) {
+            $files = scandir($langPath);
+            foreach ($files as $file) {
+                if (preg_match('/^([a-z]{2}(?:_[A-Z]{2})?)\.json$/', $file, $matches)) {
+                    $locales[] = $matches[1];
+                }
             }
         }
 
-        // Load reference translations
-        $referenceStringList = $this->loadReferenceTranslations($sourceFile, $locale);
-
-        // Get global context
-        $globalContext = $this->getGlobalContext($sourceFile, $locale, $maxContextItems);
-
-        // Process in chunks
-        $chunkCount = 0;
-        $totalChunks = ceil($stringCount / $this->chunkSize);
-
-        collect($stringsToTranslate)
-            ->chunk($this->chunkSize)
-            ->each(function ($chunk) use ($locale, $sourceFile, $targetTransformer, $referenceStringList, $globalContext, &$translatedCount, &$chunkCount, $totalChunks) {
-                $chunkCount++;
-                $this->info($this->colors['yellow'].'  ⏺ Processing chunk '.
-                    $this->colors['reset']."{$chunkCount}/{$totalChunks}".
-                    $this->colors['gray'].' ('.$chunk->count().' strings)'.
-                    $this->colors['reset']);
-
-                // Configure translator
-                $translator = $this->setupTranslator(
-                    $sourceFile,
-                    $chunk,
-                    $referenceStringList,
-                    $locale,
-                    $globalContext
-                );
-
-                try {
-                    // Execute translation
-                    $translatedItems = $translator->translate();
-                    $translatedCount += count($translatedItems);
-
-                    // Save translation results
-                    foreach ($translatedItems as $item) {
-                        $targetTransformer->updateString($item->key, $item->translated);
-                    }
-
-                    // Display number of saved items
-                    $this->info($this->colors['green'].'  ✓ '.$this->colors['reset']."{$translatedCount} strings saved.");
-
-                    // Calculate and display cost
-                    $this->displayCostEstimation($translator);
-
-                    // Accumulate token usage
-                    $usage = $translator->getTokenUsage();
-                    $this->updateTokenUsageTotals($usage);
-
-                } catch (\Exception $e) {
-                    $this->error('Translation failed: '.$e->getMessage());
-                }
-            });
-
-        // Display translation summary
-        $this->displayTranslationSummary($locale, $stringCount, $translatedCount);
-
-        return ['stringCount' => $stringCount, 'translatedCount' => $translatedCount];
-    }
-
-    /**
-     * Display file info
-     */
-    protected function displayFileInfo(string $sourceFile, string $locale, string $outputFile): void
-    {
-        $this->line("\n".$this->colors['purple_bg'].$this->colors['white'].$this->colors['bold'].' JSON File Translation '.$this->colors['reset']);
-        $this->line($this->colors['yellow'].'  File: '.
-            $this->colors['reset'].$this->colors['bold'].basename($sourceFile).
-            $this->colors['reset']);
-        $this->line($this->colors['yellow'].'  Language: '.
-            $this->colors['reset'].$this->colors['bold'].$locale.
-            $this->colors['reset']);
-        $this->line($this->colors['gray'].'  Source: '.$sourceFile.$this->colors['reset']);
-        $this->line($this->colors['gray'].'  Target: '.$outputFile.$this->colors['reset']);
-    }
-
-    /**
-     * Display translation summary
-     */
-    protected function displayTranslationSummary(string $locale, int $stringCount, int $translatedCount): void
-    {
-        $this->line("\n".str_repeat('─', 80));
-        $this->line($this->colors['green_bg'].$this->colors['white'].$this->colors['bold']." Translation Complete: {$locale} ".$this->colors['reset']);
-        $this->line($this->colors['yellow'].'Strings found: '.$this->colors['reset'].$stringCount);
-        $this->line($this->colors['yellow'].'Strings translated: '.$this->colors['reset'].$translatedCount);
-    }
-
-    /**
-     * Load reference translations
-     */
-    protected function loadReferenceTranslations(string $sourceFile, string $targetLocale): array
-    {
-        // Include target language and reference languages
-        $allReferenceLocales = array_merge([$targetLocale], $this->referenceLocales);
-
-        return collect($allReferenceLocales)
-            ->filter(fn ($referenceLocale) => $referenceLocale !== $this->sourceLocale)
-            ->map(function ($referenceLocale) {
-                $referenceFile = "{$this->sourceDirectory}/{$referenceLocale}.json";
-
-                if (! file_exists($referenceFile)) {
-                    $this->line($this->colors['gray']."    ℹ Reference file not found: {$referenceLocale}.json".$this->colors['reset']);
-
-                    return null;
-                }
-
-                try {
-                    $referenceTransformer = new JSONLangTransformer($referenceFile);
-                    $referenceStrings = $referenceTransformer->flatten();
-
-                    if (empty($referenceStrings)) {
-                        return null;
-                    }
-
-                    $this->line($this->colors['blue'].'    ℹ Loading reference: '.
-                        $this->colors['reset']."{$referenceLocale} - ".count($referenceStrings).' strings');
-
-                    return [
-                        'locale' => $referenceLocale,
-                        'strings' => $referenceStrings,
-                    ];
-                } catch (\Exception $e) {
-                    $this->line($this->colors['gray']."    ⚠ Reference file loading failed: {$referenceLocale}.json".$this->colors['reset']);
-
-                    return null;
-                }
-            })
-            ->filter()
-            ->values()
-            ->toArray();
-    }
-
-    /**
-     * Get global translation context
-     */
-    protected function getGlobalContext(string $file, string $locale, int $maxContextItems): array
-    {
-        if ($maxContextItems <= 0) {
-            return [];
-        }
-
-        $contextProvider = new TranslationContextProvider;
-        $globalContext = $contextProvider->getGlobalTranslationContext(
-            $this->sourceLocale,
-            $locale,
-            $file,
-            $maxContextItems
-        );
-
-        if (! empty($globalContext)) {
-            $contextItemCount = collect($globalContext)->map(fn ($items) => count($items))->sum();
-            $this->info($this->colors['blue'].'    ℹ Using global context: '.
-                $this->colors['reset'].count($globalContext).' files, '.
-                $contextItemCount.' items');
-        } else {
-            $this->line($this->colors['gray'].'    ℹ No global context available'.$this->colors['reset']);
-        }
-
-        return $globalContext;
-    }
-
-    /**
-     * Setup translator
-     */
-    protected function setupTranslator(
-        string $file,
-        \Illuminate\Support\Collection $chunk,
-        array $referenceStringList,
-        string $locale,
-        array $globalContext
-    ): AIProvider {
-        // Convert reference info to proper format
-        $references = [];
-        foreach ($referenceStringList as $reference) {
-            $referenceLocale = $reference['locale'];
-            $referenceStrings = $reference['strings'];
-            $references[$referenceLocale] = $referenceStrings;
-        }
-
-        // Create AIProvider instance
-        $translator = new AIProvider(
-            $file,
-            $chunk->toArray(),
-            $this->sourceLocale,
-            $locale,
-            $references,
-            [],  // additionalRules
-            $globalContext  // globalTranslationContext
-        );
-
-        $translator->setOnThinking(function ($thinking) {
-            echo $this->colors['gray'].$thinking.$this->colors['reset'];
-        });
-
-        $translator->setOnThinkingStart(function () {
-            $this->line($this->colors['gray'].'    '.'🧠 AI Thinking...'.$this->colors['reset']);
-        });
-
-        $translator->setOnThinkingEnd(function () {
-            $this->line($this->colors['gray'].'    '.'Thinking completed.'.$this->colors['reset']);
-        });
-
-        // Set translation progress callback
-        $translator->setOnTranslated(function ($item, $status, $translatedItems) use ($chunk) {
-            if ($status === TranslationStatus::COMPLETED) {
-                $totalCount = $chunk->count();
-                $completedCount = count($translatedItems);
-
-                $this->line($this->colors['cyan'].'  ⟳ '.
-                    $this->colors['reset'].$item->key.
-                    $this->colors['gray'].' → '.
-                    $this->colors['reset'].$item->translated.
-                    $this->colors['gray']." ({$completedCount}/{$totalCount})".
-                    $this->colors['reset']);
-            }
-        });
-
-        // Set token usage callback
-        $translator->setOnTokenUsage(function ($usage) {
-            $isFinal = $usage['final'] ?? false;
-            $inputTokens = $usage['input_tokens'] ?? 0;
-            $outputTokens = $usage['output_tokens'] ?? 0;
-            $totalTokens = $usage['total_tokens'] ?? 0;
-
-            // Display real-time token usage
-            $this->line($this->colors['gray'].'    Tokens: '.
-                'Input='.$this->colors['green'].$inputTokens.$this->colors['gray'].', '.
-                'Output='.$this->colors['green'].$outputTokens.$this->colors['gray'].', '.
-                'Total='.$this->colors['purple'].$totalTokens.$this->colors['gray'].
-                $this->colors['reset']);
-        });
-
-        // Set prompt logging callback
-        if ($this->option('show-prompt')) {
-            $translator->setOnPromptGenerated(function ($prompt, PromptType $type) {
-                $typeText = match ($type) {
-                    PromptType::SYSTEM => '🤖 System Prompt',
-                    PromptType::USER => '👤 User Prompt',
-                };
-
-                echo "\n    {$typeText}:\n";
-                echo $this->colors['gray'].'    '.str_replace("\n", $this->colors['reset']."\n    ".$this->colors['gray'], $prompt).$this->colors['reset']."\n";
-            });
-        }
-
-        return $translator;
-    }
-
-    /**
-     * Display cost estimation
-     */
-    protected function displayCostEstimation(AIProvider $translator): void
-    {
-        $usage = $translator->getTokenUsage();
-        $printer = new TokenUsagePrinter($translator->getModel());
-        $printer->printTokenUsageSummary($this, $usage);
-        $printer->printCostEstimation($this, $usage);
-    }
-
-    /**
-     * Update token usage totals
-     */
-    protected function updateTokenUsageTotals(array $usage): void
-    {
-        $this->tokenUsage['input_tokens'] += ($usage['input_tokens'] ?? 0);
-        $this->tokenUsage['output_tokens'] += ($usage['output_tokens'] ?? 0);
-        $this->tokenUsage['total_tokens'] =
-            $this->tokenUsage['input_tokens'] +
-            $this->tokenUsage['output_tokens'];
+        return $locales;
     }
 
     /**
@@ -605,32 +425,48 @@ class TranslateJson extends Command
     protected function validateAndFilterLocales(array $specifiedLocales, array $availableLocales): array
     {
         $validLocales = [];
-        $invalidLocales = [];
-
+        
         foreach ($specifiedLocales as $locale) {
             if (in_array($locale, $availableLocales)) {
                 $validLocales[] = $locale;
             } else {
-                $invalidLocales[] = $locale;
+                $this->warn("Locale '{$locale}' not found in available locales.");
             }
-        }
-
-        if (! empty($invalidLocales)) {
-            $this->warn('The following locales are invalid or not available: '.implode(', ', $invalidLocales));
-            $this->info('Available locales: '.implode(', ', $availableLocales));
         }
 
         return $validLocales;
     }
 
-    public function getExistingLocales(): array
+    /**
+     * Choose languages interactively
+     */
+    protected function choiceLanguages(string $question, bool $multiple = false, ?string $default = null)
     {
-        $files = glob("{$this->sourceDirectory}/*.json");
+        $locales = $this->getExistingJsonLocales();
+        
+        if (empty($locales)) {
+            $this->error('No JSON language files found.');
+            return $multiple ? [] : null;
+        }
 
-        return collect($files)
-            ->map(fn ($file) => pathinfo($file, PATHINFO_FILENAME))
-            ->filter(fn ($filename) => !str_starts_with($filename, '_'))
-            ->values()
-            ->toArray();
+        // Prepare choices with language names
+        $choices = [];
+        foreach ($locales as $locale) {
+            $name = LanguageConfig::getLanguageName($locale);
+            $choices[] = $name ? "{$locale} ({$name})" : $locale;
+        }
+
+        if ($multiple) {
+            $selected = $this->choice($question, $choices, null, null, true);
+            $result = [];
+            foreach ($selected as $choice) {
+                $locale = explode(' ', $choice)[0];
+                $result[] = $locale;
+            }
+            return $result;
+        } else {
+            $selected = $this->choice($question, $choices, $default);
+            return explode(' ', $selected)[0];
+        }
     }
 }

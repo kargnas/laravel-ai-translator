@@ -4,7 +4,6 @@ namespace Kargnas\LaravelAiTranslator\Plugins;
 
 use Kargnas\LaravelAiTranslator\Core\TranslationContext;
 use Kargnas\LaravelAiTranslator\Core\TranslationOutput;
-use Kargnas\LaravelAiTranslator\AI\AIProvider;
 use Illuminate\Support\Facades\Http;
 use Generator;
 

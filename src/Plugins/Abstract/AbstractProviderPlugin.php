@@ -1,6 +1,6 @@
 <?php
 
-namespace Kargnas\LaravelAiTranslator\Plugins;
+namespace Kargnas\LaravelAiTranslator\Plugins\Abstract;
 
 use Kargnas\LaravelAiTranslator\Contracts\ProviderPlugin;
 use Kargnas\LaravelAiTranslator\Core\TranslationContext;

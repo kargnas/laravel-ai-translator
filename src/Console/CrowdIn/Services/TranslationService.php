@@ -10,7 +10,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Kargnas\LaravelAiTranslator\TranslationBuilder;
-use Kargnas\LaravelAiTranslator\Plugins\TranslationContextPlugin;
+use Kargnas\LaravelAiTranslator\Plugins\Middleware\TranslationContextPlugin;
 
 class TranslationService
 {

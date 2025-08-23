@@ -1,9 +1,10 @@
 <?php
 
-namespace Kargnas\LaravelAiTranslator\Plugins;
+namespace Kargnas\LaravelAiTranslator\Plugins\Middleware;
 
 use Kargnas\LaravelAiTranslator\Contracts\StorageInterface;
 use Kargnas\LaravelAiTranslator\Core\TranslationContext;
+use Kargnas\LaravelAiTranslator\Plugins\Abstract\AbstractMiddlewarePlugin;
 use Kargnas\LaravelAiTranslator\Storage\FileStorage;
 
 /**

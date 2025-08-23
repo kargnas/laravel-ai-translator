@@ -8,8 +8,8 @@ use Kargnas\LaravelAiTranslator\TranslationBuilder;
 use Kargnas\LaravelAiTranslator\Support\Language\LanguageConfig;
 use Kargnas\LaravelAiTranslator\Support\Printer\TokenUsagePrinter;
 use Kargnas\LaravelAiTranslator\Transformers\PHPLangTransformer;
-use Kargnas\LaravelAiTranslator\Plugins\TranslationContextPlugin;
-use Kargnas\LaravelAiTranslator\Plugins\PromptPlugin;
+use Kargnas\LaravelAiTranslator\Plugins\Middleware\TranslationContextPlugin;
+use Kargnas\LaravelAiTranslator\Plugins\Middleware\PromptPlugin;
 
 /**
  * Artisan command that translates PHP language files using the plugin-based architecture

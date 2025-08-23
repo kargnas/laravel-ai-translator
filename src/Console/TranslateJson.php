@@ -8,7 +8,7 @@ use Kargnas\LaravelAiTranslator\TranslationBuilder;
 use Kargnas\LaravelAiTranslator\Support\Language\LanguageConfig;
 use Kargnas\LaravelAiTranslator\Support\Printer\TokenUsagePrinter;
 use Kargnas\LaravelAiTranslator\Transformers\JSONLangTransformer;
-use Kargnas\LaravelAiTranslator\Plugins\PromptPlugin;
+use Kargnas\LaravelAiTranslator\Plugins\Middleware\PromptPlugin;
 
 /**
  * Command to translate root JSON language files using the new plugin-based architecture

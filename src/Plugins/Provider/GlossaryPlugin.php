@@ -1,8 +1,9 @@
 <?php
 
-namespace Kargnas\LaravelAiTranslator\Plugins;
+namespace Kargnas\LaravelAiTranslator\Plugins\Provider;
 
 use Kargnas\LaravelAiTranslator\Core\TranslationContext;
+use Kargnas\LaravelAiTranslator\Plugins\Abstract\AbstractProviderPlugin;
 
 /**
  * GlossaryPlugin - Manages terminology consistency across translations

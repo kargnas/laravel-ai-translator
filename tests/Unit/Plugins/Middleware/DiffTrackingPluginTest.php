@@ -1,6 +1,6 @@
 <?php
 
-use Kargnas\LaravelAiTranslator\Plugins\DiffTrackingPlugin;
+use Kargnas\LaravelAiTranslator\Plugins\Middleware\DiffTrackingPlugin;
 use Kargnas\LaravelAiTranslator\Core\TranslationContext;
 use Kargnas\LaravelAiTranslator\Core\TranslationRequest;
 use Kargnas\LaravelAiTranslator\Storage\FileStorage;

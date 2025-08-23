@@ -1,6 +1,6 @@
 <?php
 
-use Kargnas\LaravelAiTranslator\Plugins\PIIMaskingPlugin;
+use Kargnas\LaravelAiTranslator\Plugins\Middleware\PIIMaskingPlugin;
 use Kargnas\LaravelAiTranslator\Core\TranslationContext;
 use Kargnas\LaravelAiTranslator\Core\TranslationRequest;
 use Kargnas\LaravelAiTranslator\Core\TranslationPipeline;

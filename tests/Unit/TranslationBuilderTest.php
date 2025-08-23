@@ -3,11 +3,11 @@
 use Kargnas\LaravelAiTranslator\TranslationBuilder;
 use Kargnas\LaravelAiTranslator\Core\TranslationPipeline;
 use Kargnas\LaravelAiTranslator\Core\PluginManager;
-use Kargnas\LaravelAiTranslator\Plugins\StylePlugin;
-use Kargnas\LaravelAiTranslator\Plugins\DiffTrackingPlugin;
-use Kargnas\LaravelAiTranslator\Plugins\TokenChunkingPlugin;
-use Kargnas\LaravelAiTranslator\Plugins\ValidationPlugin;
-use Kargnas\LaravelAiTranslator\Plugins\GlossaryPlugin;
+use Kargnas\LaravelAiTranslator\Plugins\Provider\StylePlugin;
+use Kargnas\LaravelAiTranslator\Plugins\Middleware\DiffTrackingPlugin;
+use Kargnas\LaravelAiTranslator\Plugins\Middleware\TokenChunkingPlugin;
+use Kargnas\LaravelAiTranslator\Plugins\Middleware\ValidationPlugin;
+use Kargnas\LaravelAiTranslator\Plugins\Provider\GlossaryPlugin;
 
 /**
  * TranslationBuilder API 테스트
@@ -101,7 +101,7 @@ test('supports multi-tenant configuration', function () {
 });
 
 test('allows custom plugin registration', function () {
-    $customPlugin = new class extends \Kargnas\LaravelAiTranslator\Plugins\AbstractTranslationPlugin {
+    $customPlugin = new class extends \Kargnas\LaravelAiTranslator\Plugins\Abstract\AbstractTranslationPlugin {
         // Name will be auto-generated from class
         
         public function boot(\Kargnas\LaravelAiTranslator\Core\TranslationPipeline $pipeline): void {

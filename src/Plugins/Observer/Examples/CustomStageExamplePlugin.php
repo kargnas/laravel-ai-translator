@@ -1,9 +1,10 @@
 <?php
 
-namespace Kargnas\LaravelAiTranslator\Plugins;
+namespace Kargnas\LaravelAiTranslator\Plugins\Observer\Examples;
 
 use Kargnas\LaravelAiTranslator\Core\TranslationContext;
 use Kargnas\LaravelAiTranslator\Core\TranslationPipeline;
+use Kargnas\LaravelAiTranslator\Plugins\Abstract\AbstractObserverPlugin;
 
 /**
  * CustomStageExamplePlugin - Example of a plugin that defines its own custom stage

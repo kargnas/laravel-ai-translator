@@ -9,14 +9,14 @@ use Kargnas\LaravelAiTranslator\Core\TranslationOutput;
 use Kargnas\LaravelAiTranslator\Core\PluginManager;
 use Kargnas\LaravelAiTranslator\Results\TranslationResult;
 use Kargnas\LaravelAiTranslator\Contracts\TranslationPlugin;
-use Kargnas\LaravelAiTranslator\Plugins\StylePlugin;
-use Kargnas\LaravelAiTranslator\Plugins\MultiProviderPlugin;
-use Kargnas\LaravelAiTranslator\Plugins\GlossaryPlugin;
-use Kargnas\LaravelAiTranslator\Plugins\DiffTrackingPlugin;
-use Kargnas\LaravelAiTranslator\Plugins\TokenChunkingPlugin;
-use Kargnas\LaravelAiTranslator\Plugins\ValidationPlugin;
-use Kargnas\LaravelAiTranslator\Plugins\PIIMaskingPlugin;
-use Kargnas\LaravelAiTranslator\Plugins\AbstractTranslationPlugin;
+use Kargnas\LaravelAiTranslator\Plugins\Provider\StylePlugin;
+use Kargnas\LaravelAiTranslator\Plugins\Middleware\MultiProviderPlugin;
+use Kargnas\LaravelAiTranslator\Plugins\Provider\GlossaryPlugin;
+use Kargnas\LaravelAiTranslator\Plugins\Middleware\DiffTrackingPlugin;
+use Kargnas\LaravelAiTranslator\Plugins\Middleware\TokenChunkingPlugin;
+use Kargnas\LaravelAiTranslator\Plugins\Middleware\ValidationPlugin;
+use Kargnas\LaravelAiTranslator\Plugins\Middleware\PIIMaskingPlugin;
+use Kargnas\LaravelAiTranslator\Plugins\Abstract\AbstractTranslationPlugin;
 
 /**
  * TranslationBuilder - Fluent API for constructing and executing translations

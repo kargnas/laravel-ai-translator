@@ -1,6 +1,6 @@
 <?php
 
-namespace Kargnas\LaravelAiTranslator\Plugins;
+namespace Kargnas\LaravelAiTranslator\Plugins\Abstract;
 
 use Closure;
 use Kargnas\LaravelAiTranslator\Contracts\MiddlewarePlugin;

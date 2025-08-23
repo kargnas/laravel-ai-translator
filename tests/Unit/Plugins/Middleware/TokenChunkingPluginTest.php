@@ -1,6 +1,6 @@
 <?php
 
-use Kargnas\LaravelAiTranslator\Plugins\TokenChunkingPlugin;
+use Kargnas\LaravelAiTranslator\Plugins\Middleware\TokenChunkingPlugin;
 use Kargnas\LaravelAiTranslator\Core\TranslationContext;
 use Kargnas\LaravelAiTranslator\Core\TranslationRequest;
 

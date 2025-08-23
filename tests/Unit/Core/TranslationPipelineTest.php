@@ -5,7 +5,7 @@ use Kargnas\LaravelAiTranslator\Core\TranslationRequest;
 use Kargnas\LaravelAiTranslator\Core\TranslationContext;
 use Kargnas\LaravelAiTranslator\Core\PluginManager;
 use Kargnas\LaravelAiTranslator\Core\PipelineStages;
-use Kargnas\LaravelAiTranslator\Plugins\AbstractMiddlewarePlugin;
+use Kargnas\LaravelAiTranslator\Plugins\Abstract\AbstractMiddlewarePlugin;
 
 /**
  * TranslationPipeline 핵심 기능 테스트

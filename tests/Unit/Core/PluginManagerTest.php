@@ -2,7 +2,7 @@
 
 use Kargnas\LaravelAiTranslator\Core\PluginManager;
 use Kargnas\LaravelAiTranslator\Core\TranslationPipeline;
-use Kargnas\LaravelAiTranslator\Plugins\AbstractTranslationPlugin;
+use Kargnas\LaravelAiTranslator\Plugins\Abstract\AbstractTranslationPlugin;
 
 /**
  * PluginManager 핵심 기능 테스트

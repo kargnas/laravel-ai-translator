@@ -1,9 +1,10 @@
 <?php
 
-namespace Kargnas\LaravelAiTranslator\Plugins;
+namespace Kargnas\LaravelAiTranslator\Plugins\Observer;
 
 use Kargnas\LaravelAiTranslator\Core\TranslationContext;
 use Kargnas\LaravelAiTranslator\Core\TranslationOutput;
+use Kargnas\LaravelAiTranslator\Plugins\Abstract\AbstractObserverPlugin;
 use Generator;
 
 /**

@@ -1,10 +1,12 @@
 <?php
 
-namespace Kargnas\LaravelAiTranslator\Plugins;
+namespace Kargnas\LaravelAiTranslator\Plugins\Middleware;
 
 use Kargnas\LaravelAiTranslator\Core\TranslationContext;
 use Kargnas\LaravelAiTranslator\Core\TranslationOutput;
+use Kargnas\LaravelAiTranslator\Plugins\Abstract\AbstractMiddlewarePlugin;
 use Illuminate\Support\Facades\Http;
+use Closure;
 use Generator;
 
 /**

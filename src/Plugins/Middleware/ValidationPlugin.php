@@ -1,10 +1,11 @@
 <?php
 
-namespace Kargnas\LaravelAiTranslator\Plugins;
+namespace Kargnas\LaravelAiTranslator\Plugins\Middleware;
 
 use Closure;
 use Kargnas\LaravelAiTranslator\Core\TranslationContext;
 use Kargnas\LaravelAiTranslator\Core\PipelineStages;
+use Kargnas\LaravelAiTranslator\Plugins\Abstract\AbstractMiddlewarePlugin;
 
 class ValidationPlugin extends AbstractMiddlewarePlugin
 {

@@ -1,8 +1,9 @@
 <?php
 
-namespace Kargnas\LaravelAiTranslator\Plugins;
+namespace Kargnas\LaravelAiTranslator\Plugins\Observer;
 
 use Kargnas\LaravelAiTranslator\Core\TranslationContext;
+use Kargnas\LaravelAiTranslator\Plugins\Abstract\AbstractObserverPlugin;
 
 /**
  * AnnotationContextPlugin - Extracts translation context from PHP docblocks and annotations

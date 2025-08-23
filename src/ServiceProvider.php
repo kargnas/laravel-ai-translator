@@ -98,15 +98,15 @@ class ServiceProvider extends BaseServiceProvider
     {
         // Core plugins with their default configurations
         $defaultPlugins = [
-            'StylePlugin' => Plugins\StylePlugin::class,
-            'GlossaryPlugin' => Plugins\GlossaryPlugin::class,
-            'DiffTrackingPlugin' => Plugins\DiffTrackingPlugin::class,
-            'TokenChunkingPlugin' => Plugins\TokenChunkingPlugin::class,
-            'ValidationPlugin' => Plugins\ValidationPlugin::class,
-            'PIIMaskingPlugin' => Plugins\PIIMaskingPlugin::class,
-            'StreamingOutputPlugin' => Plugins\StreamingOutputPlugin::class,
-            'MultiProviderPlugin' => Plugins\MultiProviderPlugin::class,
-            'AnnotationContextPlugin' => Plugins\AnnotationContextPlugin::class,
+            'StylePlugin' => Plugins\Provider\StylePlugin::class,
+            'GlossaryPlugin' => Plugins\Provider\GlossaryPlugin::class,
+            'DiffTrackingPlugin' => Plugins\Middleware\DiffTrackingPlugin::class,
+            'TokenChunkingPlugin' => Plugins\Middleware\TokenChunkingPlugin::class,
+            'ValidationPlugin' => Plugins\Middleware\ValidationPlugin::class,
+            'PIIMaskingPlugin' => Plugins\Middleware\PIIMaskingPlugin::class,
+            'StreamingOutputPlugin' => Plugins\Observer\StreamingOutputPlugin::class,
+            'MultiProviderPlugin' => Plugins\Middleware\MultiProviderPlugin::class,
+            'AnnotationContextPlugin' => Plugins\Observer\AnnotationContextPlugin::class,
         ];
         
         foreach ($defaultPlugins as $name => $class) {

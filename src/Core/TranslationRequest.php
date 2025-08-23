@@ -65,6 +65,31 @@ class TranslationRequest
     }
 
     /**
+     * Get texts to translate.
+     */
+    public function getTexts(): array
+    {
+        return $this->texts;
+    }
+
+    /**
+     * Get source language.
+     */
+    public function getSourceLanguage(): string
+    {
+        return $this->sourceLocale;
+    }
+
+    /**
+     * Get first target language.
+     */
+    public function getTargetLanguage(): string
+    {
+        $locales = $this->getTargetLocales();
+        return $locales[0] ?? '';
+    }
+
+    /**
      * Get target locales as array.
      */
     public function getTargetLocales(): array

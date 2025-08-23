@@ -307,6 +307,15 @@ class TranslationBuilder
     }
 
     /**
+     * Set additional metadata.
+     */
+    public function withMetadata(array $metadata): self
+    {
+        $this->metadata = array_merge($this->metadata, $metadata);
+        return $this;
+    }
+
+    /**
      * Set progress callback.
      */
     public function onProgress(callable $callback): self

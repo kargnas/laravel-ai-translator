@@ -2,6 +2,43 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Configuration
+
+### AI Provider Settings
+For testing, use mock provider by default:
+```php
+// config/ai-translator.php
+'ai' => [
+    'provider' => 'mock',
+    'model' => 'mock', 
+    'api_key' => 'test',
+],
+```
+
+For production, configure real providers:
+```php
+// Anthropic Claude
+'ai' => [
+    'provider' => 'anthropic',
+    'model' => 'claude-3-5-sonnet-latest',
+    'api_key' => 'your-anthropic-api-key',
+],
+
+// OpenAI GPT
+'ai' => [
+    'provider' => 'openai', 
+    'model' => 'gpt-4o',
+    'api_key' => 'your-openai-api-key',
+],
+
+// Google Gemini
+'ai' => [
+    'provider' => 'gemini',
+    'model' => 'gemini-2.5-pro',
+    'api_key' => 'your-gemini-api-key',
+],
+```
+
 ## Build & Development Commands
 
 ### Package Development
@@ -254,4 +291,7 @@ TranslationBuilder::make()
 Do what has been asked; nothing more, nothing less.
 NEVER create files unless they're absolutely necessary for achieving your goal.
 ALWAYS prefer editing an existing file to creating a new one.
+ALWAYS keep updating existing documentation files (*.md), CLAUDE and README files. Do that even you never mention it.
 NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
+NEVER say 'all features are working correctly!' unless you successfully ran `phpstan`. Always run `phpstan` before saying that. (`./vendor/bin/phpstan --memory-limit=1G`)
+NEVER ignore phpstan errors. You need to fix all the phpstan errors.

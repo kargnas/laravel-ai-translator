@@ -4,16 +4,14 @@ namespace Kargnas\LaravelAiTranslator\Providers\AI;
 
 use Prism\Prism\Prism;
 use Prism\Prism\Enums\Provider;
-use Prism\Prism\ValueObjects\Messages\UserMessage;
-use Prism\Prism\ValueObjects\Messages\AssistantMessage;
 
 /**
- * Anthropic Claude AI Provider using PrismPHP
+ * Google Gemini AI Provider using PrismPHP
  * 
- * Provides translation services using Anthropic's Claude models through PrismPHP.
- * Supports various Claude models with optimized prompting for translation tasks.
+ * Provides translation services using Google's Gemini models through PrismPHP.
+ * Supports Gemini Pro, Gemini Flash, and other Google AI models.
  */
-class AnthropicProvider extends AbstractAIProvider
+class GeminiProvider extends AbstractAIProvider
 {
     /**
      * {@inheritDoc}
@@ -22,7 +20,7 @@ class AnthropicProvider extends AbstractAIProvider
     public function translate(array $texts, string $sourceLocale, string $targetLocale, array $metadata = []): array
     {
         try {
-            $this->log('info', 'Starting Anthropic translation', [
+            $this->log('info', 'Starting Gemini translation', [
                 'model' => $this->getConfig('model'),
                 'source' => $sourceLocale,
                 'target' => $targetLocale,
@@ -32,13 +30,13 @@ class AnthropicProvider extends AbstractAIProvider
             // Build the translation request content
             $content = $this->buildTranslationContent($texts, $sourceLocale, $targetLocale, $metadata);
             
-            // Create the Prism request
+            // Create the Prism request with Gemini-specific configurations
             $response = Prism::text()
-                ->using(Provider::Anthropic, $this->getConfig('model', 'claude-3-5-sonnet-latest'))
+                ->using(Provider::Gemini, $this->getConfig('model', 'gemini-2.5-pro'))
                 ->withSystemPrompt($metadata['system_prompt'] ?? $this->getDefaultSystemPrompt($sourceLocale, $targetLocale))
                 ->withPrompt($content)
                 ->usingTemperature($this->getConfig('temperature', 0.3))
-                ->withMaxTokens($this->getConfig('max_tokens', 4096))
+                ->withMaxTokens($this->getConfig('max_tokens', 65535)) // Gemini supports high token limits
                 ->asText();
             
             // Parse the XML response
@@ -50,7 +48,7 @@ class AnthropicProvider extends AbstractAIProvider
                 $response->usage->completionTokens ?? 0
             );
             
-            $this->log('info', 'Anthropic translation completed', [
+            $this->log('info', 'Gemini translation completed', [
                 'translations_count' => count($translations),
                 'token_usage' => $tokenUsage,
             ]);
@@ -76,19 +74,19 @@ class AnthropicProvider extends AbstractAIProvider
     public function complete(string $prompt, array $config = []): string
     {
         try {
-            $this->log('info', 'Starting Anthropic completion', [
+            $this->log('info', 'Starting Gemini completion', [
                 'model' => $config['model'] ?? $this->getConfig('model'),
                 'prompt_length' => strlen($prompt),
             ]);
             
             $response = Prism::text()
-                ->using(Provider::Anthropic, $config['model'] ?? $this->getConfig('model', 'claude-3-5-sonnet-latest'))
+                ->using(Provider::Gemini, $config['model'] ?? $this->getConfig('model', 'gemini-2.5-pro'))
                 ->withPrompt($prompt)
                 ->usingTemperature($config['temperature'] ?? $this->getConfig('temperature', 0.3))
-                ->withMaxTokens($config['max_tokens'] ?? $this->getConfig('max_tokens', 4096))
+                ->withMaxTokens($config['max_tokens'] ?? $this->getConfig('max_tokens', 65535))
                 ->asText();
             
-            $this->log('info', 'Anthropic completion finished', [
+            $this->log('info', 'Gemini completion finished', [
                 'response_length' => strlen($response->text),
             ]);
             
@@ -131,9 +129,9 @@ class AnthropicProvider extends AbstractAIProvider
     }
     
     /**
-     * Parse XML translation response from Claude
+     * Parse XML translation response from Gemini
      * 
-     * @param string $response Raw response from Claude
+     * @param string $response Raw response from Gemini
      * @param array $expectedKeys Expected translation keys
      * @return array Parsed translations
      */
@@ -191,7 +189,8 @@ class AnthropicProvider extends AbstractAIProvider
     {
         return "You are a professional translator specializing in {$sourceLocale} to {$targetLocale} translations for web applications. " .
                "Provide natural, contextually appropriate translations that maintain the original meaning while feeling native to {$targetLocale} speakers. " .
-               "Preserve all variables, HTML tags, and formatting exactly as they appear in the source text.";
+               "Preserve all variables, HTML tags, and formatting exactly as they appear in the source text. " .
+               "Always respond in the specified XML format with proper CDATA tags for translations.";
     }
     
     /**
@@ -201,10 +200,20 @@ class AnthropicProvider extends AbstractAIProvider
     {
         parent::validateConfig($config);
         
-        // Validate Anthropic-specific configuration
+        // Validate Gemini-specific configuration
         $model = $this->getConfig('model');
-        if (!str_contains($model, 'claude')) {
-            throw new \InvalidArgumentException("Invalid Anthropic model: {$model}");
+        $validModels = ['gemini-pro', 'gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash'];
+        
+        $isValidModel = false;
+        foreach ($validModels as $validModel) {
+            if (str_contains($model, $validModel)) {
+                $isValidModel = true;
+                break;
+            }
+        }
+        
+        if (!$isValidModel) {
+            throw new \InvalidArgumentException("Invalid Gemini model: {$model}");
         }
     }
 }

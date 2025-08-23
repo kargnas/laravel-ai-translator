@@ -4,16 +4,14 @@ namespace Kargnas\LaravelAiTranslator\Providers\AI;
 
 use Prism\Prism\Prism;
 use Prism\Prism\Enums\Provider;
-use Prism\Prism\ValueObjects\Messages\UserMessage;
-use Prism\Prism\ValueObjects\Messages\AssistantMessage;
 
 /**
- * Anthropic Claude AI Provider using PrismPHP
+ * OpenAI GPT AI Provider using PrismPHP
  * 
- * Provides translation services using Anthropic's Claude models through PrismPHP.
- * Supports various Claude models with optimized prompting for translation tasks.
+ * Provides translation services using OpenAI's GPT models through PrismPHP.
+ * Supports GPT-4, GPT-4 Turbo, and other OpenAI models with optimized prompting.
  */
-class AnthropicProvider extends AbstractAIProvider
+class OpenAIProvider extends AbstractAIProvider
 {
     /**
      * {@inheritDoc}
@@ -22,7 +20,7 @@ class AnthropicProvider extends AbstractAIProvider
     public function translate(array $texts, string $sourceLocale, string $targetLocale, array $metadata = []): array
     {
         try {
-            $this->log('info', 'Starting Anthropic translation', [
+            $this->log('info', 'Starting OpenAI translation', [
                 'model' => $this->getConfig('model'),
                 'source' => $sourceLocale,
                 'target' => $targetLocale,
@@ -34,7 +32,7 @@ class AnthropicProvider extends AbstractAIProvider
             
             // Create the Prism request
             $response = Prism::text()
-                ->using(Provider::Anthropic, $this->getConfig('model', 'claude-3-5-sonnet-latest'))
+                ->using(Provider::OpenAI, $this->getConfig('model', 'gpt-4o'))
                 ->withSystemPrompt($metadata['system_prompt'] ?? $this->getDefaultSystemPrompt($sourceLocale, $targetLocale))
                 ->withPrompt($content)
                 ->usingTemperature($this->getConfig('temperature', 0.3))
@@ -50,7 +48,7 @@ class AnthropicProvider extends AbstractAIProvider
                 $response->usage->completionTokens ?? 0
             );
             
-            $this->log('info', 'Anthropic translation completed', [
+            $this->log('info', 'OpenAI translation completed', [
                 'translations_count' => count($translations),
                 'token_usage' => $tokenUsage,
             ]);
@@ -76,19 +74,27 @@ class AnthropicProvider extends AbstractAIProvider
     public function complete(string $prompt, array $config = []): string
     {
         try {
-            $this->log('info', 'Starting Anthropic completion', [
+            $this->log('info', 'Starting OpenAI completion', [
                 'model' => $config['model'] ?? $this->getConfig('model'),
                 'prompt_length' => strlen($prompt),
             ]);
             
+            // Handle special case for gpt-5 with fixed temperature
+            $temperature = $config['temperature'] ?? $this->getConfig('temperature', 0.3);
+            $model = $config['model'] ?? $this->getConfig('model', 'gpt-4o');
+            
+            if ($model === 'gpt-5') {
+                $temperature = 1.0; // Always fixed for gpt-5
+            }
+            
             $response = Prism::text()
-                ->using(Provider::Anthropic, $config['model'] ?? $this->getConfig('model', 'claude-3-5-sonnet-latest'))
+                ->using(Provider::OpenAI, $model)
                 ->withPrompt($prompt)
-                ->usingTemperature($config['temperature'] ?? $this->getConfig('temperature', 0.3))
+                ->usingTemperature($temperature)
                 ->withMaxTokens($config['max_tokens'] ?? $this->getConfig('max_tokens', 4096))
                 ->asText();
             
-            $this->log('info', 'Anthropic completion finished', [
+            $this->log('info', 'OpenAI completion finished', [
                 'response_length' => strlen($response->text),
             ]);
             
@@ -131,9 +137,9 @@ class AnthropicProvider extends AbstractAIProvider
     }
     
     /**
-     * Parse XML translation response from Claude
+     * Parse XML translation response from GPT
      * 
-     * @param string $response Raw response from Claude
+     * @param string $response Raw response from GPT
      * @param array $expectedKeys Expected translation keys
      * @return array Parsed translations
      */
@@ -191,7 +197,8 @@ class AnthropicProvider extends AbstractAIProvider
     {
         return "You are a professional translator specializing in {$sourceLocale} to {$targetLocale} translations for web applications. " .
                "Provide natural, contextually appropriate translations that maintain the original meaning while feeling native to {$targetLocale} speakers. " .
-               "Preserve all variables, HTML tags, and formatting exactly as they appear in the source text.";
+               "Preserve all variables, HTML tags, and formatting exactly as they appear in the source text. " .
+               "Always respond in the specified XML format with proper CDATA tags for translations.";
     }
     
     /**
@@ -201,10 +208,20 @@ class AnthropicProvider extends AbstractAIProvider
     {
         parent::validateConfig($config);
         
-        // Validate Anthropic-specific configuration
+        // Validate OpenAI-specific configuration
         $model = $this->getConfig('model');
-        if (!str_contains($model, 'claude')) {
-            throw new \InvalidArgumentException("Invalid Anthropic model: {$model}");
+        $validModels = ['gpt-3.5-turbo', 'gpt-4', 'gpt-4-turbo', 'gpt-4o', 'gpt-5', 'o1', 'o1-mini', 'o3', 'o3-mini'];
+        
+        $isValidModel = false;
+        foreach ($validModels as $validModel) {
+            if (str_contains($model, $validModel)) {
+                $isValidModel = true;
+                break;
+            }
+        }
+        
+        if (!$isValidModel) {
+            throw new \InvalidArgumentException("Invalid OpenAI model: {$model}");
         }
     }
 }

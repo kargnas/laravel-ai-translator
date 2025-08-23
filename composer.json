@@ -29,6 +29,7 @@
         "guzzlehttp/promises": "^1.0|^2.0",
         "illuminate/support": ">=8.0",
         "openai-php/client": ">=0.2 <1.0",
+        "prism-php/prism": "^0.86.0",
         "symfony/process": "^5.0|^6.0|^7.0"
     },
     "require-dev": {

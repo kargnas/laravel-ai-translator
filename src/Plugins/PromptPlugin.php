@@ -34,24 +34,24 @@ class PromptPlugin extends AbstractMiddlewarePlugin
     public function handle(TranslationContext $context, Closure $next): mixed
     {
         // Load system and user prompts
-        $context->setData('system_prompt_template', $this->getSystemPrompt());
-        $context->setData('user_prompt_template', $this->getUserPrompt());
+        $context->setPluginData('system_prompt_template', $this->getSystemPrompt());
+        $context->setPluginData('user_prompt_template', $this->getUserPrompt());
         
         // Process prompt templates with context data
         $request = $context->getRequest();
         
         $systemPrompt = $this->processTemplate(
-            $context->getData('system_prompt_template', ''),
+            $context->getPluginData('system_prompt_template') ?? '',
             $this->getSystemPromptVariables($context)
         );
         
         $userPrompt = $this->processTemplate(
-            $context->getData('user_prompt_template', ''),
+            $context->getPluginData('user_prompt_template') ?? '',
             $this->getUserPromptVariables($context)
         );
 
-        $context->setData('system_prompt', $systemPrompt);
-        $context->setData('user_prompt', $userPrompt);
+        $context->setPluginData('system_prompt', $systemPrompt);
+        $context->setPluginData('user_prompt', $userPrompt);
         
         return $next($context);
     }
@@ -62,15 +62,15 @@ class PromptPlugin extends AbstractMiddlewarePlugin
     protected function getSystemPrompt(): string
     {
         if (!isset($this->systemPromptCache['content'])) {
-            $promptPath = base_path('resources/prompts/system-prompt.txt');
+            $promptPath = __DIR__ . '/../Support/Prompts/system-prompt.txt';
             
             if (!file_exists($promptPath)) {
-                // Fallback to legacy location
-                $promptPath = base_path('src/AI/prompt-system.txt');
+                // Fallback to resources location
+                $promptPath = base_path('resources/prompts/system-prompt.txt');
             }
             
             if (!file_exists($promptPath)) {
-                throw new \Exception("System prompt file not found. Expected at: resources/prompts/system-prompt.txt");
+                throw new \Exception("System prompt file not found. Expected at: src/Support/Prompts/system-prompt.txt");
             }
             
             $this->systemPromptCache['content'] = file_get_contents($promptPath);
@@ -85,15 +85,15 @@ class PromptPlugin extends AbstractMiddlewarePlugin
     protected function getUserPrompt(): string
     {
         if (!isset($this->userPromptCache['content'])) {
-            $promptPath = base_path('resources/prompts/user-prompt.txt');
+            $promptPath = __DIR__ . '/../Support/Prompts/user-prompt.txt';
             
             if (!file_exists($promptPath)) {
-                // Fallback to legacy location
-                $promptPath = base_path('src/AI/prompt-user.txt');
+                // Fallback to resources location
+                $promptPath = base_path('resources/prompts/user-prompt.txt');
             }
             
             if (!file_exists($promptPath)) {
-                throw new \Exception("User prompt file not found. Expected at: resources/prompts/user-prompt.txt");
+                throw new \Exception("User prompt file not found. Expected at: src/Support/Prompts/user-prompt.txt");
             }
             
             $this->userPromptCache['content'] = file_get_contents($promptPath);
@@ -192,7 +192,7 @@ class PromptPlugin extends AbstractMiddlewarePlugin
     protected function getTranslationContext(TranslationContext $context): string
     {
         // This could be populated by a separate context plugin
-        $translationContext = $context->getData('global_translation_context', []);
+        $translationContext = $context->getPluginData('global_translation_context') ?? [];
         
         if (empty($translationContext)) {
             return '';

@@ -5,6 +5,7 @@ namespace Kargnas\LaravelAiTranslator\Support\Language;
 class LanguageRules
 {
     private const RULES = [
+        'default' => [],
         'zh' => [
             "- CRITICAL: For ALL Chinese translations, ALWAYS use exactly THREE parts if there is '|': 一 + measure word + noun|两 + measure word + noun|:count + measure word + noun. This is MANDATORY, even if the original only has two parts. NO SPACES in Chinese text except right after numbers in curly braces and square brackets.",
             '- Example structure (DO NOT COPY WORDS, only structure): {1} 一X词Y|{2} 两X词Y|[3,*] :countX词Y. Replace X with correct measure word, Y with noun. Ensure NO SPACE between :count and the measure word. If any incorrect spaces are found, remove them and flag for review.',
@@ -370,7 +371,7 @@ class LanguageRules
 
         // Finally get default rules if no rules found
         if (empty($rules)) {
-            $rules = self::RULES['default'] ?? [];
+            $rules = self::RULES['default'];
         }
 
         return $rules;

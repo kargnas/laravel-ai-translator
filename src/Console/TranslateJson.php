@@ -288,13 +288,10 @@ class TranslateJson extends Command
                     $targetTransformer = new JSONLangTransformer($targetFile);
 
                     foreach ($translations as $key => $value) {
-                        $targetTransformer->setTranslation($key, $value);
+                        $targetTransformer->updateString($key, $value);
                         $localeTranslatedCount++;
                         $totalTranslatedCount++;
                     }
-
-                    // Save the file
-                    $targetTransformer->save();
 
                     // Update token usage
                     $tokenUsageData = $result->getTokenUsage();
@@ -465,7 +462,18 @@ class TranslateJson extends Command
             }
             return $result;
         } else {
-            $selected = $this->choice($question, $choices, $default);
+            // Convert locale default to array index
+            $defaultIndex = null;
+            if ($default) {
+                foreach ($choices as $index => $choice) {
+                    if (str_starts_with($choice, $default . ' ')) {
+                        $defaultIndex = $index;
+                        break;
+                    }
+                }
+            }
+            
+            $selected = $this->choice($question, $choices, $defaultIndex);
             return explode(' ', $selected)[0];
         }
     }

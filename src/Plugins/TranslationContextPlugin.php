@@ -50,8 +50,8 @@ class TranslationContextPlugin extends AbstractMiddlewarePlugin
             $maxContextItems
         );
         
-        $context->setData('global_translation_context', $globalContext);
-        $context->setData('context_provider', $this);
+        $context->setPluginData('global_translation_context', $globalContext);
+        $context->setPluginData('context_provider', $this);
         
         return $next($context);
     }

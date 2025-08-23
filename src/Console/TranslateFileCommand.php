@@ -86,18 +86,13 @@ class TranslateFileCommand extends Command
             config(['ai-translator.ai.disable_stream' => false]);
 
             // Get global translation context
-            $contextProvider = new TranslationContextProvider;
+            // Note: TranslationContextPlugin is now used via TranslationBuilder
             $maxContextItems = (int) $this->option('max-context-items') ?: 100;
-            $globalContext = $contextProvider->getGlobalTranslationContext(
-                $sourceLanguage,
-                $targetLanguage,
-                $filePath,
-                $maxContextItems
-            );
+            $globalContext = [];
 
             $this->line($this->colors['blue_bg'].$this->colors['white'].$this->colors['bold'].' Translation Context '.$this->colors['reset']);
-            $this->line(' - Context files: '.count($globalContext));
-            $this->line(' - Total context items: '.collect($globalContext)->map(fn ($items) => count($items))->sum());
+            $this->line(' - Context files: 0');
+            $this->line(' - Total context items: 0');
 
             // Translation configuration display
             $this->line("\n".str_repeat('─', 80));

@@ -19,7 +19,8 @@ class TestTranslateCommand extends Command
                           {--rules=* : Additional rules}
                           {--extended-thinking : Use Extended Thinking feature (only supported for claude-3-7 models)}
                           {--debug : Enable debug mode with detailed logging}
-                          {--show-xml : Show raw XML response in the output}';
+                          {--show-xml : Show raw XML response in the output}
+                          {--no-thinking : Hide thinking content}';
 
     protected $description = 'Test translation using TranslationBuilder.';
 
@@ -52,7 +53,7 @@ class TestTranslateCommand extends Command
         $useExtendedThinking = $this->option('extended-thinking');
         $debug = $this->option('debug');
         $showXml = $this->option('show-xml');
-        $showThinking = true; // Always show thinking content
+        $showThinking = !$this->option('no-thinking'); // Show thinking by default
 
         if (! $text) {
             $text = $this->ask('Enter text to translate');
@@ -91,7 +92,7 @@ class TestTranslateCommand extends Command
         }
 
         // Add progress callback
-        $builder->onProgress(function($output) use ($showThinking, &$tokenUsage, $text) {
+        $builder->onProgress(function($output) use ($showThinking, $showXml, &$tokenUsage, $text) {
             // Handle TranslationOutput objects
             if ($output instanceof \Kargnas\LaravelAiTranslator\Core\TranslationOutput) {
                 // Translation completed for a key
@@ -151,15 +152,18 @@ class TestTranslateCommand extends Command
             // Get translations
             $translations = $result->getTranslations();
             
-            if (!empty($translations['test'])) {
-                $this->line("\033[1;32mTranslation:\033[0m \033[1m".substr($translations['test'], 0, 100).
-                    (strlen($translations['test']) > 100 ? '...' : '')."\033[0m");
-                
-                // Full translation if truncated
-                if (strlen($translations['test']) > 100) {
-                    $this->line("\n\033[1;32mFull Translation:\033[0m");
-                    $this->line($translations['test']);
-                }
+            $this->line("\n".str_repeat('─', 80));
+            $this->line($this->colors['green'].'🎯 FINAL TRANSLATION RESULT'.$this->colors['reset']);
+            $this->line(str_repeat('─', 80));
+            
+            $translatedText = $translations[$targetLanguage]['test'] ?? null;
+            
+            if ($translatedText) {
+                $this->line("Original: {$text}");
+                $this->line("Translation ({$targetLanguage}): {$translatedText}");
+            } else {
+                $this->line("No translation found for key 'test'");
+                $this->line("Available translations: " . json_encode($translations));
             }
 
             // Display XML if requested

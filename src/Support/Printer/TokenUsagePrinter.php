@@ -14,6 +14,7 @@ class TokenUsagePrinter
         'claude-sonnet-4-20250514' => ['name' => 'Claude Sonnet 4', 'input' => 3.0, 'output' => 15.0],
         'claude-3-5-sonnet-20241022' => ['name' => 'Claude 3.5 Sonnet', 'input' => 3.0, 'output' => 15.0],
         'claude-3-5-haiku-20241022' => ['name' => 'Claude 3.5 Haiku', 'input' => 0.80, 'output' => 4.0],
+        'claude-3-7-sonnet-latest' => ['name' => 'Claude 3.7 Sonnet', 'input' => 3.0, 'output' => 15.0],
     ];
 
     private string $model;

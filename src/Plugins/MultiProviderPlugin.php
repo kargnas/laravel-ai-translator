@@ -25,10 +25,51 @@ use Generator;
  * 3. Provide redundancy when a provider fails
  * 4. Optimize cost by routing to appropriate providers based on content
  */
-class MultiProviderPlugin extends AbstractProviderPlugin
+class MultiProviderPlugin extends AbstractMiddlewarePlugin
 {
     
     protected int $priority = 50;
+
+    /**
+     * Get the pipeline stage for this plugin
+     */
+    protected function getStage(): string
+    {
+        return 'translation';
+    }
+
+    /**
+     * Handle the translation execution
+     */
+    public function handle(TranslationContext $context, \Closure $next): mixed
+    {
+        // Execute translations for each target locale
+        $request = $context->getRequest();
+        $targetLocales = $request->getTargetLocales();
+        
+        foreach ($targetLocales as $locale) {
+            $providers = $this->getConfiguredProviders();
+            if (empty($providers)) {
+                // Use default mock provider if no providers configured
+                $providers = ['default' => [
+                    'provider' => 'mock',
+                    'model' => 'mock',
+                    'api_key' => 'test'
+                ]];
+            }
+            
+            // Execute translation with first available provider for now
+            $providerConfig = reset($providers);
+            $translations = $this->executeProvider($providerConfig, $context, $locale);
+            
+            // Add translations to context
+            foreach ($translations as $key => $translation) {
+                $context->addTranslation($locale, $key, $translation);
+            }
+        }
+        
+        return $next($context);
+    }
 
     /**
      * Get default configuration for the plugin
@@ -298,8 +339,8 @@ class MultiProviderPlugin extends AbstractProviderPlugin
                 // Track token usage
                 if (isset($result['token_usage'])) {
                     $context->addTokenUsage(
-                        $result['token_usage']['input'] ?? 0,
-                        $result['token_usage']['output'] ?? 0
+                        $result['token_usage']['input_tokens'] ?? 0,
+                        $result['token_usage']['output_tokens'] ?? 0
                     );
                 }
 

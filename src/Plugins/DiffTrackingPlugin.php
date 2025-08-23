@@ -28,15 +28,71 @@ use Kargnas\LaravelAiTranslator\Storage\FileStorage;
  * - Metadata and timestamps
  * - Version tracking for rollback capabilities
  */
-class DiffTrackingPlugin extends AbstractObserverPlugin
+class DiffTrackingPlugin extends AbstractMiddlewarePlugin
 {
-    
     protected int $priority = 95; // Very high priority to run early
 
     /**
      * @var StorageInterface Storage backend for state persistence
      */
     protected StorageInterface $storage;
+
+    /**
+     * @var array<string, array> Per-locale state tracking
+     */
+    protected array $localeStates = [];
+
+    /**
+     * @var array Original texts before filtering
+     */
+    protected array $originalTexts = [];
+
+    /**
+     * Get the stage this plugin should execute in
+     */
+    protected function getStage(): string
+    {
+        return 'diff_detection';
+    }
+
+    /**
+     * Handle the middleware execution
+     */
+    public function handle(TranslationContext $context, \Closure $next): mixed
+    {
+        if (!$this->shouldProcess($context)) {
+            return $next($context);
+        }
+
+        $this->initializeStorage();
+        $this->originalTexts = $context->texts;
+        
+        $targetLocales = $this->getTargetLocales($context);
+        if (empty($targetLocales)) {
+            return $next($context);
+        }
+
+        // Process diff detection for each locale
+        $allTextsUnchanged = true;
+        foreach ($targetLocales as $locale) {
+            if ($this->processLocaleState($context, $locale)) {
+                $allTextsUnchanged = false;
+            }
+        }
+        
+        // Skip translation entirely if all texts are unchanged
+        if ($allTextsUnchanged) {
+            $this->info('All texts unchanged across all locales, skipping translation entirely');
+            return $context;
+        }
+        
+        $result = $next($context);
+        
+        // Save updated states after translation
+        $this->saveTranslationStates($context, $targetLocales);
+        
+        return $result;
+    }
 
     /**
      * Get default configuration for diff tracking
@@ -106,182 +162,157 @@ class DiffTrackingPlugin extends AbstractObserverPlugin
     }
 
     /**
-     * Subscribe to pipeline events
-     * 
-     * Defines which events this observer will monitor
+     * Check if processing should proceed
      */
-    public function subscribe(): array
+    protected function shouldProcess(TranslationContext $context): bool
     {
-        return [
-            'translation.started' => 'onTranslationStarted',
-            'translation.completed' => 'onTranslationCompleted',
-            'translation.failed' => 'onTranslationFailed',
-            'stage.diff_detection.started' => 'performDiffDetection',
-        ];
+        return $this->getConfigValue('tracking.enabled', true) && !$this->shouldSkip($context);
     }
 
     /**
-     * Handle translation started event
-     * 
-     * Responsibilities:
-     * - Load previous translation state
-     * - Compare with current texts to find changes
-     * - Mark unchanged items for skipping
-     * - Load cached translations for unchanged items
+     * Get target locales from context
+     */
+    protected function getTargetLocales(TranslationContext $context): array
+    {
+        return (array) $context->request->targetLocales;
+    }
+
+    /**
+     * Process diff detection for a specific locale
      * 
      * @param TranslationContext $context Translation context
+     * @param string $locale Target locale
+     * @return bool True if there are texts to translate, false if all unchanged
      */
-    public function onTranslationStarted(TranslationContext $context): void
+    protected function processLocaleState(TranslationContext $context, string $locale): bool
     {
-        if (!$this->getConfigValue('tracking.enabled', true)) {
-            return;
-        }
-
-        $this->initializeStorage();
-        
-        // Load previous state
-        $stateKey = $this->getStateKey($context);
-        $previousState = $this->storage->get($stateKey);
+        $stateKey = $this->getStateKey($context, $locale);
+        $previousState = $this->loadPreviousState($stateKey);
         
         if (!$previousState) {
-            $this->info('No previous state found, processing all texts');
-            return;
+            $this->info('No previous state found for locale {locale}, processing all texts', ['locale' => $locale]);
+            return true;
         }
 
-        // Detect changes
-        $changes = $this->detectChanges($context->texts, $previousState);
-        
-        // Store diff information
-        $context->setPluginData($this->getName(), [
+        $changes = $this->detectChanges($context->texts, $previousState['texts'] ?? []);
+        $this->localeStates[$locale] = [
+            'state_key' => $stateKey,
             'previous_state' => $previousState,
             'changes' => $changes,
-            'state_key' => $stateKey,
-            'start_time' => microtime(true),
-        ]);
+        ];
 
-        // Apply cached translations for unchanged items
-        $this->applyCachedTranslations($context, $previousState, $changes);
+        $this->applyCachedTranslations($context, $locale, $previousState, $changes);
+        $textsToTranslate = $this->filterTextsForTranslation($context->texts, $changes);
         
-        $this->logDiffStatistics($changes, count($context->texts));
+        $this->logDiffStatistics($locale, $changes, count($context->texts));
+        
+        if (empty($textsToTranslate)) {
+            $this->info('All texts unchanged for locale {locale}', ['locale' => $locale]);
+            return false;
+        }
+        
+        // Update context texts to only include changed/new items
+        $context->texts = $textsToTranslate;
+        
+        return true;
     }
 
     /**
-     * Perform diff detection during dedicated stage
-     * 
-     * This is called during the diff_detection pipeline stage
-     * to modify the texts that need translation
-     * 
-     * @param TranslationContext $context Translation context
+     * Load previous state from storage
      */
-    public function performDiffDetection(TranslationContext $context): void
+    protected function loadPreviousState(string $stateKey): ?array
     {
-        $pluginData = $context->getPluginData($this->getName());
-        
-        if (!$pluginData || !isset($pluginData['changes'])) {
+        return $this->storage->get($stateKey);
+    }
+
+    /**
+     * Apply cached translations for unchanged items
+     */
+    protected function applyCachedTranslations(
+        TranslationContext $context,
+        string $locale,
+        array $previousState,
+        array $changes
+    ): void {
+        if (!$this->getConfigValue('cache.use_cache', true) || empty($changes['unchanged'])) {
             return;
         }
 
-        $changes = $pluginData['changes'];
-        
-        // Filter texts to only changed items
+        $cachedTranslations = $previousState['translations'] ?? [];
+        $appliedCount = 0;
+
+        foreach ($changes['unchanged'] as $key => $text) {
+            if (isset($cachedTranslations[$key])) {
+                $context->addTranslation($locale, $key, $cachedTranslations[$key]);
+                $appliedCount++;
+            }
+        }
+
+        if ($appliedCount > 0) {
+            $this->info('Applied {count} cached translations for {locale}', [
+                'count' => $appliedCount,
+                'locale' => $locale,
+            ]);
+        }
+    }
+
+    /**
+     * Filter texts to only include items that need translation
+     */
+    protected function filterTextsForTranslation(array $texts, array $changes): array
+    {
         $textsToTranslate = [];
-        foreach ($context->texts as $key => $text) {
+        
+        foreach ($texts as $key => $text) {
             if (isset($changes['changed'][$key]) || isset($changes['added'][$key])) {
                 $textsToTranslate[$key] = $text;
             }
         }
-
-        // Store original texts and replace with filtered
-        $pluginData['original_texts'] = $context->texts;
-        $pluginData['filtered_texts'] = $textsToTranslate;
-        $context->setPluginData($this->getName(), $pluginData);
         
-        // Update context with filtered texts
-        $context->texts = $textsToTranslate;
-        
-        $this->info('Filtered texts for translation', [
-            'original_count' => count($pluginData['original_texts']),
-            'filtered_count' => count($textsToTranslate),
-            'skipped' => count($pluginData['original_texts']) - count($textsToTranslate),
-        ]);
+        return $textsToTranslate;
     }
 
     /**
-     * Handle translation completed event
-     * 
-     * Responsibilities:
-     * - Save current state for future diff detection
-     * - Merge new translations with cached ones
-     * - Update version history if enabled
-     * - Clean up old versions if limit exceeded
-     * 
-     * @param TranslationContext $context Translation context
+     * Save translation states for all locales
      */
-    public function onTranslationCompleted(TranslationContext $context): void
+    protected function saveTranslationStates(TranslationContext $context, array $targetLocales): void
     {
-        if (!$this->getConfigValue('tracking.enabled', true)) {
-            return;
-        }
-
-        $pluginData = $context->getPluginData($this->getName());
-        
-        // Restore original texts if they were filtered
-        if (isset($pluginData['original_texts'])) {
-            $context->texts = $pluginData['original_texts'];
-        }
-
-        // Build complete state
-        $state = $this->buildState($context);
-        
-        // Save state
-        $stateKey = $pluginData['state_key'] ?? $this->getStateKey($context);
-        $this->storage->put($stateKey, $state);
-        
-        // Handle versioning
-        if ($this->getConfigValue('tracking.versioning', true)) {
-            $this->saveVersion($context, $state);
-        }
-
-        // Emit statistics
-        if ($pluginData) {
-            $this->emitStatistics($context, $pluginData);
-        }
-        
-        $this->info('Translation state saved', [
-            'key' => $stateKey,
-            'texts' => count($context->texts),
-            'translations' => array_sum(array_map('count', $context->translations)),
-        ]);
-    }
-
-    /**
-     * Handle translation failed event
-     * 
-     * @param TranslationContext $context Translation context
-     */
-    public function onTranslationFailed(TranslationContext $context): void
-    {
-        if ($this->getConfigValue('cache.invalidate_on_error', true)) {
-            $stateKey = $this->getStateKey($context);
-            $this->storage->delete($stateKey);
-            $this->warning('Invalidated cache due to translation failure');
+        foreach ($targetLocales as $locale) {
+            $localeState = $this->localeStates[$locale] ?? null;
+            if (!$localeState) {
+                continue;
+            }
+            
+            $stateKey = $localeState['state_key'];
+            $translations = $context->translations[$locale] ?? [];
+            
+            // Merge with original texts for complete state
+            $completeTexts = $this->originalTexts;
+            $state = $this->buildLocaleState($context, $locale, $completeTexts, $translations);
+            
+            $this->storage->put($stateKey, $state);
+            
+            if ($this->getConfigValue('tracking.versioning', true)) {
+                $this->saveVersion($stateKey, $state);
+            }
+            
+            $this->info('Translation state saved for {locale}', [
+                'locale' => $locale,
+                'key' => $stateKey,
+                'texts' => count($state['texts']),
+                'translations' => count($state['translations']),
+            ]);
         }
     }
 
     /**
      * Detect changes between current and previous texts
      * 
-     * Responsibilities:
-     * - Calculate checksums for all texts
-     * - Compare with previous checksums
-     * - Identify added, changed, and removed items
-     * - Handle checksum normalization options
-     * 
      * @param array $currentTexts Current source texts
-     * @param array $previousState Previous translation state
+     * @param array $previousTexts Previous source texts
      * @return array Change detection results
      */
-    protected function detectChanges(array $currentTexts, array $previousState): array
+    protected function detectChanges(array $currentTexts, array $previousTexts): array
     {
         $changes = [
             'added' => [],
@@ -290,7 +321,7 @@ class DiffTrackingPlugin extends AbstractObserverPlugin
             'unchanged' => [],
         ];
 
-        $previousChecksums = $previousState['checksums'] ?? [];
+        $previousChecksums = $this->calculateChecksums($previousTexts);
         $currentChecksums = $this->calculateChecksums($currentTexts);
 
         // Find added and changed items
@@ -299,7 +330,7 @@ class DiffTrackingPlugin extends AbstractObserverPlugin
                 $changes['added'][$key] = $currentTexts[$key];
             } elseif ($previousChecksums[$key] !== $checksum) {
                 $changes['changed'][$key] = [
-                    'old' => $previousState['texts'][$key] ?? null,
+                    'old' => $previousTexts[$key] ?? null,
                     'new' => $currentTexts[$key],
                 ];
             } else {
@@ -310,7 +341,7 @@ class DiffTrackingPlugin extends AbstractObserverPlugin
         // Find removed items
         foreach ($previousChecksums as $key => $checksum) {
             if (!isset($currentChecksums[$key])) {
-                $changes['removed'][$key] = $previousState['texts'][$key] ?? null;
+                $changes['removed'][$key] = $previousTexts[$key] ?? null;
             }
         }
 
@@ -347,75 +378,41 @@ class DiffTrackingPlugin extends AbstractObserverPlugin
         return $checksums;
     }
 
-    /**
-     * Apply cached translations for unchanged items
-     * 
-     * Responsibilities:
-     * - Load cached translations from previous state
-     * - Apply them to unchanged items
-     * - Mark items as cached for reporting
-     * 
-     * @param TranslationContext $context Translation context
-     * @param array $previousState Previous state
-     * @param array $changes Detected changes
-     */
-    protected function applyCachedTranslations(
-        TranslationContext $context,
-        array $previousState,
-        array $changes
-    ): void {
-        if (!$this->getConfigValue('cache.use_cache', true)) {
-            return;
-        }
-
-        $cachedTranslations = $previousState['translations'] ?? [];
-        $appliedCount = 0;
-
-        foreach ($changes['unchanged'] as $key => $text) {
-            foreach ($cachedTranslations as $locale => $translations) {
-                if (isset($translations[$key])) {
-                    $context->addTranslation($locale, $key, $translations[$key]);
-                    $appliedCount++;
-                }
-            }
-        }
-
-        if ($appliedCount > 0) {
-            $this->info("Applied {$appliedCount} cached translations");
-            $context->metadata['cached_translations'] = $appliedCount;
-        }
-    }
 
     /**
-     * Build state object for storage
-     * 
-     * Creates a comprehensive snapshot of the translation session
+     * Build state object for a specific locale
      * 
      * @param TranslationContext $context Translation context
+     * @param string $locale Target locale
+     * @param array $texts Source texts
+     * @param array $translations Translations for this locale
      * @return array State data
      */
-    protected function buildState(TranslationContext $context): array
-    {
+    protected function buildLocaleState(
+        TranslationContext $context,
+        string $locale,
+        array $texts,
+        array $translations
+    ): array {
         $state = [
-            'texts' => $context->texts,
-            'translations' => $context->translations,
-            'checksums' => $this->calculateChecksums($context->texts),
+            'texts' => $texts,
+            'translations' => $translations,
+            'checksums' => $this->calculateChecksums($texts),
             'timestamp' => time(),
-            'metadata' => [],
+            'metadata' => [
+                'source_locale' => $context->request->sourceLocale,
+                'target_locale' => $locale,
+                'version' => $this->getConfigValue('tracking.version', '1.0.0'),
+            ],
         ];
 
         // Add optional tracking data
         if ($this->getConfigValue('tracking.track_metadata', true)) {
-            $state['metadata'] = $context->metadata;
+            $state['metadata'] = array_merge($state['metadata'], $context->metadata ?? []);
         }
 
         if ($this->getConfigValue('tracking.track_tokens', true)) {
-            $state['token_usage'] = $context->tokenUsage;
-        }
-
-        if ($this->getConfigValue('tracking.track_providers', true)) {
-            // Get MultiProviderPlugin config using class name
-            $state['providers'] = $context->request->getPluginConfig(MultiProviderPlugin::class)['providers'] ?? [];
+            $state['token_usage'] = $context->tokenUsage ?? [];
         }
 
         return $state;
@@ -429,12 +426,12 @@ class DiffTrackingPlugin extends AbstractObserverPlugin
      * @param TranslationContext $context Translation context
      * @return string State key
      */
-    protected function getStateKey(TranslationContext $context): string
+    protected function getStateKey(TranslationContext $context, ?string $locale = null): string
     {
         $parts = [
             'translation_state',
             $context->request->sourceLocale,
-            implode('_', (array)$context->request->targetLocales),
+            $locale ?: implode('_', (array)$context->request->targetLocales),
         ];
 
         // Add tenant ID if present
@@ -453,41 +450,43 @@ class DiffTrackingPlugin extends AbstractObserverPlugin
     /**
      * Save version history
      * 
-     * @param TranslationContext $context Translation context
+     * @param string $stateKey Base state key
      * @param array $state Current state
      */
-    protected function saveVersion(TranslationContext $context, array $state): void
+    protected function saveVersion(string $stateKey, array $state): void
     {
-        $versionKey = $this->getStateKey($context) . ':v:' . time();
+        $versionKey = $stateKey . ':v:' . time();
         $this->storage->put($versionKey, $state);
 
         // Clean up old versions
-        $this->cleanupOldVersions($context);
+        $this->cleanupOldVersions($stateKey);
     }
 
     /**
      * Clean up old versions beyond the limit
      * 
-     * @param TranslationContext $context Translation context
+     * @param string $stateKey Base state key
      */
-    protected function cleanupOldVersions(TranslationContext $context): void
+    protected function cleanupOldVersions(string $stateKey): void
     {
         $maxVersions = $this->getConfigValue('tracking.max_versions', 10);
         
         // This would need implementation based on storage backend
         // For now, we'll skip the cleanup
-        $this->debug("Version cleanup not implemented for current storage driver");
+        $this->debug('Version cleanup not implemented for current storage driver');
     }
 
     /**
-     * Log diff statistics
+     * Log diff statistics for a specific locale
      * 
+     * @param string $locale Target locale
      * @param array $changes Detected changes
      * @param int $totalTexts Total number of texts
      */
-    protected function logDiffStatistics(array $changes, int $totalTexts): void
+    protected function logDiffStatistics(string $locale, array $changes, int $totalTexts): void
     {
         $stats = [
+            'locale' => $locale,
             'total' => $totalTexts,
             'added' => count($changes['added']),
             'changed' => count($changes['changed']),
@@ -499,35 +498,10 @@ class DiffTrackingPlugin extends AbstractObserverPlugin
             ? round((count($changes['unchanged']) / $totalTexts) * 100, 2)
             : 0;
 
-        $this->info("Diff detection complete: {$percentUnchanged}% unchanged", $stats);
-        
-        // Emit event with statistics
-        $this->emit('diff.statistics', $stats);
-    }
-
-    /**
-     * Emit performance statistics
-     * 
-     * @param TranslationContext $context Translation context
-     * @param array $pluginData Plugin data
-     */
-    protected function emitStatistics(TranslationContext $context, ?array $pluginData): void
-    {
-        if (!$pluginData || !isset($pluginData['changes'])) {
-            return;
-        }
-
-        $changes = $pluginData['changes'];
-        $totalOriginal = count($pluginData['original_texts'] ?? $context->texts);
-        $savedTranslations = count($changes['unchanged']);
-        $costSavings = $savedTranslations / max($totalOriginal, 1);
-
-        $this->emit('diff.performance', [
-            'total_texts' => $totalOriginal,
-            'translations_saved' => $savedTranslations,
-            'cost_savings_percent' => round($costSavings * 100, 2),
-            'processing_time' => microtime(true) - ($pluginData['start_time'] ?? 0),
-        ]);
+        $this->info('Diff detection complete for {locale}: {percent}% unchanged', [
+            'locale' => $locale,
+            'percent' => $percentUnchanged,
+        ] + $stats);
     }
 
     /**
@@ -554,5 +528,25 @@ class DiffTrackingPlugin extends AbstractObserverPlugin
         $this->initializeStorage();
         $this->storage->clear();
         $this->info('All translation cache cleared');
+    }
+
+    /**
+     * Handle translation failed - invalidate cache if configured
+     * 
+     * @param TranslationContext $context Translation context
+     */
+    public function onTranslationFailed(TranslationContext $context): void
+    {
+        if (!$this->getConfigValue('cache.invalidate_on_error', true)) {
+            return;
+        }
+
+        $targetLocales = $this->getTargetLocales($context);
+        foreach ($targetLocales as $locale) {
+            $stateKey = $this->getStateKey($context, $locale);
+            $this->storage->delete($stateKey);
+        }
+        
+        $this->warning('Invalidated cache due to translation failure');
     }
 }

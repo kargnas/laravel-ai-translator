@@ -78,9 +78,11 @@ class TranslationContext
      * @var array Token usage tracking
      */
     public array $tokenUsage = [
-        'input' => 0,
-        'output' => 0,
-        'total' => 0,
+        'input_tokens' => 0,
+        'output_tokens' => 0,
+        'total_tokens' => 0,
+        'cache_creation_input_tokens' => 0,
+        'cache_read_input_tokens' => 0,
     ];
 
     /**
@@ -172,9 +174,9 @@ class TranslationContext
      */
     public function addTokenUsage(int $input, int $output): void
     {
-        $this->tokenUsage['input'] += $input;
-        $this->tokenUsage['output'] += $output;
-        $this->tokenUsage['total'] = $this->tokenUsage['input'] + $this->tokenUsage['output'];
+        $this->tokenUsage['input_tokens'] += $input;
+        $this->tokenUsage['output_tokens'] += $output;
+        $this->tokenUsage['total_tokens'] = $this->tokenUsage['input_tokens'] + $this->tokenUsage['output_tokens'];
     }
 
     /**
@@ -192,6 +194,14 @@ class TranslationContext
     {
         $endTime = $this->endTime ?? microtime(true);
         return $endTime - $this->startTime;
+    }
+
+    /**
+     * Get the original translation request.
+     */
+    public function getRequest(): TranslationRequest
+    {
+        return $this->request;
     }
 
     /**

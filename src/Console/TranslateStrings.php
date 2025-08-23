@@ -285,14 +285,14 @@ class TranslateStrings extends Command
                     $targetFile = str_replace("/{$this->sourceLocale}/", "/{$locale}/", $file);
                     $targetTransformer = new PHPLangTransformer($targetFile);
 
-                    foreach ($translations as $key => $value) {
-                        $targetTransformer->setTranslation($key, $value);
+                    // Get translations for the specific locale
+                    $localeTranslations = $translations[$locale] ?? [];
+                    
+                    foreach ($localeTranslations as $key => $value) {
+                        $targetTransformer->updateString($key, $value);
                         $localeTranslatedCount++;
                         $totalTranslatedCount++;
                     }
-
-                    // Save the file
-                    $targetTransformer->save();
 
                     // Update token usage
                     $tokenUsageData = $result->getTokenUsage();
@@ -394,6 +394,7 @@ class TranslateStrings extends Command
             $model = config('ai-translator.ai.model');
             $printer = new TokenUsagePrinter($model);
             $printer->printTokenUsageSummary($this, $this->tokenUsage);
+            $printer->printCostEstimation($this, $this->tokenUsage);
         }
 
         $this->line($this->colors['cyan'].'═══════════════════════════════════════════════════════'.$this->colors['reset']."\n");
@@ -465,7 +466,18 @@ class TranslateStrings extends Command
             }
             return $result;
         } else {
-            $selected = $this->choice($question, $choices, $default);
+            // Convert locale default to array index
+            $defaultIndex = null;
+            if ($default) {
+                foreach ($choices as $index => $choice) {
+                    if (str_starts_with($choice, $default . ' ')) {
+                        $defaultIndex = $index;
+                        break;
+                    }
+                }
+            }
+            
+            $selected = $this->choice($question, $choices, $defaultIndex);
             return explode(' ', $selected)[0];
         }
     }

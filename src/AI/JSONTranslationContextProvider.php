@@ -18,6 +18,13 @@ use RecursiveIteratorIterator;
 class JSONTranslationContextProvider
 {
     /**
+     * Constants for magic numbers
+     */
+    protected const MAX_LINE_BREAKS = 5;
+    protected const SHORT_STRING_LENGTH = 50;
+    protected const PRIORITY_RATIO = 0.7;
+
+    /**
      * Get global translation context for improving consistency
      *
      * @param  string  $sourceLocale  Source language locale code
@@ -168,11 +175,11 @@ class JSONTranslationContextProvider
         // Exclude very long texts with many line breaks
         foreach ($sourceStrings as $key => $value) {
             // Skip very long texts (5+ line breaks)
-            if (substr_count($value, "\n") >= 5) {
+            if ($this->isVeryLongText($value)) {
                 continue;
             }
             
-            if (strlen($value) < 50 && count($prioritizedSource) < $maxItems * 0.7) {
+            if (strlen($value) < self::SHORT_STRING_LENGTH && count($prioritizedSource) < $maxItems * self::PRIORITY_RATIO) {
                 $prioritizedSource[$key] = $value;
                 if (isset($targetStrings[$key])) {
                     $prioritizedTarget[$key] = $targetStrings[$key];
@@ -183,7 +190,7 @@ class JSONTranslationContextProvider
         // Priority 2: Add remaining items (excluding very long texts)
         foreach ($sourceStrings as $key => $value) {
             // Skip very long texts (5+ line breaks)
-            if (substr_count($value, "\n") >= 5) {
+            if ($this->isVeryLongText($value)) {
                 continue;
             }
             
@@ -220,11 +227,11 @@ class JSONTranslationContextProvider
         // Exclude very long texts with many line breaks
         foreach ($sourceStrings as $key => $value) {
             // Skip very long texts (5+ line breaks)
-            if (substr_count($value, "\n") >= 5) {
+            if ($this->isVeryLongText($value)) {
                 continue;
             }
             
-            if (strlen($value) < 50 && count($prioritized) < $maxItems * 0.7) {
+            if (strlen($value) < self::SHORT_STRING_LENGTH && count($prioritized) < $maxItems * self::PRIORITY_RATIO) {
                 $prioritized[$key] = $value;
             }
         }
@@ -232,7 +239,7 @@ class JSONTranslationContextProvider
         // Priority 2: Add remaining items (excluding very long texts)
         foreach ($sourceStrings as $key => $value) {
             // Skip very long texts (5+ line breaks)
-            if (substr_count($value, "\n") >= 5) {
+            if ($this->isVeryLongText($value)) {
                 continue;
             }
             
@@ -258,5 +265,16 @@ class JSONTranslationContextProvider
     protected function getLanguageDirectory(string $baseDirectory, string $locale): string
     {
         return $baseDirectory . '/' . $locale;
+    }
+
+    /**
+     * Check if text is very long (has too many line breaks)
+     * 
+     * @param string $text The text to check
+     * @return bool True if the text is considered very long
+     */
+    protected function isVeryLongText(string $text): bool
+    {
+        return substr_count($text, "\n") >= self::MAX_LINE_BREAKS;
     }
 }

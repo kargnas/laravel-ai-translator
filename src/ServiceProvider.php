@@ -9,6 +9,8 @@ use Kargnas\LaravelAiTranslator\Console\TranslateCrowdin;
 use Kargnas\LaravelAiTranslator\Console\TranslateCrowdinParallel;
 use Kargnas\LaravelAiTranslator\Console\TranslateFileCommand;
 use Kargnas\LaravelAiTranslator\Console\TranslateJson;
+use Kargnas\LaravelAiTranslator\Console\TranslateJsonStructured;
+use Kargnas\LaravelAiTranslator\Console\TranslateJsonStructuredParallel;
 use Kargnas\LaravelAiTranslator\Console\TranslateStrings;
 use Kargnas\LaravelAiTranslator\Console\TranslateStringsParallel;
 
@@ -38,6 +40,8 @@ class ServiceProvider extends \Illuminate\Support\ServiceProvider
             TestTranslateCommand::class,
             TranslateFileCommand::class,
             TranslateJson::class,
+            TranslateJsonStructured::class,
+            TranslateJsonStructuredParallel::class,
         ]);
     }
 }

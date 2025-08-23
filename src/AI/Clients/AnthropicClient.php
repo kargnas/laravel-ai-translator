@@ -291,7 +291,7 @@ class AnthropicClient
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, false);
         curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, strtoupper($method));
-        curl_setopt($ch, CURLOPT_TIMEOUT, 300);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 3000);
 
         if (strtoupper($method) !== 'GET') {
             curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));

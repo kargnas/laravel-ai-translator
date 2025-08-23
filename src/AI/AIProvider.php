@@ -288,13 +288,13 @@ class AIProvider
                 $text = "  <string>\n";
                 $text .= "    <key>{$key}</key>\n";
 
-                if (is_string($string)) {
-                    $text .= "    <source><![CDATA[{$string}]]></source>\n";
-                } else {
+                if (\is_array($string)) {
                     $text .= "    <source><![CDATA[{$string['text']}]]></source>\n";
                     if (isset($string['context'])) {
                         $text .= "    <context><![CDATA[{$string['context']}]]></context>\n";
                     }
+                } else {
+                    $text .= "    <source><![CDATA[{$string}]]></source>\n";
                 }
 
                 $text .= '  </string>';

@@ -50,7 +50,7 @@ jobs:
             - Security concerns
             - Test coverage
             
-            Be constructive and helpful in your feedback. Also, generate a commit message for this PR. (title and message - be concise)
+            Be constructive and helpful in your feedback. Also, generate a commit message for this PR to squash. (title and message - be concise)
 
           # Optional: Use sticky comments to make Claude reuse the same comment on subsequent pushes to the same PR
           # use_sticky_comment: true

@@ -273,8 +273,12 @@ class JSONTranslationContextProvider
      * @param string $text The text to check
      * @return bool True if the text is considered very long
      */
-    protected function isVeryLongText(string $text): bool
+    protected function isVeryLongText(?string $text): bool
     {
+        if (is_null($text)) {
+            return false;
+        }
+
         return substr_count($text, "\n") >= self::MAX_LINE_BREAKS;
     }
 }

@@ -35,7 +35,9 @@ class TranslateJsonStructured extends Command
      * Constants for magic numbers
      */
     protected const MAX_LINE_BREAKS = 5;
+
     protected const SHORT_STRING_LENGTH = 50;
+
     protected const PRIORITY_RATIO = 0.7;
 
     /**
@@ -289,13 +291,13 @@ class TranslateJsonStructured extends Command
                 // Calculate relative path from source directory
                 $sourceBaseDir = $this->sourceDirectory.'/'.$this->sourceLocale;
                 $relativePath = str_replace($sourceBaseDir.'/', '', $file);
-                
+
                 // Target file path (maintaining directory structure)
                 $outputFile = $this->getOutputDirectoryLocale($locale).'/'.$relativePath;
-                
+
                 // Create output directory if it doesn't exist
                 $outputDir = dirname($outputFile);
-                if (!is_dir($outputDir)) {
+                if (! is_dir($outputDir)) {
                     mkdir($outputDir, 0755, true);
                 }
 
@@ -324,13 +326,14 @@ class TranslateJsonStructured extends Command
                         if ($targetStringTransformer->isTranslated($key)) {
                             return false;
                         }
-                        
+
                         // Skip very long texts (5+ line breaks)
                         if ($this->isVeryLongText($value)) {
                             $this->line($this->colors['gray']."    ⏩ Skipping very long text: {$key}".$this->colors['reset']);
+
                             return false;
                         }
-                        
+
                         return true;
                     })
                     ->toArray();
@@ -445,7 +448,7 @@ class TranslateJsonStructured extends Command
         // Remove source directory path to display relative path
         $sourceBaseDir = $this->sourceDirectory.'/'.$this->sourceLocale;
         $relativeFile = str_replace($sourceBaseDir.'/', '', $sourceFile);
-        
+
         $this->line("\n".$this->colors['purple_bg'].$this->colors['white'].$this->colors['bold'].' File Translation '.$this->colors['reset']);
         $this->line($this->colors['yellow'].'  File: '.
             $this->colors['reset'].$this->colors['bold'].$relativeFile.
@@ -727,7 +730,7 @@ class TranslateJsonStructured extends Command
         $directories = array_diff(scandir($root), ['.', '..']);
         // Filter only directories and exclude those starting with _
         $directories = array_filter($directories, function ($directory) use ($root) {
-            return is_dir($root.'/'.$directory) && !str_starts_with($directory, '_');
+            return is_dir($root.'/'.$directory) && ! str_starts_with($directory, '_');
         });
 
         return collect($directories)->values()->toArray();
@@ -747,36 +750,36 @@ class TranslateJsonStructured extends Command
     public function getStringFilePaths(string $locale): array
     {
         $root = $this->sourceDirectory.'/'.$locale;
-        
-        if (!is_dir($root)) {
+
+        if (! is_dir($root)) {
             return [];
         }
-        
+
         return $this->getAllJsonFiles($root);
     }
-    
+
     /**
      * Recursively find all JSON files in a directory
      */
     protected function getAllJsonFiles(string $directory): array
     {
         $files = [];
-        
-        if (!is_dir($directory)) {
+
+        if (! is_dir($directory)) {
             return [];
         }
-        
+
         $iterator = new RecursiveIteratorIterator(
             new RecursiveDirectoryIterator($directory, RecursiveDirectoryIterator::SKIP_DOTS),
             RecursiveIteratorIterator::SELF_FIRST
         );
-        
+
         foreach ($iterator as $file) {
             if ($file->isFile() && $file->getExtension() === 'json') {
                 $files[] = $file->getPathname();
             }
         }
-        
+
         return $files;
     }
 
@@ -806,12 +809,16 @@ class TranslateJsonStructured extends Command
 
     /**
      * Check if text is very long (has too many line breaks)
-     * 
-     * @param string $text The text to check
+     *
+     * @param  string|null  $text  The text to check
      * @return bool True if the text is considered very long
      */
-    protected function isVeryLongText(string $text): bool
+    protected function isVeryLongText(?string $text): bool
     {
+        if (is_null($text)) {
+            return false;
+        }
+
         return substr_count($text, "\n") >= self::MAX_LINE_BREAKS;
     }
 }

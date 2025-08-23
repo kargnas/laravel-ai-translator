@@ -8,7 +8,7 @@ class XMLParser
 
     public function parse(string $xml): void
     {
-        $this->parsedData = ['key' => [], 'trx' => []];
+        $this->parsedData = ['key' => [], 'trx' => [], 'comment' => []];
         
         // Simple pattern matching for <item> tags
         if (preg_match_all('/<item>(.*?)<\/item>/s', $xml, $matches)) {
@@ -29,6 +29,12 @@ class XMLParser
             
             $this->parsedData['key'][] = ['content' => $key];
             $this->parsedData['trx'][] = ['content' => $trx];
+            
+            // Extract comment if exists
+            if (preg_match('/<comment><!\[CDATA\[(.*?)\]\]><\/comment>/s', $itemContent, $commentMatch)) {
+                $comment = $this->unescapeContent($commentMatch[1]);
+                $this->parsedData['comment'][] = ['content' => $comment];
+            }
         }
     }
 

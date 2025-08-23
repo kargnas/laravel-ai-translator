@@ -22,7 +22,7 @@
         }
     ],
     "require": {
-        "php": "^8.1",
+        "php": "^8.2",
         "crowdin/crowdin-api-client": "^1.14",
         "google-gemini-php/client": "^1.0|^2.0",
         "guzzlehttp/guzzle": "^6.0|^7.0",

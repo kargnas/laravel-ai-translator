@@ -8,6 +8,7 @@ use Kargnas\LaravelAiTranslator\TranslationBuilder;
 use Kargnas\LaravelAiTranslator\Support\Language\LanguageConfig;
 use Kargnas\LaravelAiTranslator\Support\Printer\TokenUsagePrinter;
 use Kargnas\LaravelAiTranslator\Transformers\JSONLangTransformer;
+use Kargnas\LaravelAiTranslator\Plugins\PromptPlugin;
 
 /**
  * Command to translate root JSON language files using the new plugin-based architecture
@@ -248,6 +249,7 @@ class TranslateJson extends Command
                     $builder = TranslationBuilder::make()
                         ->from($this->sourceLocale)
                         ->to($locale)
+                        ->withPlugin(new PromptPlugin())
                         ->trackChanges(); // Enable diff tracking for efficiency
 
                     // Configure providers from config
@@ -281,6 +283,34 @@ class TranslateJson extends Command
 
                     // Execute translation
                     $result = $builder->translate($chunk->toArray());
+                    
+                    // Show prompts if requested
+                    if ($this->option('show-prompt')) {
+                        $pluginData = $result->getMetadata('plugin_data');
+                        if ($pluginData) {
+                            $systemPrompt = $pluginData['system_prompt'] ?? null;
+                            $userPrompt = $pluginData['user_prompt'] ?? null;
+                            
+                            if ($systemPrompt || $userPrompt) {
+                                $this->line("\n" . str_repeat('═', 80));
+                                $this->line($this->colors['purple'] . "AI PROMPTS" . $this->colors['reset']);
+                                $this->line(str_repeat('═', 80));
+                                
+                                if ($systemPrompt) {
+                                    $this->line($this->colors['cyan'] . "System Prompt:" . $this->colors['reset']);
+                                    $this->line($this->colors['gray'] . $systemPrompt . $this->colors['reset']);
+                                    $this->line("");
+                                }
+                                
+                                if ($userPrompt) {
+                                    $this->line($this->colors['cyan'] . "User Prompt:" . $this->colors['reset']);
+                                    $this->line($this->colors['gray'] . $userPrompt . $this->colors['reset']);
+                                }
+                                
+                                $this->line(str_repeat('═', 80) . "\n");
+                            }
+                        }
+                    }
 
                     // Process results
                     $translations = $result->getTranslations();
@@ -295,9 +325,11 @@ class TranslateJson extends Command
 
                     // Update token usage
                     $tokenUsageData = $result->getTokenUsage();
-                    $this->tokenUsage['input_tokens'] += $tokenUsageData['input'] ?? 0;
-                    $this->tokenUsage['output_tokens'] += $tokenUsageData['output'] ?? 0;
-                    $this->tokenUsage['total_tokens'] += $tokenUsageData['total'] ?? 0;
+                    $this->tokenUsage['input_tokens'] += $tokenUsageData['input_tokens'] ?? 0;
+                    $this->tokenUsage['output_tokens'] += $tokenUsageData['output_tokens'] ?? 0;
+                    $this->tokenUsage['cache_creation_input_tokens'] += $tokenUsageData['cache_creation_input_tokens'] ?? 0;
+                    $this->tokenUsage['cache_read_input_tokens'] += $tokenUsageData['cache_read_input_tokens'] ?? 0;
+                    $this->tokenUsage['total_tokens'] += $tokenUsageData['total_tokens'] ?? 0;
 
                 } catch (\Exception $e) {
                     $this->error("Translation failed for chunk {$chunkNumber}: " . $e->getMessage());

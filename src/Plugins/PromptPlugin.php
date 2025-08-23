@@ -191,24 +191,71 @@ class PromptPlugin extends AbstractMiddlewarePlugin
      */
     protected function getTranslationContext(TranslationContext $context): string
     {
-        // This could be populated by a separate context plugin
-        $translationContext = $context->getPluginData('global_translation_context') ?? [];
+        $csvRows = [];
+        $request = $context->getRequest();
         
-        if (empty($translationContext)) {
-            return '';
+        // Get filename from metadata
+        $filename = $request->getMetadata('filename', 'unknown');
+        if ($filename !== 'unknown') {
+            // Remove extension for cleaner display
+            $filename = pathinfo($filename, PATHINFO_FILENAME);
         }
         
-        $contextStrings = [];
-        foreach ($translationContext as $file => $translations) {
-            $contextStrings[] = "File: {$file}";
-            foreach ($translations as $key => $translation) {
-                if (is_array($translation) && isset($translation['source'], $translation['target'])) {
-                    $contextStrings[] = "  {$key}: \"{$translation['source']}\" → \"{$translation['target']}\"";
+        // Add CSV header
+        $csvRows[] = "file,key,text";
+        
+        // Add current source texts as context
+        $texts = $request->getTexts();
+        if (!empty($texts)) {
+            foreach ($texts as $key => $text) {
+                // Escape text for CSV format
+                $escapedText = $this->escapeCsvValue($text);
+                $escapedKey = $this->escapeCsvValue($key);
+                $escapedFilename = $this->escapeCsvValue($filename);
+                $csvRows[] = "{$escapedFilename},{$escapedKey},{$escapedText}";
+            }
+        }
+        
+        // Also include any existing translations from context (e.g., from other files)
+        $globalContext = $context->getPluginData('global_translation_context') ?? [];
+        foreach ($globalContext as $file => $translations) {
+            if ($file !== $filename) { // Don't duplicate current file
+                $escapedFile = $this->escapeCsvValue($file);
+                foreach ($translations as $key => $translation) {
+                    $text = '';
+                    if (is_array($translation) && isset($translation['source'])) {
+                        $text = $translation['source'];
+                    } elseif (is_string($translation)) {
+                        $text = $translation;
+                    }
+                    
+                    if ($text) {
+                        $escapedText = $this->escapeCsvValue($text);
+                        $escapedKey = $this->escapeCsvValue($key);
+                        $csvRows[] = "{$escapedFile},{$escapedKey},{$escapedText}";
+                    }
                 }
             }
         }
         
-        return implode("\n", $contextStrings);
+        return implode("\n", $csvRows);
+    }
+    
+    /**
+     * Escape value for CSV format
+     */
+    protected function escapeCsvValue(string $value): string
+    {
+        // If value contains comma, double quote, or newline, wrap in quotes and escape quotes
+        if (strpos($value, ',') !== false || 
+            strpos($value, '"') !== false || 
+            strpos($value, "\n") !== false ||
+            strpos($value, "\r") !== false) {
+            // Double any existing quotes and wrap in quotes
+            $value = str_replace('"', '""', $value);
+            return '"' . $value . '"';
+        }
+        return $value;
     }
 
     /**

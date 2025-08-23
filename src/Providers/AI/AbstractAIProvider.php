@@ -96,14 +96,18 @@ abstract class AbstractAIProvider
      * 
      * @param int $inputTokens Input tokens used
      * @param int $outputTokens Output tokens generated
+     * @param int $cacheCreationTokens Cache creation tokens (optional)
+     * @param int $cacheReadTokens Cache read tokens (optional)
      * @return array Formatted token usage
      */
-    protected function formatTokenUsage(int $inputTokens, int $outputTokens): array
+    protected function formatTokenUsage(int $inputTokens, int $outputTokens, int $cacheCreationTokens = 0, int $cacheReadTokens = 0): array
     {
         return [
             'input_tokens' => $inputTokens,
             'output_tokens' => $outputTokens,
             'total_tokens' => $inputTokens + $outputTokens,
+            'cache_creation_input_tokens' => $cacheCreationTokens,
+            'cache_read_input_tokens' => $cacheReadTokens,
             'provider' => $this->getProviderName(),
         ];
     }

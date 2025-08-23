@@ -405,6 +405,7 @@ class TranslationBuilder
                 'warnings' => $context->warnings,
                 'duration' => $context->getDuration(),
                 'outputs' => $outputs,
+                'plugin_data' => $context->pluginData,  // Include plugin data for access to prompts
             ]
         );
     }

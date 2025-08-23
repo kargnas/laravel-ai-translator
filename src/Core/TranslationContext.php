@@ -172,10 +172,12 @@ class TranslationContext
     /**
      * Update token usage.
      */
-    public function addTokenUsage(int $input, int $output): void
+    public function addTokenUsage(int $input, int $output, int $cacheCreation = 0, int $cacheRead = 0): void
     {
         $this->tokenUsage['input_tokens'] += $input;
         $this->tokenUsage['output_tokens'] += $output;
+        $this->tokenUsage['cache_creation_input_tokens'] += $cacheCreation;
+        $this->tokenUsage['cache_read_input_tokens'] += $cacheRead;
         $this->tokenUsage['total_tokens'] = $this->tokenUsage['input_tokens'] + $this->tokenUsage['output_tokens'];
     }
 

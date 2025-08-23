@@ -9,8 +9,13 @@ return [
 
     'ai' => [
         'provider' => 'anthropic',
-        'model' => 'claude-3-5-sonnet-latest', // Best result. Recommend for production.
+        'model' => 'claude-sonnet-4-20250514', // Best result. Recommend for production.
         'api_key' => env('ANTHROPIC_API_KEY'),
+        
+
+        // 'provider' => 'mock',
+        // 'model' => 'mock',
+        // 'api_key' => 'test',
 
         // claude-3-haiku
         // 'provider' => 'anthropic',
@@ -34,8 +39,8 @@ return [
 
         // Additional options
         // 'retries' => 5,
-        // 'max_tokens' => 4096,
-        // 'use_extended_thinking' => false, // Extended Thinking 기능 사용 여부 (claude-3-7-sonnet-latest 모델만 지원)
+        'max_tokens' => 64000,
+        'use_extended_thinking' => true, // Extended Thinking 기능 사용 여부 (claude-3-7-sonnet-latest 모델만 지원)
         // 'disable_stream' => true, // Disable streaming mode for better error messages
 
         // 'prompt_custom_system_file_path' => null, // Full path to your own custom prompt-system.txt - i.e. resource_path('prompt-system.txt')

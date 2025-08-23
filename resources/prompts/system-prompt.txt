@@ -123,6 +123,6 @@ Any uncertainty in following these rules requires a <comment> tag explanation.
 - For repeated phrases or common elements across multiple strings, ensure translations are identical.
 </batch_processing>
 
-<global_translation_context_in_source_language>
+<global_translation_context_in_source_language format="csv">
 {translationContextInSourceLanguage}
 </global_translation_context_in_source_language>

@@ -279,6 +279,34 @@ class TranslateStrings extends Command
 
                     // Execute translation
                     $result = $builder->translate($strings);
+                    
+                    // Show prompts if requested
+                    if ($this->option('show-prompt')) {
+                        $pluginData = $result->getMetadata('plugin_data');
+                        if ($pluginData) {
+                            $systemPrompt = $pluginData['system_prompt'] ?? null;
+                            $userPrompt = $pluginData['user_prompt'] ?? null;
+                            
+                            if ($systemPrompt || $userPrompt) {
+                                $this->line("\n" . str_repeat('═', 80));
+                                $this->line($this->colors['purple'] . "AI PROMPTS" . $this->colors['reset']);
+                                $this->line(str_repeat('═', 80));
+                                
+                                if ($systemPrompt) {
+                                    $this->line($this->colors['cyan'] . "System Prompt:" . $this->colors['reset']);
+                                    $this->line($this->colors['gray'] . $systemPrompt . $this->colors['reset']);
+                                    $this->line("");
+                                }
+                                
+                                if ($userPrompt) {
+                                    $this->line($this->colors['cyan'] . "User Prompt:" . $this->colors['reset']);
+                                    $this->line($this->colors['gray'] . $userPrompt . $this->colors['reset']);
+                                }
+                                
+                                $this->line(str_repeat('═', 80) . "\n");
+                            }
+                        }
+                    }
 
                     // Process results and save to target file
                     $translations = $result->getTranslations();
@@ -296,6 +324,11 @@ class TranslateStrings extends Command
 
                     // Update token usage
                     $tokenUsageData = $result->getTokenUsage();
+                    
+                    // Debug: Print raw token usage
+                    $this->line("\n" . $this->colors['yellow'] . "[DEBUG] Raw Token Usage:" . $this->colors['reset']);
+                    $this->line($this->colors['gray'] . json_encode($tokenUsageData, JSON_PRETTY_PRINT) . $this->colors['reset']);
+                    
                     $this->tokenUsage['input_tokens'] += $tokenUsageData['input_tokens'] ?? 0;
                     $this->tokenUsage['output_tokens'] += $tokenUsageData['output_tokens'] ?? 0;
                     $this->tokenUsage['cache_creation_input_tokens'] += $tokenUsageData['cache_creation_input_tokens'] ?? 0;
@@ -389,8 +422,11 @@ class TranslateStrings extends Command
         $this->line($this->colors['bold'].'Translation Summary'.$this->colors['reset']);
         $this->line($this->colors['cyan'].'═══════════════════════════════════════════════════════'.$this->colors['reset']);
 
-        // Display token usage
-        if ($this->tokenUsage['total_tokens'] > 0) {
+        // Display raw token usage
+        if ($this->tokenUsage['total_tokens'] > 0 || $this->tokenUsage['input_tokens'] > 0) {
+            $this->line("\n" . $this->colors['yellow'] . "[DEBUG] Total Raw Token Usage:" . $this->colors['reset']);
+            $this->line($this->colors['gray'] . json_encode($this->tokenUsage, JSON_PRETTY_PRINT) . $this->colors['reset'] . "\n");
+            
             $model = config('ai-translator.ai.model');
             $printer = new TokenUsagePrinter($model);
             $printer->printTokenUsageSummary($this, $this->tokenUsage);

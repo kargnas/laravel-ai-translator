@@ -2,13 +2,13 @@
 
 namespace Kargnas\LaravelAiTranslator\Plugins;
 
-use Kargnas\LaravelAiTranslator\Core\TranslationContext;
 use Kargnas\LaravelAiTranslator\Contracts\StorageInterface;
+use Kargnas\LaravelAiTranslator\Core\TranslationContext;
 use Kargnas\LaravelAiTranslator\Storage\FileStorage;
 
 /**
  * DiffTrackingPlugin - Tracks changes between translation sessions to avoid retranslation
- * 
+ *
  * Core Responsibilities:
  * - Maintains state of previously translated content
  * - Detects changes in source texts since last translation
@@ -16,11 +16,11 @@ use Kargnas\LaravelAiTranslator\Storage\FileStorage;
  * - Stores translation history with timestamps and checksums
  * - Provides cache invalidation based on content changes
  * - Supports multiple storage backends (file, database, Redis)
- * 
+ *
  * Performance Impact:
  * This plugin can reduce translation costs by 60-80% in typical scenarios
  * where only a small portion of content changes between updates.
- * 
+ *
  * State Management:
  * The plugin stores a snapshot of each translation session including:
  * - Source text checksums
@@ -60,13 +60,13 @@ class DiffTrackingPlugin extends AbstractMiddlewarePlugin
      */
     public function handle(TranslationContext $context, \Closure $next): mixed
     {
-        if (!$this->shouldProcess($context)) {
+        if (! $this->shouldProcess($context)) {
             return $next($context);
         }
 
         $this->initializeStorage();
         $this->originalTexts = $context->texts;
-        
+
         $targetLocales = $this->getTargetLocales($context);
         if (empty($targetLocales)) {
             return $next($context);
@@ -74,29 +74,50 @@ class DiffTrackingPlugin extends AbstractMiddlewarePlugin
 
         // Process diff detection for each locale
         $allTextsUnchanged = true;
+        $textsNeededByKey = [];  // Track which texts are needed by any locale
+        
         foreach ($targetLocales as $locale) {
-            if ($this->processLocaleState($context, $locale)) {
+            $localeNeedsTranslation = $this->processLocaleState($context, $locale);
+            
+            if ($localeNeedsTranslation) {
                 $allTextsUnchanged = false;
+                
+                // Get the texts that need translation for this locale
+                $changes = $this->localeStates[$locale]['changes'] ?? [];
+                $textsToTranslate = $this->filterTextsForTranslation($this->originalTexts, $changes);
+                
+                // Mark these texts as needed
+                foreach ($textsToTranslate as $key => $text) {
+                    $textsNeededByKey[$key] = $text;
+                }
             }
         }
-        
+
         // Skip translation entirely if all texts are unchanged
         if ($allTextsUnchanged) {
             $this->info('All texts unchanged across all locales, skipping translation entirely');
+            // If caching is enabled, translations were already applied
+            // Save states to update timestamps
+            $this->saveTranslationStates($context, $targetLocales);
             return $context;
+        }
+
+        // Update context to only include texts that need translation
+        if (!empty($textsNeededByKey)) {
+            $context->texts = $textsNeededByKey;
         }
         
         $result = $next($context);
-        
+
         // Save updated states after translation
         $this->saveTranslationStates($context, $targetLocales);
-        
+
         return $result;
     }
 
     /**
      * Get default configuration for diff tracking
-     * 
+     *
      * Defines storage settings and tracking behavior
      */
     protected function getDefaultConfig(): array
@@ -116,7 +137,7 @@ class DiffTrackingPlugin extends AbstractMiddlewarePlugin
                 'max_versions' => 10,
             ],
             'cache' => [
-                'use_cache' => true,
+                'use_cache' => false,  // Disabled by default - enable to reuse unchanged translations
                 'cache_ttl' => 86400, // 24 hours
                 'invalidate_on_error' => true,
             ],
@@ -130,31 +151,31 @@ class DiffTrackingPlugin extends AbstractMiddlewarePlugin
 
     /**
      * Initialize storage backend
-     * 
+     *
      * Creates appropriate storage instance based on configuration
      */
     protected function initializeStorage(): void
     {
-        if (!isset($this->storage)) {
+        if (! isset($this->storage)) {
             $driver = $this->getConfigValue('storage.driver', 'file');
-            
+
             switch ($driver) {
                 case 'file':
                     $this->storage = new FileStorage(
                         $this->getConfigValue('storage.path', 'storage/app/ai-translator/states')
                     );
                     break;
-                    
+
                 case 'database':
                     // Would use DatabaseStorage implementation
                     $this->storage = new FileStorage('storage/app/ai-translator/states');
                     break;
-                    
+
                 case 'redis':
                     // Would use RedisStorage implementation
                     $this->storage = new FileStorage('storage/app/ai-translator/states');
                     break;
-                    
+
                 default:
                     throw new \InvalidArgumentException("Unknown storage driver: {$driver}");
             }
@@ -166,7 +187,7 @@ class DiffTrackingPlugin extends AbstractMiddlewarePlugin
      */
     protected function shouldProcess(TranslationContext $context): bool
     {
-        return $this->getConfigValue('tracking.enabled', true) && !$this->shouldSkip($context);
+        return $this->getConfigValue('tracking.enabled', true) && ! $this->shouldSkip($context);
     }
 
     /**
@@ -179,42 +200,56 @@ class DiffTrackingPlugin extends AbstractMiddlewarePlugin
 
     /**
      * Process diff detection for a specific locale
-     * 
-     * @param TranslationContext $context Translation context
-     * @param string $locale Target locale
+     *
+     * @param  TranslationContext  $context  Translation context
+     * @param  string  $locale  Target locale
      * @return bool True if there are texts to translate, false if all unchanged
      */
     protected function processLocaleState(TranslationContext $context, string $locale): bool
     {
         $stateKey = $this->getStateKey($context, $locale);
         $previousState = $this->loadPreviousState($stateKey);
-        
-        if (!$previousState) {
+
+        if (! $previousState) {
             $this->info('No previous state found for locale {locale}, processing all texts', ['locale' => $locale]);
+            // Store empty state info for this locale
+            $this->localeStates[$locale] = [
+                'state_key' => $stateKey,
+                'previous_state' => null,
+                'changes' => [
+                    'added' => $this->originalTexts,
+                    'changed' => [],
+                    'removed' => [],
+                    'unchanged' => [],
+                ],
+            ];
             return true;
         }
 
-        $changes = $this->detectChanges($context->texts, $previousState['texts'] ?? []);
+        // Detect changes between current and previous texts
+        $changes = $this->detectChanges($this->originalTexts, $previousState['texts'] ?? []);
+        
+        // Store state info for this locale
         $this->localeStates[$locale] = [
             'state_key' => $stateKey,
             'previous_state' => $previousState,
             'changes' => $changes,
         ];
 
+        // Apply cached translations for unchanged items if caching is enabled
         $this->applyCachedTranslations($context, $locale, $previousState, $changes);
-        $textsToTranslate = $this->filterTextsForTranslation($context->texts, $changes);
         
-        $this->logDiffStatistics($locale, $changes, count($context->texts));
+        // Log statistics
+        $this->logDiffStatistics($locale, $changes, count($this->originalTexts));
+
+        // Check if any texts need translation
+        $hasChanges = !empty($changes['added']) || !empty($changes['changed']);
         
-        if (empty($textsToTranslate)) {
+        if (!$hasChanges) {
             $this->info('All texts unchanged for locale {locale}', ['locale' => $locale]);
-            return false;
         }
-        
-        // Update context texts to only include changed/new items
-        $context->texts = $textsToTranslate;
-        
-        return true;
+
+        return $hasChanges;
     }
 
     /**
@@ -234,7 +269,7 @@ class DiffTrackingPlugin extends AbstractMiddlewarePlugin
         array $previousState,
         array $changes
     ): void {
-        if (!$this->getConfigValue('cache.use_cache', true) || empty($changes['unchanged'])) {
+        if (! $this->getConfigValue('cache.use_cache', false) || empty($changes['unchanged'])) {
             return;
         }
 
@@ -262,13 +297,13 @@ class DiffTrackingPlugin extends AbstractMiddlewarePlugin
     protected function filterTextsForTranslation(array $texts, array $changes): array
     {
         $textsToTranslate = [];
-        
+
         foreach ($texts as $key => $text) {
             if (isset($changes['changed'][$key]) || isset($changes['added'][$key])) {
                 $textsToTranslate[$key] = $text;
             }
         }
-        
+
         return $textsToTranslate;
     }
 
@@ -279,23 +314,23 @@ class DiffTrackingPlugin extends AbstractMiddlewarePlugin
     {
         foreach ($targetLocales as $locale) {
             $localeState = $this->localeStates[$locale] ?? null;
-            if (!$localeState) {
+            if (! $localeState) {
                 continue;
             }
-            
+
             $stateKey = $localeState['state_key'];
             $translations = $context->translations[$locale] ?? [];
-            
+
             // Merge with original texts for complete state
             $completeTexts = $this->originalTexts;
             $state = $this->buildLocaleState($context, $locale, $completeTexts, $translations);
-            
+
             $this->storage->put($stateKey, $state);
-            
+
             if ($this->getConfigValue('tracking.versioning', true)) {
                 $this->saveVersion($stateKey, $state);
             }
-            
+
             $this->info('Translation state saved for {locale}', [
                 'locale' => $locale,
                 'key' => $stateKey,
@@ -307,9 +342,9 @@ class DiffTrackingPlugin extends AbstractMiddlewarePlugin
 
     /**
      * Detect changes between current and previous texts
-     * 
-     * @param array $currentTexts Current source texts
-     * @param array $previousTexts Previous source texts
+     *
+     * @param  array  $currentTexts  Current source texts
+     * @param  array  $previousTexts  Previous source texts
      * @return array Change detection results
      */
     protected function detectChanges(array $currentTexts, array $previousTexts): array
@@ -326,7 +361,7 @@ class DiffTrackingPlugin extends AbstractMiddlewarePlugin
 
         // Find added and changed items
         foreach ($currentChecksums as $key => $checksum) {
-            if (!isset($previousChecksums[$key])) {
+            if (! isset($previousChecksums[$key])) {
                 $changes['added'][$key] = $currentTexts[$key];
             } elseif ($previousChecksums[$key] !== $checksum) {
                 $changes['changed'][$key] = [
@@ -340,7 +375,7 @@ class DiffTrackingPlugin extends AbstractMiddlewarePlugin
 
         // Find removed items
         foreach ($previousChecksums as $key => $checksum) {
-            if (!isset($currentChecksums[$key])) {
+            if (! isset($currentChecksums[$key])) {
                 $changes['removed'][$key] = $previousTexts[$key] ?? null;
             }
         }
@@ -350,8 +385,8 @@ class DiffTrackingPlugin extends AbstractMiddlewarePlugin
 
     /**
      * Calculate checksums for texts
-     * 
-     * @param array $texts Texts to checksum
+     *
+     * @param  array  $texts  Texts to checksum
      * @return array Checksums by key
      */
     protected function calculateChecksums(array $texts): array
@@ -363,29 +398,28 @@ class DiffTrackingPlugin extends AbstractMiddlewarePlugin
 
         foreach ($texts as $key => $text) {
             $content = $text;
-            
+
             if ($normalizeWhitespace) {
                 $content = preg_replace('/\s+/', ' ', trim($content));
             }
-            
+
             if ($includeKeys) {
-                $content = $key . ':' . $content;
+                $content = "{$key}:{$content}";
             }
-            
+
             $checksums[$key] = hash($algorithm, $content);
         }
 
         return $checksums;
     }
 
-
     /**
      * Build state object for a specific locale
-     * 
-     * @param TranslationContext $context Translation context
-     * @param string $locale Target locale
-     * @param array $texts Source texts
-     * @param array $translations Translations for this locale
+     *
+     * @param  TranslationContext  $context  Translation context
+     * @param  string  $locale  Target locale
+     * @param  array  $texts  Source texts
+     * @param  array  $translations  Translations for this locale
      * @return array State data
      */
     protected function buildLocaleState(
@@ -420,10 +454,10 @@ class DiffTrackingPlugin extends AbstractMiddlewarePlugin
 
     /**
      * Generate state key for storage
-     * 
+     *
      * Creates a unique key based on context parameters
-     * 
-     * @param TranslationContext $context Translation context
+     *
+     * @param  TranslationContext  $context  Translation context
      * @return string State key
      */
     protected function getStateKey(TranslationContext $context, ?string $locale = null): string
@@ -431,7 +465,7 @@ class DiffTrackingPlugin extends AbstractMiddlewarePlugin
         $parts = [
             'translation_state',
             $context->request->sourceLocale,
-            $locale ?: implode('_', (array)$context->request->targetLocales),
+            $locale ?: implode('_', (array) $context->request->targetLocales),
         ];
 
         // Add tenant ID if present
@@ -449,13 +483,13 @@ class DiffTrackingPlugin extends AbstractMiddlewarePlugin
 
     /**
      * Save version history
-     * 
-     * @param string $stateKey Base state key
-     * @param array $state Current state
+     *
+     * @param  string  $stateKey  Base state key
+     * @param  array  $state  Current state
      */
     protected function saveVersion(string $stateKey, array $state): void
     {
-        $versionKey = $stateKey . ':v:' . time();
+        $versionKey = $stateKey.':v:'.time();
         $this->storage->put($versionKey, $state);
 
         // Clean up old versions
@@ -464,13 +498,13 @@ class DiffTrackingPlugin extends AbstractMiddlewarePlugin
 
     /**
      * Clean up old versions beyond the limit
-     * 
-     * @param string $stateKey Base state key
+     *
+     * @param  string  $stateKey  Base state key
      */
     protected function cleanupOldVersions(string $stateKey): void
     {
         $maxVersions = $this->getConfigValue('tracking.max_versions', 10);
-        
+
         // This would need implementation based on storage backend
         // For now, we'll skip the cleanup
         $this->debug('Version cleanup not implemented for current storage driver');
@@ -478,10 +512,10 @@ class DiffTrackingPlugin extends AbstractMiddlewarePlugin
 
     /**
      * Log diff statistics for a specific locale
-     * 
-     * @param string $locale Target locale
-     * @param array $changes Detected changes
-     * @param int $totalTexts Total number of texts
+     *
+     * @param  string  $locale  Target locale
+     * @param  array  $changes  Detected changes
+     * @param  int  $totalTexts  Total number of texts
      */
     protected function logDiffStatistics(string $locale, array $changes, int $totalTexts): void
     {
@@ -494,7 +528,7 @@ class DiffTrackingPlugin extends AbstractMiddlewarePlugin
             'unchanged' => count($changes['unchanged']),
         ];
 
-        $percentUnchanged = $totalTexts > 0 
+        $percentUnchanged = $totalTexts > 0
             ? round((count($changes['unchanged']) / $totalTexts) * 100, 2)
             : 0;
 
@@ -506,17 +540,17 @@ class DiffTrackingPlugin extends AbstractMiddlewarePlugin
 
     /**
      * Invalidate cache for specific keys
-     * 
-     * @param array $keys Keys to invalidate
+     *
+     * @param  array  $keys  Keys to invalidate
      */
     public function invalidateCache(array $keys): void
     {
         $this->initializeStorage();
-        
+
         foreach ($keys as $key) {
             $this->storage->delete($key);
         }
-        
+
         $this->info('Cache invalidated', ['keys' => count($keys)]);
     }
 
@@ -532,12 +566,12 @@ class DiffTrackingPlugin extends AbstractMiddlewarePlugin
 
     /**
      * Handle translation failed - invalidate cache if configured
-     * 
-     * @param TranslationContext $context Translation context
+     *
+     * @param  TranslationContext  $context  Translation context
      */
     public function onTranslationFailed(TranslationContext $context): void
     {
-        if (!$this->getConfigValue('cache.invalidate_on_error', true)) {
+        if (! $this->getConfigValue('cache.invalidate_on_error', true)) {
             return;
         }
 
@@ -546,7 +580,7 @@ class DiffTrackingPlugin extends AbstractMiddlewarePlugin
             $stateKey = $this->getStateKey($context, $locale);
             $this->storage->delete($stateKey);
         }
-        
+
         $this->warning('Invalidated cache due to translation failure');
     }
 }

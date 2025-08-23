@@ -205,7 +205,7 @@ This is a test project for the Laravel AI Translator package.
 
 1. Edit `.env` file and add your AI provider API key:
    ```
-   AI_TRANSLATOR_API_KEY=your-actual-api-key-here
+   ANTHROPIC_API_KEY=your-actual-api-key-here
    ```
 
 2. Choose your AI provider (openai, anthropic, or gemini):
@@ -267,7 +267,7 @@ printf "${YELLOW}🎯 Next Steps:${NC}\n"
 echo ""
 printf "${GREEN}1. Configure your AI provider:${NC}\n"
 printf "   Edit ${BLUE}.env${NC} and add your API key:\n"
-printf "   ${BLUE}AI_TRANSLATOR_API_KEY=your-actual-api-key-here${NC}\n"
+printf "   ${BLUE}ANTHROPIC_API_KEY=your-actual-api-key-here${NC}\n"
 echo ""
 printf "${GREEN}2. Test the translator:${NC}\n"
 printf "   ${BLUE}php artisan ai-translator:test${NC}\n"

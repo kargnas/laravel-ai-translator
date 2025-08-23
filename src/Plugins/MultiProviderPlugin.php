@@ -328,19 +328,32 @@ class MultiProviderPlugin extends AbstractMiddlewarePlugin
                 // Create provider instance
                 $provider = $this->createProvider($config);
                 
+                // Prepare metadata with prompts from plugin data
+                $metadata = $context->metadata;
+                
+                // Add prompts from plugin data if available
+                if ($systemPrompt = $context->getPluginData('system_prompt')) {
+                    $metadata['system_prompt'] = $systemPrompt;
+                }
+                if ($userPrompt = $context->getPluginData('user_prompt')) {
+                    $metadata['user_prompt'] = $userPrompt;
+                }
+                
                 // Execute translation
                 $result = $provider->translate(
                     $context->texts,
                     $context->request->sourceLocale,
                     $locale,
-                    $context->metadata
+                    $metadata
                 );
 
                 // Track token usage
                 if (isset($result['token_usage'])) {
                     $context->addTokenUsage(
                         $result['token_usage']['input_tokens'] ?? 0,
-                        $result['token_usage']['output_tokens'] ?? 0
+                        $result['token_usage']['output_tokens'] ?? 0,
+                        $result['token_usage']['cache_creation_input_tokens'] ?? 0,
+                        $result['token_usage']['cache_read_input_tokens'] ?? 0
                     );
                 }
 

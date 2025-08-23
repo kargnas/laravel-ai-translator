@@ -32,6 +32,13 @@ class TranslateJsonStructured extends Command
     protected $description = 'Translates JSON language files with nested directory structure using LLMs with support for multiple locales, reference languages, chunking for large files, and customizable context settings';
 
     /**
+     * Constants for magic numbers
+     */
+    protected const MAX_LINE_BREAKS = 5;
+    protected const SHORT_STRING_LENGTH = 50;
+    protected const PRIORITY_RATIO = 0.7;
+
+    /**
      * Translation settings
      */
     protected string $sourceLocale;
@@ -181,7 +188,7 @@ class TranslateJsonStructured extends Command
     }
 
     /**
-     * 헤더 출력
+     * Display header
      */
     protected function displayHeader(): void
     {
@@ -191,12 +198,12 @@ class TranslateJsonStructured extends Command
     }
 
     /**
-     * 언어 선택 헬퍼 메서드
+     * Language selection helper method
      *
-     * @param  string  $question  질문
-     * @param  bool  $multiple  다중 선택 여부
-     * @param  string|null  $default  기본값
-     * @return array|string 선택된 언어(들)
+     * @param  string  $question  Question to ask
+     * @param  bool  $multiple  Whether to allow multiple selections
+     * @param  string|null  $default  Default value
+     * @return array|string Selected language(s)
      */
     public function choiceLanguages(string $question, bool $multiple, ?string $default = null): array|string
     {
@@ -230,13 +237,13 @@ class TranslateJsonStructured extends Command
      */
     public function translate(int $maxContextItems = 100): void
     {
-        // 커맨드라인에서 지정된 로케일 가져오기
+        // Get locales specified from command line
         $specifiedLocales = $this->option('locale');
 
-        // 사용 가능한 모든 로케일 가져오기
+        // Get all available locales
         $availableLocales = $this->getExistingLocales();
 
-        // 지정된 로케일이 있으면 검증하고 사용, 없으면 모든 로케일 사용
+        // If locales are specified, validate and use them; otherwise use all locales
         $locales = ! empty($specifiedLocales)
             ? $this->validateAndFilterLocales($specifiedLocales, $availableLocales)
             : $availableLocales;
@@ -252,7 +259,7 @@ class TranslateJsonStructured extends Command
         $totalTranslatedCount = 0;
 
         foreach ($locales as $locale) {
-            // 소스 언어와 같거나 스킵 목록에 있는 언어는 건너뜀
+            // Skip languages that are the same as source or in the skip list
             if ($locale === $this->sourceLocale || in_array($locale, config('ai-translator.skip_locales', []))) {
                 $this->warn('Skipping locale '.$locale.'.');
 
@@ -275,18 +282,18 @@ class TranslateJsonStructured extends Command
             $localeStringCount = 0;
             $localeTranslatedCount = 0;
 
-            // 소스 파일 목록 가져오기
+            // Get source file list
             $files = $this->getStringFilePaths($this->sourceLocale);
 
             foreach ($files as $file) {
-                // 소스 디렉토리에서의 상대 경로 계산
+                // Calculate relative path from source directory
                 $sourceBaseDir = $this->sourceDirectory.'/'.$this->sourceLocale;
                 $relativePath = str_replace($sourceBaseDir.'/', '', $file);
                 
-                // 타겟 파일 경로 (디렉토리 구조 유지)
+                // Target file path (maintaining directory structure)
                 $outputFile = $this->getOutputDirectoryLocale($locale).'/'.$relativePath;
                 
-                // 출력 디렉토리가 없으면 생성
+                // Create output directory if it doesn't exist
                 $outputDir = dirname($outputFile);
                 if (!is_dir($outputDir)) {
                     mkdir($outputDir, 0755, true);
@@ -319,7 +326,7 @@ class TranslateJsonStructured extends Command
                         }
                         
                         // Skip very long texts (5+ line breaks)
-                        if (substr_count($value, "\n") >= 5) {
+                        if ($this->isVeryLongText($value)) {
                             $this->line($this->colors['gray']."    ⏩ Skipping very long text: {$key}".$this->colors['reset']);
                             return false;
                         }
@@ -420,7 +427,7 @@ class TranslateJsonStructured extends Command
     }
 
     /**
-     * 비용 계산 및 표시
+     * Calculate and display cost
      */
     protected function displayCostEstimation(AIProvider $translator): void
     {
@@ -431,11 +438,11 @@ class TranslateJsonStructured extends Command
     }
 
     /**
-     * 파일 정보 표시
+     * Display file information
      */
     protected function displayFileInfo(string $sourceFile, string $locale, string $outputFile): void
     {
-        // 상대 경로 표시를 위해 소스 디렉토리 경로 제거
+        // Remove source directory path to display relative path
         $sourceBaseDir = $this->sourceDirectory.'/'.$this->sourceLocale;
         $relativeFile = str_replace($sourceBaseDir.'/', '', $sourceFile);
         
@@ -491,7 +498,7 @@ class TranslateJsonStructured extends Command
                     return null;
                 }
 
-                // 해당 로케일 디렉토리의 모든 JSON 파일 재귀적으로 가져오기
+                // Recursively get all JSON files from the locale directory
                 $referenceFiles = $this->getAllJsonFiles($referenceLocaleDir);
 
                 if (empty($referenceFiles)) {
@@ -503,7 +510,7 @@ class TranslateJsonStructured extends Command
                 $this->line($this->colors['blue'].'    ℹ Loading reference: '.
                     $this->colors['reset']."{$referenceLocale} - ".count($referenceFiles).' files');
 
-                // 유사한 이름의 파일을 먼저 처리하여 컨텍스트 관련성 향상
+                // Process similarly named files first to improve context relevance
                 usort($referenceFiles, function ($a, $b) use ($currentFileName) {
                     $similarityA = similar_text($currentFileName, basename($a));
                     $similarityB = similar_text($currentFileName, basename($b));
@@ -523,7 +530,7 @@ class TranslateJsonStructured extends Command
                             continue;
                         }
 
-                        // 우선순위 적용 (필요한 경우)
+                        // Apply prioritization if needed
                         if (count($referenceStringList) > 50) {
                             $referenceStringList = $this->getPrioritizedReferenceStrings($referenceStringList, 50);
                         }
@@ -552,20 +559,20 @@ class TranslateJsonStructured extends Command
     }
 
     /**
-     * 레퍼런스 문자열에 우선순위 적용
+     * Apply prioritization to reference strings
      */
     protected function getPrioritizedReferenceStrings(array $strings, int $maxItems): array
     {
         $prioritized = [];
 
-        // 1. 짧은 문자열 우선 (UI 요소, 버튼 등)
+        // 1. Short strings first (UI elements, buttons, etc.)
         foreach ($strings as $key => $value) {
-            if (strlen($value) < 50 && count($prioritized) < $maxItems * 0.7) {
+            if (strlen($value) < self::SHORT_STRING_LENGTH && count($prioritized) < $maxItems * self::PRIORITY_RATIO) {
                 $prioritized[$key] = $value;
             }
         }
 
-        // 2. 나머지 항목 추가
+        // 2. Add remaining items
         foreach ($strings as $key => $value) {
             if (! isset($prioritized[$key]) && count($prioritized) < $maxItems) {
                 $prioritized[$key] = $value;
@@ -618,9 +625,9 @@ class TranslateJsonStructured extends Command
         string $locale,
         array $globalContext
     ): AIProvider {
-        // 파일 정보 표시 제거 (이미 translate() 메서드에서 처리됨)
+        // Remove file info display (already handled in translate() method)
 
-        // 레퍼런스 정보를 적절한 형식으로 변환
+        // Convert reference info to appropriate format
         $references = [];
         foreach ($referenceStringList as $reference) {
             $referenceLocale = $reference['locale'];
@@ -666,14 +673,14 @@ class TranslateJsonStructured extends Command
             }
         });
 
-        // 토큰 사용량 콜백 설정
+        // Set token usage callback
         $translator->setOnTokenUsage(function ($usage) {
             $isFinal = $usage['final'] ?? false;
             $inputTokens = $usage['input_tokens'] ?? 0;
             $outputTokens = $usage['output_tokens'] ?? 0;
             $totalTokens = $usage['total_tokens'] ?? 0;
 
-            // 실시간 토큰 사용량 표시
+            // Display real-time token usage
             $this->line($this->colors['gray'].'    Tokens: '.
                 'Input='.$this->colors['green'].$inputTokens.$this->colors['gray'].', '.
                 'Output='.$this->colors['green'].$outputTokens.$this->colors['gray'].', '.
@@ -681,7 +688,7 @@ class TranslateJsonStructured extends Command
                 $this->colors['reset']);
         });
 
-        // 프롬프트 로깅 콜백 설정
+        // Set prompt logging callback
         if ($this->option('show-prompt')) {
             $translator->setOnPromptGenerated(function ($prompt, PromptType $type) {
                 $typeText = match ($type) {
@@ -698,7 +705,7 @@ class TranslateJsonStructured extends Command
     }
 
     /**
-     * 토큰 사용량 총계 업데이트
+     * Update token usage totals
      */
     protected function updateTokenUsageTotals(array $usage): void
     {
@@ -710,7 +717,7 @@ class TranslateJsonStructured extends Command
     }
 
     /**
-     * 사용 가능한 로케일 목록 가져오기
+     * Get list of available locales
      *
      * @return array|string[]
      */
@@ -718,7 +725,7 @@ class TranslateJsonStructured extends Command
     {
         $root = $this->sourceDirectory;
         $directories = array_diff(scandir($root), ['.', '..']);
-        // 디렉토리만 필터링하고 _로 시작하는 디렉토리 제외
+        // Filter only directories and exclude those starting with _
         $directories = array_filter($directories, function ($directory) use ($root) {
             return is_dir($root.'/'.$directory) && !str_starts_with($directory, '_');
         });
@@ -727,7 +734,7 @@ class TranslateJsonStructured extends Command
     }
 
     /**
-     * 출력 디렉토리 경로 가져오기
+     * Get output directory path
      */
     public function getOutputDirectoryLocale(string $locale): string
     {
@@ -735,7 +742,7 @@ class TranslateJsonStructured extends Command
     }
 
     /**
-     * 문자열 파일 경로 목록 가져오기 (재귀적 JSON 탐색)
+     * Get string file path list (recursive JSON search)
      */
     public function getStringFilePaths(string $locale): array
     {
@@ -749,7 +756,7 @@ class TranslateJsonStructured extends Command
     }
     
     /**
-     * 디렉토리에서 모든 JSON 파일을 재귀적으로 찾기
+     * Recursively find all JSON files in a directory
      */
     protected function getAllJsonFiles(string $directory): array
     {
@@ -774,7 +781,7 @@ class TranslateJsonStructured extends Command
     }
 
     /**
-     * 지정된 로케일 검증 및 필터링
+     * Validate and filter specified locales
      */
     protected function validateAndFilterLocales(array $specifiedLocales, array $availableLocales): array
     {
@@ -795,5 +802,16 @@ class TranslateJsonStructured extends Command
         }
 
         return $validLocales;
+    }
+
+    /**
+     * Check if text is very long (has too many line breaks)
+     * 
+     * @param string $text The text to check
+     * @return bool True if the text is considered very long
+     */
+    protected function isVeryLongText(string $text): bool
+    {
+        return substr_count($text, "\n") >= self::MAX_LINE_BREAKS;
     }
 }

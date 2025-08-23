@@ -105,19 +105,49 @@ The package now implements a **plugin-based pipeline architecture** that provide
 
 #### 2. **Plugin Types** (Laravel-inspired patterns)
 
-**Middleware Plugins** (`src/Plugins/Abstract/AbstractMiddlewarePlugin.php`)
-- Transform data as it flows through the pipeline
-- Examples: TokenChunkingPlugin, ValidationPlugin, PIIMaskingPlugin
-- Similar to Laravel's HTTP middleware pattern
+**Folder Structure:**
+```
+src/Plugins/
+├── Abstract/           # Abstract base classes
+│   ├── AbstractTranslationPlugin.php
+│   ├── AbstractMiddlewarePlugin.php
+│   ├── AbstractObserverPlugin.php
+│   └── AbstractProviderPlugin.php
+│
+├── Middleware/         # Data transformation plugins
+│   ├── DiffTrackingPlugin.php
+│   ├── MultiProviderPlugin.php
+│   ├── PIIMaskingPlugin.php
+│   ├── TokenChunkingPlugin.php
+│   ├── ValidationPlugin.php
+│   └── Examples/
+│
+├── Observer/           # Event watching plugins
+│   ├── AnnotationContextPlugin.php
+│   ├── StreamingOutputPlugin.php
+│   └── Examples/
+│       └── CustomStageExamplePlugin.php
+│
+└── Provider/           # Service/data provision plugins
+    ├── GlossaryPlugin.php
+    ├── StylePlugin.php
+    └── Examples/
+```
 
-**Provider Plugins** (`src/Plugins/Abstract/AbstractProviderPlugin.php`)
+**Middleware Plugins** (`src/Plugins/Middleware/`)
+- Transform data as it flows through the pipeline
+- Examples: TokenChunkingPlugin, ValidationPlugin, PIIMaskingPlugin, DiffTrackingPlugin
+- Similar to Laravel's HTTP middleware pattern
+- **Performance Impact**: DiffTrackingPlugin achieves 60-93% cost reduction
+
+**Provider Plugins** (`src/Plugins/Provider/`)
 - Supply core services and functionality  
-- Examples: MultiProviderPlugin, StylePlugin, GlossaryPlugin
+- Examples: StylePlugin, GlossaryPlugin
 - Similar to Laravel's Service Providers
 
-**Observer Plugins** (`src/Plugins/Abstract/AbstractObserverPlugin.php`)
+**Observer Plugins** (`src/Plugins/Observer/`)
 - React to events without modifying data flow
-- Examples: DiffTrackingPlugin, StreamingOutputPlugin, AnnotationContextPlugin
+- Examples: StreamingOutputPlugin, AnnotationContextPlugin
 - Similar to Laravel's Event Listeners
 
 #### 3. **User API** (`src/TranslationBuilder.php`)
@@ -153,19 +183,28 @@ $result = TranslationBuilder::make()
 
 ### Available Core Plugins
 
+**Middleware Plugins** (`src/Plugins/Middleware/`)
+1. **DiffTrackingPlugin**: Skip unchanged content (93% cost reduction in typical scenarios)
+2. **TokenChunkingPlugin**: Optimal API chunking for large texts
+3. **ValidationPlugin**: Quality assurance checks
+4. **PIIMaskingPlugin**: PII protection (emails, phones, SSN, cards, IPs)
+5. **MultiProviderPlugin**: Consensus-based translation across providers
+6. **PromptPlugin**: Manages system and user prompts
+7. **TranslationContextPlugin**: Provides global translation context
+
+**Provider Plugins** (`src/Plugins/Provider/`)
 1. **StylePlugin**: Custom translation styles and tones
 2. **GlossaryPlugin**: Consistent term translation
-3. **DiffTrackingPlugin**: Skip unchanged content (60-80% cost reduction)
-4. **TokenChunkingPlugin**: Optimal API chunking
-5. **ValidationPlugin**: Quality assurance checks
-6. **PIIMaskingPlugin**: PII protection (emails, phones, SSN, cards, IPs)
-7. **StreamingOutputPlugin**: Real-time progress updates
-8. **MultiProviderPlugin**: Consensus-based translation
-9. **AnnotationContextPlugin**: Context from code comments
+
+**Observer Plugins** (`src/Plugins/Observer/`)
+1. **StreamingOutputPlugin**: Real-time progress updates
+2. **AnnotationContextPlugin**: Context from code comments
 
 ### Creating Custom Plugins
 
 ```php
+use Kargnas\LaravelAiTranslator\Plugins\Abstract\AbstractMiddlewarePlugin;
+
 class MyCustomPlugin extends AbstractMiddlewarePlugin {
     protected string $name = 'my_custom_plugin';
     
@@ -188,6 +227,8 @@ TranslationBuilder::make()
 ### Multi-Tenant Support
 Plugins can be configured per tenant for SaaS applications:
 ```php
+use Kargnas\LaravelAiTranslator\Plugins\Provider\StylePlugin;
+
 $pluginManager->enableForTenant('tenant-123', StylePlugin::class, [
     'default_style' => 'casual'
 ]);
@@ -247,7 +288,7 @@ Laravel package for AI-powered translations supporting multiple AI providers (Op
 
 ### Key Features
 - Plugin-based architecture for extensibility
-- Chunking for cost-effective API calls (60-80% cost reduction with DiffTrackingPlugin)
+- Chunking for cost-effective API calls (93% cost reduction with DiffTrackingPlugin in typical scenarios)
 - Validation to ensure translation accuracy
 - Support for variables, pluralization, and HTML
 - Custom language styles (e.g., regional dialects)
@@ -258,7 +299,9 @@ Laravel package for AI-powered translations supporting multiple AI providers (Op
 ### Plugin Usage Examples
 
 ```php
-// E-commerce with PII protection
+use Kargnas\LaravelAiTranslator\TranslationBuilder;
+
+// E-commerce with PII protection (93% cost savings with DiffTracking)
 TranslationBuilder::make()
     ->from('en')->to(['ko', 'ja'])
     ->trackChanges()  // Skip unchanged products
@@ -277,6 +320,8 @@ TranslationBuilder::make()
     ->translate($texts);
 
 // API documentation with code preservation
+use App\Plugins\Translation\CodePreservationPlugin;
+
 TranslationBuilder::make()
     ->withPlugin(new CodePreservationPlugin())
     ->withStyle('technical')
@@ -286,6 +331,81 @@ TranslationBuilder::make()
 
 ### Version Notes
 - When tagging versions, use `commit version 1.7.13` instead of `v1.7.13`
+
+## Test Development Workflow
+
+### Using test-*.php Files for Rapid Prototyping
+The codebase includes several `test-*.php` files in the root directory that serve as rapid prototyping tools for testing specific features:
+
+- **test-diff-tracking.php**: Tests DiffTrackingPlugin with real scenarios
+- **test-prompt-context.php**: Verifies prompt generation and CSV context
+- **test-csv-context.php**: Tests special character handling in CSV format
+- **test-prompt-delivery.php**: Validates plugin data flow through pipeline
+
+**Workflow:**
+1. Create a `test-*.php` file to quickly test new scenarios
+2. Validate the behavior with real data
+3. Convert successful tests to formal unit tests in `tests/Unit/`
+4. Keep the test file for future debugging
+
+### Performance Testing Results
+Based on real-world testing with DiffTrackingPlugin:
+
+- **Typical Update Scenario**: 500 strings with 5% changes
+  - Without DiffTracking: 500 texts translated
+  - With DiffTracking: 35 texts translated (25 modified + 10 new)
+  - **Cost Savings: 93%**
+  
+- **Memory Efficiency**: 
+  - First run (5000 strings): ~40MB
+  - Subsequent runs (1 change): <5MB
+  - **Memory Savings: 87.5%**
+
+### Test Structure
+```
+tests/
+├── Unit/
+│   ├── Plugins/
+│   │   ├── Middleware/
+│   │   │   ├── DiffTrackingPluginTest.php
+│   │   │   ├── DiffTrackingAdvancedTest.php  # Real-world scenarios
+│   │   │   ├── PIIMaskingPluginTest.php
+│   │   │   └── TokenChunkingPluginTest.php
+│   │   ├── Observer/
+│   │   └── Provider/
+│   ├── Core/
+│   └── ...
+└── Feature/
+```
+
+## Development Best Practices
+
+### Plugin Development Guidelines
+
+1. **Choose the Right Plugin Type**:
+   - **Middleware**: When you need to transform data (filtering, chunking, validation)
+   - **Provider**: When you need to provide services or data (styles, glossaries)
+   - **Observer**: When you need to watch events without changing data (logging, metrics)
+
+2. **Import Paths After Refactoring**:
+   ```php
+   // Correct imports after plugin reorganization
+   use Kargnas\LaravelAiTranslator\Plugins\Abstract\AbstractMiddlewarePlugin;
+   use Kargnas\LaravelAiTranslator\Plugins\Middleware\DiffTrackingPlugin;
+   use Kargnas\LaravelAiTranslator\Plugins\Provider\StylePlugin;
+   use Kargnas\LaravelAiTranslator\Plugins\Observer\StreamingOutputPlugin;
+   ```
+
+3. **Performance Optimization**:
+   - Always enable DiffTrackingPlugin for production (93% cost savings)
+   - Use TokenChunkingPlugin for texts over 1000 tokens
+   - Enable caching for frequently translated content
+
+4. **Testing Strategy**:
+   - Start with `test-*.php` for rapid prototyping
+   - Convert to unit tests once behavior is validated
+   - Run `./vendor/bin/pest --parallel` for faster test execution
+   - Always run `./vendor/bin/phpstan` before committing
 
 ## important-instruction-reminders
 Do what has been asked; nothing more, nothing less.

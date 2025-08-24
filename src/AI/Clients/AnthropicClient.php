@@ -41,11 +41,13 @@ class AnthropicClient
      */
     public function request(string $method, string $endpoint, array $data = []): array
     {
+        $timeout = 1800; // 30 minutes
+        
         $response = Http::withHeaders([
             'x-api-key' => $this->apiKey,
             'anthropic-version' => $this->apiVersion,
             'content-type' => 'application/json',
-        ])->$method("{$this->baseUrl}/{$endpoint}", $data);
+        ])->timeout($timeout)->$method("{$this->baseUrl}/{$endpoint}", $data);
 
         if (! $response->successful()) {
             $statusCode = $response->status();
@@ -283,6 +285,9 @@ class AnthropicClient
             'accept: application/json',
         ];
 
+        // Set timeout to 30 minutes for streaming
+        $timeout = 1800; // 30 minutes
+
         // Initialize cURL
         $ch = curl_init();
 
@@ -291,7 +296,7 @@ class AnthropicClient
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, false);
         curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, strtoupper($method));
-        curl_setopt($ch, CURLOPT_TIMEOUT, 3000);
+        curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
 
         if (strtoupper($method) !== 'GET') {
             curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));

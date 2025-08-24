@@ -588,7 +588,7 @@ class AIProvider
 
         if (preg_match('/^claude\-3\-5\-/', $this->configModel)) {
             $defaultMaxTokens = 8192;
-        } elseif (preg_match('/^claude\-3\-7\-/', $this->configModel)) {
+        } elseif (preg_match('/^claude.*(3\-7|4)/', $this->configModel)) {
             // @TODO: if add betas=["output-128k-2025-02-19"], then 128000
             $defaultMaxTokens = 64000;
         }

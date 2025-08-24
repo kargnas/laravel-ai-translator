@@ -38,7 +38,8 @@ class JSONLangTransformer
 
         $flattened = $this->flatten();
 
-        return array_key_exists($key, $flattened);
+        // Check if key exists and is not empty string
+        return array_key_exists($key, $flattened) && $flattened[$key] !== '';
     }
 
     public function flatten(): array

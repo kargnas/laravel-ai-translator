@@ -30,10 +30,12 @@ class OpenAIClient
      */
     public function request(string $method, string $endpoint, array $data = []): array
     {
+        $timeout = 1800; // 30 minutes
+        
         $response = Http::withHeaders([
             'Authorization' => 'Bearer '.$this->apiKey,
             'Content-Type' => 'application/json',
-        ])->$method("{$this->baseUrl}/{$endpoint}", $data);
+        ])->timeout($timeout)->$method("{$this->baseUrl}/{$endpoint}", $data);
 
         if (! $response->successful()) {
             throw new \Exception("OpenAI API error: {$response->body()}");
@@ -173,8 +175,10 @@ class OpenAIClient
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, strtoupper($method));
-        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 30);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 120);
+        
+        $timeout = 1800; // 30 minutes
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 30); // Keep connection timeout at 30 seconds
+        curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
 
         if (strtoupper($method) !== 'GET') {
             curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));

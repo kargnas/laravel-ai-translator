@@ -47,7 +47,7 @@ return [
     // 'skip_files' => [],
 
     // If set to true, translations will be saved as flat arrays using dot notation keys. If set to false, translations will be saved as multi-dimensional arrays.
-    'dot_notation' => true,
+    'dot_notation' => false,
 
     // You can add additional custom locale names here.
     // Example: 'en_us', 'en-us', 'en_US', 'en-US'

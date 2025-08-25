@@ -4,11 +4,12 @@ namespace Kargnas\LaravelAiTranslator\Console;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
-use Kargnas\LaravelAiTranslator\AI\AIProvider;
-use Kargnas\LaravelAiTranslator\AI\Printer\TokenUsagePrinter;
-use Kargnas\LaravelAiTranslator\Enums\TranslationStatus;
-use Kargnas\LaravelAiTranslator\Models\LocalizedString;
+use Kargnas\LaravelAiTranslator\TranslationBuilder;
+use Kargnas\LaravelAiTranslator\Support\Printer\TokenUsagePrinter;
 
+/**
+ * Command to test translation using the new TranslationBuilder
+ */
 class TestTranslateCommand extends Command
 {
     protected $signature = 'ai-translator:test-translate
@@ -18,9 +19,10 @@ class TestTranslateCommand extends Command
                           {--rules=* : Additional rules}
                           {--extended-thinking : Use Extended Thinking feature (only supported for claude-3-7 models)}
                           {--debug : Enable debug mode with detailed logging}
-                          {--show-xml : Show raw XML response in the output}';
+                          {--show-xml : Show raw XML response in the output}
+                          {--no-thinking : Hide thinking content}';
 
-    protected $description = 'Test translation using AIProvider.';
+    protected $description = 'Test translation using TranslationBuilder.';
 
     // Console color codes
     protected $colors = [
@@ -51,7 +53,7 @@ class TestTranslateCommand extends Command
         $useExtendedThinking = $this->option('extended-thinking');
         $debug = $this->option('debug');
         $showXml = $this->option('show-xml');
-        $showThinking = true; // 항상 thinking 내용 표시
+        $showThinking = !$this->option('no-thinking'); // Show thinking by default
 
         if (! $text) {
             $text = $this->ask('Enter text to translate');
@@ -66,7 +68,7 @@ class TestTranslateCommand extends Command
             config(['ai-translator.ai.use_extended_thinking' => true]);
         }
 
-        // 토큰 사용량 추적을 위한 변수
+        // Token usage tracking
         $tokenUsage = [
             'input_tokens' => 0,
             'output_tokens' => 0,
@@ -75,116 +77,156 @@ class TestTranslateCommand extends Command
             'total_tokens' => 0,
         ];
 
-        // AIProvider 생성
-        $provider = new AIProvider(
-            filename: 'Test.php',
-            strings: ['test' => $text],
-            sourceLanguage: $sourceLanguage,
-            targetLanguage: $targetLanguage,
-            additionalRules: $rulesList,
-            globalTranslationContext: null
-        );
+        // Build provider configuration
+        $providerConfig = $this->getProviderConfig($useExtendedThinking);
 
-        // 토큰 사용량 추적 콜백
-        $onTokenUsage = function (array $usage) use ($provider) {
-            // 토큰 사용량을 한 줄로 표시 (실시간 업데이트)
-            $this->output->write("\033[2K\r");
-            $this->output->write(
-                '<fg=magenta>Tokens:</> '.
-                "Input: <fg=green>{$usage['input_tokens']}</> | ".
-                "Output: <fg=green>{$usage['output_tokens']}</> | ".
-                "Cache created: <fg=blue>{$usage['cache_creation_input_tokens']}</> | ".
-                "Cache read: <fg=blue>{$usage['cache_read_input_tokens']}</> | ".
-                "Total: <fg=yellow>{$usage['total_tokens']}</>"
-            );
+        // Create TranslationBuilder instance
+        $builder = TranslationBuilder::make()
+            ->from($sourceLanguage)
+            ->to($targetLanguage)
+            ->withProviders(['default' => $providerConfig]);
 
-            // 마지막 토큰 사용량 정보는 자세히 출력
-            if (isset($usage['final']) && $usage['final']) {
-                $this->output->writeln(''); // 줄바꿈 추가
-                $printer = new TokenUsagePrinter($provider->getModel());
-                $printer->printFullReport($this, $usage);
+        // Add additional rules if provided
+        if (!empty($rulesList)) {
+            $builder->withStyle('custom', implode("\n", $rulesList));
+        }
+
+        // Add progress callback
+        $builder->onProgress(function($output) use ($showThinking, $showXml, &$tokenUsage, $text) {
+            // Handle TranslationOutput objects
+            if ($output instanceof \Kargnas\LaravelAiTranslator\Core\TranslationOutput) {
+                // Translation completed for a key
+                $this->line("\n".str_repeat('─', 80));
+                $this->line("\033[1;44;37m Translation Complete \033[0m");
+                $this->line("\033[90m키:\033[0m ".$output->key);
+                $this->line("\033[90m번역:\033[0m ".$output->value);
+                return;
             }
-        };
-
-        // Called when a translation item is completed
-        $onTranslated = function (LocalizedString $item, string $status, array $translatedItems) use ($text) {
-            // 원본 텍스트 가져오기
-            $originalText = $text;
-
-            switch ($status) {
-                case TranslationStatus::STARTED:
+            
+            // Handle legacy streaming output format (if still used by some plugins)
+            if (isset($output->type)) {
+                if ($output->type === 'thinking_start' && $showThinking) {
+                    $this->thinkingBlockCount++;
+                    $this->line('');
+                    $this->line($this->colors['purple'].'🧠 AI Thinking Block #'.$this->thinkingBlockCount.' Started...'.$this->colors['reset']);
+                } elseif ($output->type === 'thinking' && $showThinking) {
+                    echo $this->colors['gray'].$output->value.$this->colors['reset'];
+                } elseif ($output->type === 'thinking_end' && $showThinking) {
+                    $this->line('');
+                    $this->line($this->colors['purple'].'🧠 AI Thinking Block #'.$this->thinkingBlockCount.' Completed'.$this->colors['reset']);
+                    $this->line('');
+                } elseif ($output->type === 'translation_start') {
                     $this->line("\n".str_repeat('─', 80));
-                    $this->line("\033[1;44;37m Translation Start \033[0m \033[1;43;30m {$item->key} \033[0m");
-                    $this->line("\033[90m원본:\033[0m ".substr($originalText, 0, 100).
-                        (strlen($originalText) > 100 ? '...' : ''));
-                    break;
+                    $this->line("\033[1;44;37m Translation Start \033[0m");
+                    $this->line("\033[90m원본:\033[0m ".substr($text, 0, 100).
+                        (strlen($text) > 100 ? '...' : ''));
+                } elseif ($output->type === 'token_usage' && isset($output->data)) {
+                    // Update token usage
+                    $usage = $output->data;
+                    $tokenUsage['input_tokens'] = $usage['input_tokens'] ?? $tokenUsage['input_tokens'];
+                    $tokenUsage['output_tokens'] = $usage['output_tokens'] ?? $tokenUsage['output_tokens'];
+                    $tokenUsage['cache_creation_input_tokens'] = $usage['cache_creation_input_tokens'] ?? $tokenUsage['cache_creation_input_tokens'];
+                    $tokenUsage['cache_read_input_tokens'] = $usage['cache_read_input_tokens'] ?? $tokenUsage['cache_read_input_tokens'];
+                    $tokenUsage['total_tokens'] = $usage['total_tokens'] ?? $tokenUsage['total_tokens'];
 
-                case TranslationStatus::COMPLETED:
-                    $this->line("\033[1;32mTranslation:\033[0m \033[1m".substr($item->translated, 0, 100).
-                        (strlen($item->translated) > 100 ? '...' : '')."\033[0m");
-                    break;
+                    // Display token usage
+                $this->output->write("\033[2K\r");
+                $this->output->write(
+                    '<fg=magenta>Tokens:</> '.
+                    "Input: <fg=green>{$tokenUsage['input_tokens']}</> | ".
+                    "Output: <fg=green>{$tokenUsage['output_tokens']}</> | ".
+                    "Cache created: <fg=blue>{$tokenUsage['cache_creation_input_tokens']}</> | ".
+                    "Cache read: <fg=blue>{$tokenUsage['cache_read_input_tokens']}</> | ".
+                    "Total: <fg=yellow>{$tokenUsage['total_tokens']}</>"
+                );
+                } elseif ($output->type === 'raw_xml' && $showXml) {
+                    $this->rawXmlResponse = $output->value;
+                }
             }
-        };
-
-        // Called when a thinking delta is received (Claude 3.7 only)
-        $onThinking = function ($delta) use ($showThinking) {
-            // Display thinking content in gray
-            if ($showThinking) {
-                echo $this->colors['gray'].$delta.$this->colors['reset'];
-            }
-        };
-
-        // Called when thinking starts
-        $onThinkingStart = function () use ($showThinking) {
-            if ($showThinking) {
-                $this->thinkingBlockCount++;
-                $this->line('');
-                $this->line($this->colors['purple'].'🧠 AI Thinking Block #'.$this->thinkingBlockCount.' Started...'.$this->colors['reset']);
-            }
-        };
-
-        // Called when thinking ends
-        $onThinkingEnd = function ($content = null) use ($showThinking) {
-            if ($showThinking) {
-                $this->line('');
-                $this->line($this->colors['purple'].'🧠 AI Thinking Block #'.$this->thinkingBlockCount.' Completed'.$this->colors['reset']);
-            }
-        };
-
-        // Called for each progress chunk (streamed response)
-        $onProgress = function ($chunk, $translatedItems) use ($showXml) {
-            if ($showXml) {
-                $this->rawXmlResponse .= $chunk;
-            }
-        };
+        });
 
         try {
-            $translatedItems = $provider
-                ->setOnTranslated($onTranslated)
-                ->setOnThinking($onThinking)
-                ->setOnProgress($onProgress)
-                ->setOnThinkingStart($onThinkingStart)
-                ->setOnThinkingEnd($onThinkingEnd)
-                ->setOnTokenUsage($onTokenUsage)
-                ->translate();
+            // Execute translation
+            $result = $builder->translate(['test' => $text]);
 
-            // Show raw XML response if requested
-            if ($showXml) {
+            // Get translations
+            $translations = $result->getTranslations();
+            
+            $this->line("\n".str_repeat('─', 80));
+            $this->line($this->colors['green'].'🎯 FINAL TRANSLATION RESULT'.$this->colors['reset']);
+            $this->line(str_repeat('─', 80));
+            
+            $translatedText = $translations[$targetLanguage]['test'] ?? null;
+            
+            if ($translatedText) {
+                $this->line("Original: {$text}");
+                $this->line("Translation ({$targetLanguage}): {$translatedText}");
+            } else {
+                $this->line("No translation found for key 'test'");
+                $this->line("Available translations: " . json_encode($translations));
+            }
+
+            // Display XML if requested
+            if ($showXml && !empty($this->rawXmlResponse)) {
                 $this->line("\n".str_repeat('─', 80));
-                $this->line("\033[1;44;37m Raw XML Response \033[0m");
+                $this->line($this->colors['blue'].'📄 RAW XML RESPONSE'.$this->colors['reset']);
+                $this->line(str_repeat('─', 80));
                 $this->line($this->rawXmlResponse);
+                $this->line(str_repeat('─', 80));
             }
 
-            // 토큰 사용량은 콜백에서 직접 출력하므로 여기서는 출력하지 않음
+            // Display final token usage
+            $this->output->writeln('');
+            $this->line("\n".str_repeat('─', 80));
+            $this->line($this->colors['blue'].'📊 FINAL TOKEN USAGE'.$this->colors['reset']);
+            $this->line(str_repeat('─', 80));
+            
+            $finalTokenUsage = $result->getTokenUsage();
+            if (!empty($finalTokenUsage)) {
+                $model = config('ai-translator.ai.model');
+                $printer = new TokenUsagePrinter($model);
+                $printer->printTokenUsageSummary($this, $finalTokenUsage);
+            }
 
-            return 0;
+            $this->line(str_repeat('─', 80));
+            $this->line($this->colors['green'].'✅ Translation completed successfully!'.$this->colors['reset']);
+
         } catch (\Exception $e) {
-            $this->error('Error: '.$e->getMessage());
+            $this->error('Translation failed: ' . $e->getMessage());
             if ($debug) {
-                Log::error($e);
+                $this->error($e->getTraceAsString());
             }
-
+            Log::error('Test translation failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
             return 1;
         }
+
+        return 0;
+    }
+
+    /**
+     * Get provider configuration
+     */
+    protected function getProviderConfig(bool $useExtendedThinking = false): array
+    {
+        $provider = config('ai-translator.ai.provider');
+        $model = config('ai-translator.ai.model');
+        $apiKey = config('ai-translator.ai.api_key');
+        
+        if (!$provider || !$model || !$apiKey) {
+            throw new \Exception('AI provider configuration is incomplete. Please check your config/ai-translator.php file.');
+        }
+
+        return [
+            'provider' => $provider,
+            'model' => $model,
+            'api_key' => $apiKey,
+            'temperature' => config('ai-translator.ai.temperature', 0.3),
+            'thinking' => $useExtendedThinking || config('ai-translator.ai.use_extended_thinking', false),
+            'retries' => config('ai-translator.ai.retries', 1),
+            'max_tokens' => config('ai-translator.ai.max_tokens', 4096),
+        ];
     }
 }

@@ -9,9 +9,8 @@ use CrowdinApiClient\Model\StringTranslationApproval;
 use Illuminate\Console\Command;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
-use Kargnas\LaravelAiTranslator\AI\AIProvider;
-use Kargnas\LaravelAiTranslator\AI\TranslationContextProvider;
-use Kargnas\LaravelAiTranslator\Enums\PromptType;
+use Kargnas\LaravelAiTranslator\TranslationBuilder;
+use Kargnas\LaravelAiTranslator\Plugins\Middleware\TranslationContextPlugin;
 
 class TranslationService
 {
@@ -147,12 +146,26 @@ class TranslationService
                     // Get global translation context
                     $globalContext = $this->getGlobalContext($file, $targetLanguage);
 
-                    // AIProvider setup
-                    $translator = $this->createTranslator($file, $chunk, $referenceApprovals, $targetLanguage, $globalContext);
+                    // TranslationBuilder setup
+                    $builder = $this->createTranslator($file, $chunk, $referenceApprovals, $targetLanguage, $globalContext);
 
                     try {
+                        // Get strings prepared by the builder
+                        $strings = $builder->getConfig()['options']['strings'];
+                        
                         // Translate
-                        $translated = $translator->translate();
+                        $result = $builder->translate($strings);
+                        $translations = $result->getTranslations();
+                        
+                        // Convert to LocalizedString format for backward compatibility
+                        $translated = [];
+                        foreach ($translations as $key => $value) {
+                            $translated[] = (object)[
+                                'key' => $key,
+                                'translated' => $value,
+                            ];
+                        }
+                        
                         $translatedCount += count($translated);
 
                         // Process translation results
@@ -246,7 +259,7 @@ class TranslationService
             return [];
         }
 
-        $contextProvider = new TranslationContextProvider;
+        $contextProvider = new TranslationContextPlugin();
         $globalContext = $contextProvider->getGlobalTranslationContext(
             $this->projectService->getSelectedProject()['sourceLanguage']['name'],
             $targetLanguage['name'],
@@ -263,83 +276,87 @@ class TranslationService
     }
 
     /**
-     * AIProvider setup
+     * TranslationBuilder setup
      */
-    protected function createTranslator(File $file, Collection $chunk, Collection $referenceApprovals, array $targetLanguage, array $globalContext): AIProvider
+    protected function createTranslator(File $file, Collection $chunk, Collection $referenceApprovals, array $targetLanguage, array $globalContext): TranslationBuilder
     {
-        $translator = new AIProvider(
-            filename: $file->getName(),
-            strings: $chunk->mapWithKeys(function ($string) use ($referenceApprovals) {
-                $context = $string['context'] ?? null;
-                $context = preg_replace("/[\.\s\->]/", '', $context);
+        // Prepare strings for translation
+        $strings = $chunk->mapWithKeys(function ($string) use ($referenceApprovals) {
+            $context = $string['context'] ?? null;
+            $context = preg_replace("/[\.\s\->]/", '', $context);
 
-                if (preg_replace("/[\.\s\->]/", '', $string['identifier']) === $context) {
-                    $context = null;
-                }
-
-                /** @var Collection $references */
-                $references = $referenceApprovals->map(function ($items) use ($string) {
-                    return $items[$string['identifier']] ?? '';
-                })->filter(function ($value) {
-                    return strlen($value) > 0;
-                });
-
-                return [
-                    $string['identifier'] => [
-                        'text' => $references->only($this->languageService->getSourceLocale())->first() ?? $string['text'],
-                        'context' => $context,
-                        'references' => $references->except($this->languageService->getSourceLocale())->toArray(),
-                    ],
-                ];
-            })->toArray(),
-            sourceLanguage: $this->languageService->getSourceLocale(),
-            targetLanguage: $targetLanguage['id'],
-            additionalRules: [],
-            globalTranslationContext: $globalContext
-        );
-
-        // Set up thinking callbacks
-        $translator->setOnThinking(function ($thinking) {
-            echo $thinking;
-        });
-
-        $translator->setOnThinkingStart(function () {
-            $this->command->line('    🧠 AI Thinking...');
-        });
-
-        $translator->setOnThinkingEnd(function () {
-            $this->command->line('    Thinking completed.');
-        });
-
-        // Set up translation progress callback
-        $translator->setOnTranslated(function ($item, $status, $translatedItems) use ($chunk) {
-            if ($status === 'completed') {
-                $totalCount = $chunk->count();
-                $completedCount = count($translatedItems);
-
-                $this->command->line('  ⟳ '.
-                    $item->key.
-                    ' → '.
-                    $item->translated.
-                    " ({$completedCount}/{$totalCount})");
+            if (preg_replace("/[\.\s\->]/", '', $string['identifier']) === $context) {
+                $context = null;
             }
-        });
 
-        // Set up prompt logging callback if enabled
-        if ($this->showPrompt) {
-            $translator->setOnPromptGenerated(function ($prompt, $type) {
-                $typeText = match ($type) {
-                    PromptType::SYSTEM => '🤖 System Prompt',
-                    PromptType::USER => '👤 User Prompt',
+            /** @var Collection $references */
+            $references = $referenceApprovals->map(function ($items) use ($string) {
+                return $items[$string['identifier']] ?? '';
+            })->filter(function ($value) {
+                return strlen($value) > 0;
+            });
+
+            return [
+                $string['identifier'] => [
+                    'text' => $references->only($this->languageService->getSourceLocale())->first() ?? $string['text'],
+                    'context' => $context,
+                    'references' => $references->except($this->languageService->getSourceLocale())->toArray(),
+                ],
+            ];
+        })->toArray();
+
+        // Provider configuration
+        $providerConfig = [
+            'provider' => config('ai-translator.ai.provider'),
+            'model' => config('ai-translator.ai.model'),
+            'api_key' => config('ai-translator.ai.api_key'),
+            'temperature' => config('ai-translator.ai.temperature', 0.3),
+            'thinking' => config('ai-translator.ai.use_extended_thinking', false),
+            'retries' => config('ai-translator.ai.retries', 1),
+            'max_tokens' => config('ai-translator.ai.max_tokens', 4096),
+        ];
+
+        // Create TranslationBuilder instance
+        $builder = TranslationBuilder::make()
+            ->from($this->languageService->getSourceLocale())
+            ->to($targetLanguage['id'])
+            ->withProviders(['default' => $providerConfig]);
+
+        // Add context and metadata
+        $builder->option('global_context', $globalContext);
+        $builder->option('filename', $file->getName());
+        $builder->option('strings', $strings);
+
+        // Set up progress callback
+        $builder->onProgress(function($output) use ($chunk) {
+            if ($output->type === 'thinking_start') {
+                $this->command->line('    🧠 AI Thinking...');
+            } elseif ($output->type === 'thinking' && config('ai-translator.ai.use_extended_thinking', false)) {
+                echo $output->value;
+            } elseif ($output->type === 'thinking_end') {
+                $this->command->line('    Thinking completed.');
+            } elseif ($output->type === 'translation_complete' && isset($output->data['key'])) {
+                $totalCount = $chunk->count();
+                $completedCount = isset($output->data['index']) ? $output->data['index'] + 1 : 1;
+                
+                $this->command->line('  ⟳ '.
+                    $output->data['key'].
+                    ' → '.
+                    $output->data['translation'].
+                    " ({$completedCount}/{$totalCount})");
+            } elseif ($this->showPrompt && $output->type === 'prompt' && isset($output->data['type'])) {
+                $typeText = match ($output->data['type']) {
+                    'system' => '🤖 System Prompt',
+                    'user' => '👤 User Prompt',
                     default => '❓ Unknown Prompt'
                 };
 
                 echo "\n    {$typeText}:\n";
-                echo '    '.str_replace("\n", "\n    ", $prompt)."\n";
-            });
-        }
+                echo '    '.str_replace("\n", "\n    ", $output->value)."\n";
+            }
+        });
 
-        return $translator;
+        return $builder;
     }
 
     /**

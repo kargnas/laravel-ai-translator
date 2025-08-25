@@ -3,17 +3,19 @@
 namespace Kargnas\LaravelAiTranslator\Console;
 
 use Illuminate\Console\Command;
-use Kargnas\LaravelAiTranslator\AI\AIProvider;
-use Kargnas\LaravelAiTranslator\AI\Language\LanguageConfig;
-use Kargnas\LaravelAiTranslator\AI\Printer\TokenUsagePrinter;
-use Kargnas\LaravelAiTranslator\AI\TranslationContextProvider;
-use Kargnas\LaravelAiTranslator\Enums\PromptType;
-use Kargnas\LaravelAiTranslator\Enums\TranslationStatus;
+use Illuminate\Support\Facades\Log;
+use Kargnas\LaravelAiTranslator\TranslationBuilder;
+use Kargnas\LaravelAiTranslator\Support\Language\LanguageConfig;
+use Kargnas\LaravelAiTranslator\Support\Printer\TokenUsagePrinter;
 use Kargnas\LaravelAiTranslator\Transformers\PHPLangTransformer;
+use Kargnas\LaravelAiTranslator\Plugins\Middleware\TranslationContextPlugin;
+use Kargnas\LaravelAiTranslator\Plugins\Middleware\PromptPlugin;
 
 /**
- * Artisan command that translates PHP language files using LLMs with support for multiple locales,
- * reference languages, chunking for large files, and customizable context settings
+ * Artisan command that translates PHP language files using the plugin-based architecture
+ * 
+ * This command has been refactored to use the new TranslationBuilder and plugin system,
+ * removing all legacy AI dependencies while maintaining the same user interface.
  */
 class TranslateStrings extends Command
 {
@@ -27,23 +29,17 @@ class TranslateStrings extends Command
         {--show-prompt : Show the whole AI prompts during translation}
         {--non-interactive : Run in non-interactive mode, using default or provided values}';
 
-    protected $description = 'Translates PHP language files using LLMs with support for multiple locales, reference languages, chunking for large files, and customizable context settings';
+    protected $description = 'Translates PHP language files using AI technology with plugin-based architecture';
 
     /**
      * Translation settings
      */
     protected string $sourceLocale;
-
     protected string $sourceDirectory;
-
     protected int $chunkSize;
-
     protected array $referenceLocales = [];
-
     protected int $defaultChunkSize = 100;
-
     protected int $defaultMaxContextItems = 1000;
-
     protected int $warningStringCount = 500;
 
     /**
@@ -52,11 +48,13 @@ class TranslateStrings extends Command
     protected array $tokenUsage = [
         'input_tokens' => 0,
         'output_tokens' => 0,
+        'cache_creation_input_tokens' => 0,
+        'cache_read_input_tokens' => 0,
         'total_tokens' => 0,
     ];
 
     /**
-     * Color codes
+     * Color codes for console output
      */
     protected array $colors = [
         'reset' => "\033[0m",
@@ -129,7 +127,7 @@ class TranslateStrings extends Command
             $this->referenceLocales = $this->option('reference')
                 ? explode(',', (string) $this->option('reference'))
                 : [];
-            if (! empty($this->referenceLocales)) {
+            if (!empty($this->referenceLocales)) {
                 $this->info($this->colors['green'].'✓ Selected reference locales: '.
                     $this->colors['reset'].$this->colors['bold'].implode(', ', $this->referenceLocales).
                     $this->colors['reset']);
@@ -149,25 +147,22 @@ class TranslateStrings extends Command
         // Set chunk size
         if ($nonInteractive || $this->option('chunk')) {
             $this->chunkSize = (int) ($this->option('chunk') ?? $this->defaultChunkSize);
-            $this->info($this->colors['green'].'✓ Chunk size: '.
+            $this->info($this->colors['green'].'✓ Set chunk size: '.
                 $this->colors['reset'].$this->colors['bold'].$this->chunkSize.
                 $this->colors['reset']);
         } else {
             $this->chunkSize = (int) $this->ask(
-                $this->colors['yellow'].'Enter the chunk size for translation. Translate strings in a batch. The higher, the cheaper.'.$this->colors['reset'],
+                $this->colors['yellow'].'Enter chunk size (default: '.$this->defaultChunkSize.')'.$this->colors['reset'],
                 $this->defaultChunkSize
             );
         }
 
-        // Set context items count
+        // Set max context items
         if ($nonInteractive || $this->option('max-context')) {
             $maxContextItems = (int) ($this->option('max-context') ?? $this->defaultMaxContextItems);
-            $this->info($this->colors['green'].'✓ Maximum context items: '.
-                $this->colors['reset'].$this->colors['bold'].$maxContextItems.
-                $this->colors['reset']);
         } else {
             $maxContextItems = (int) $this->ask(
-                $this->colors['yellow'].'Maximum number of context items to include for consistency (set 0 to disable)'.$this->colors['reset'],
+                $this->colors['yellow'].'Enter maximum context items (default: '.$this->defaultMaxContextItems.')'.$this->colors['reset'],
                 $this->defaultMaxContextItems
             );
         }
@@ -175,73 +170,24 @@ class TranslateStrings extends Command
         // Execute translation
         $this->translate($maxContextItems);
 
-        return 0;
+        // Display summary
+        $this->displaySummary();
     }
 
     /**
-     * 헤더 출력
-     */
-    protected function displayHeader(): void
-    {
-        $this->line("\n".$this->colors['blue_bg'].$this->colors['white'].$this->colors['bold'].' Laravel AI Translator '.$this->colors['reset']);
-        $this->line($this->colors['gray'].'Translating PHP language files using AI technology'.$this->colors['reset']);
-        $this->line(str_repeat('─', 80)."\n");
-    }
-
-    /**
-     * 언어 선택 헬퍼 메서드
-     *
-     * @param  string  $question  질문
-     * @param  bool  $multiple  다중 선택 여부
-     * @param  string|null  $default  기본값
-     * @return array|string 선택된 언어(들)
-     */
-    public function choiceLanguages(string $question, bool $multiple, ?string $default = null): array|string
-    {
-        $locales = $this->getExistingLocales();
-
-        $selectedLocales = $this->choice(
-            $question,
-            $locales,
-            $default,
-            3,
-            $multiple
-        );
-
-        if (is_array($selectedLocales)) {
-            $this->info($this->colors['green'].'✓ Selected locales: '.
-                $this->colors['reset'].$this->colors['bold'].implode(', ', $selectedLocales).
-                $this->colors['reset']);
-        } else {
-            $this->info($this->colors['green'].'✓ Selected locale: '.
-                $this->colors['reset'].$this->colors['bold'].$selectedLocales.
-                $this->colors['reset']);
-        }
-
-        return $selectedLocales;
-    }
-
-    /**
-     * Execute translation
-     *
-     * @param  int  $maxContextItems  Maximum number of context items
+     * Execute translation using TranslationBuilder
      */
     public function translate(int $maxContextItems = 100): void
     {
-        // 커맨드라인에서 지정된 로케일 가져오기
+        // Get locales to translate
         $specifiedLocales = $this->option('locale');
-
-        // 사용 가능한 모든 로케일 가져오기
         $availableLocales = $this->getExistingLocales();
-
-        // 지정된 로케일이 있으면 검증하고 사용, 없으면 모든 로케일 사용
-        $locales = ! empty($specifiedLocales)
+        $locales = !empty($specifiedLocales)
             ? $this->validateAndFilterLocales($specifiedLocales, $availableLocales)
             : $availableLocales;
 
         if (empty($locales)) {
             $this->error('No valid locales specified or found for translation.');
-
             return;
         }
 
@@ -250,18 +196,15 @@ class TranslateStrings extends Command
         $totalTranslatedCount = 0;
 
         foreach ($locales as $locale) {
-            // 소스 언어와 같거나 스킵 목록에 있는 언어는 건너뜀
+            // Skip source locale and configured skip locales
             if ($locale === $this->sourceLocale || in_array($locale, config('ai-translator.skip_locales', []))) {
                 $this->warn('Skipping locale '.$locale.'.');
-
                 continue;
             }
 
             $targetLanguageName = LanguageConfig::getLanguageName($locale);
-
-            if (! $targetLanguageName) {
+            if (!$targetLanguageName) {
                 $this->error("Language name not found for locale: {$locale}. Please add it to the config file.");
-
                 continue;
             }
 
@@ -273,482 +216,328 @@ class TranslateStrings extends Command
             $localeStringCount = 0;
             $localeTranslatedCount = 0;
 
-            // 소스 파일 목록 가져오기
+            // Get source files
             $files = $this->getStringFilePaths($this->sourceLocale);
 
             foreach ($files as $file) {
-                $outputFile = $this->getOutputDirectoryLocale($locale).'/'.basename($file);
-
-                if (in_array(basename($file), config('ai-translator.skip_files', []))) {
-                    $this->warn('Skipping file  '.basename($file).'.');
-
-                    continue;
-                }
-
-                $this->displayFileInfo($file, $locale, $outputFile);
-
-                $localeFileCount++;
-                $fileCount++;
-
-                // Load source strings
+                // Get relative file path
+                $relativeFilePath = $this->getRelativePath($file);
+                
+                // Prepare transformer
                 $transformer = new PHPLangTransformer($file);
-                $sourceStringList = $transformer->flatten();
+                $strings = $transformer->getTranslatable();
 
-                // Load target strings (or create)
-                $targetStringTransformer = new PHPLangTransformer($outputFile);
-
-                // Filter untranslated strings only
-                $sourceStringList = collect($sourceStringList)
-                    ->filter(function ($value, $key) use ($targetStringTransformer) {
-                        // Skip already translated ones
-                        return ! $targetStringTransformer->isTranslated($key);
-                    })
-                    ->toArray();
-
-                // Skip if no items to translate
-                if (count($sourceStringList) === 0) {
-                    $this->info($this->colors['green'].'  ✓ '.$this->colors['reset'].'All strings are already translated. Skipping.');
-
+                if (empty($strings)) {
                     continue;
                 }
 
-                $localeStringCount += count($sourceStringList);
-                $totalStringCount += count($sourceStringList);
-
-                // Check if there are many strings to translate
-                if (count($sourceStringList) > $this->warningStringCount && ! $this->option('force-big-files')) {
-                    if (
-                        ! $this->confirm(
-                            $this->colors['yellow'].'⚠️ Warning: '.$this->colors['reset'].
-                            'File has '.count($sourceStringList).' strings to translate. This could be expensive. Continue?',
-                            true
-                        )
-                    ) {
-                        $this->warn('Translation stopped by user.');
-
-                        return;
-                    }
+                // Check for large files
+                $stringCount = count($strings);
+                if ($stringCount > $this->warningStringCount && !$this->option('force-big-files')) {
+                    $this->warn("Skipping {$relativeFilePath} with {$stringCount} strings. Use --force-big-files to translate large files.");
+                    continue;
                 }
 
-                // Load reference translations (from all files)
-                $referenceStringList = $this->loadReferenceTranslations($file, $locale, $sourceStringList);
+                $this->info("\n".$this->colors['cyan']."Translating {$relativeFilePath}".$this->colors['reset']." ({$stringCount} strings)");
 
-                // Process in chunks
-                $chunkCount = 0;
-                $totalChunks = ceil(count($sourceStringList) / $this->chunkSize);
+                try {
+                    // Create TranslationBuilder instance with plugins
+                    $builder = TranslationBuilder::make()
+                        ->from($this->sourceLocale)
+                        ->to($locale)
+                        ->trackChanges()
+                        ->withPlugin(new TranslationContextPlugin())
+                        ->withPlugin(new PromptPlugin());
 
-                collect($sourceStringList)
-                    ->chunk($this->chunkSize)
-                    ->each(function ($chunk) use ($locale, $file, $targetStringTransformer, $referenceStringList, $maxContextItems, &$localeTranslatedCount, &$totalTranslatedCount, &$chunkCount, $totalChunks) {
-                        $chunkCount++;
-                        $this->info($this->colors['yellow'].'  ⏺ Processing chunk '.
-                            $this->colors['reset']."{$chunkCount}/{$totalChunks}".
-                            $this->colors['gray'].' ('.$chunk->count().' strings)'.
-                            $this->colors['reset']);
+                    // Configure providers from config
+                    $providerConfig = $this->getProviderConfig();
+                    if ($providerConfig) {
+                        $builder->withProviders(['default' => $providerConfig]);
+                    }
 
-                        // Get global translation context
-                        $globalContext = $this->getGlobalContext($file, $locale, $maxContextItems);
+                    // Configure token chunking
+                    $builder->withTokenChunking($this->chunkSize);
 
-                        // Configure translator
-                        $translator = $this->setupTranslator(
-                            $file,
-                            $chunk,
-                            $referenceStringList,
-                            $locale,
-                            $globalContext
-                        );
+                    // Add metadata for context
+                    $builder->withMetadata([
+                        'current_file_path' => $file,
+                        'filename' => basename($file),
+                        'parent_key' => $this->getFilePrefix($file),
+                        'max_context_items' => $maxContextItems,
+                    ]);
 
-                        try {
-                            // Execute translation
-                            $translatedItems = $translator->translate();
-                            $localeTranslatedCount += count($translatedItems);
-                            $totalTranslatedCount += count($translatedItems);
-
-                            // Save translation results - display is handled by onTranslated
-                            foreach ($translatedItems as $item) {
-                                $targetStringTransformer->updateString($item->key, $item->translated);
-                            }
-
-                            // Display number of saved items
-                            $this->info($this->colors['green'].'  ✓ '.$this->colors['reset']."{$localeTranslatedCount} strings saved.");
-
-                            // Calculate and display cost
-                            $this->displayCostEstimation($translator);
-
-                            // Accumulate token usage
-                            $usage = $translator->getTokenUsage();
-                            $this->updateTokenUsageTotals($usage);
-
-                        } catch (\Exception $e) {
-                            $this->error('Translation failed: '.$e->getMessage());
+                    // Set progress callback
+                    $builder->onProgress(function($output) {
+                        if ($output->type === 'thinking' && $this->option('show-prompt')) {
+                            $this->line($this->colors['purple']."Thinking: {$output->value}".$this->colors['reset']);
+                        } elseif ($output->type === 'translated') {
+                            $this->line($this->colors['green']."  ✓ {$output->key}".$this->colors['reset']);
+                        } elseif ($output->type === 'progress') {
+                            $this->line($this->colors['gray']."  Progress: {$output->value}".$this->colors['reset']);
                         }
                     });
-            }
 
-            // Display translation summary for each language
-            $this->displayTranslationSummary($locale, $localeFileCount, $localeStringCount, $localeTranslatedCount);
-        }
-
-        // All translations completed message
-        $this->line("\n".$this->colors['green_bg'].$this->colors['white'].$this->colors['bold'].' All translations completed '.$this->colors['reset']);
-        $this->line($this->colors['yellow'].'Total files processed: '.$this->colors['reset'].$fileCount);
-        $this->line($this->colors['yellow'].'Total strings found: '.$this->colors['reset'].$totalStringCount);
-        $this->line($this->colors['yellow'].'Total strings translated: '.$this->colors['reset'].$totalTranslatedCount);
-    }
-
-    /**
-     * 비용 계산 및 표시
-     */
-    protected function displayCostEstimation(AIProvider $translator): void
-    {
-        $usage = $translator->getTokenUsage();
-        $printer = new TokenUsagePrinter($translator->getModel());
-        $printer->printTokenUsageSummary($this, $usage);
-        $printer->printCostEstimation($this, $usage);
-    }
-
-    /**
-     * 파일 정보 표시
-     */
-    protected function displayFileInfo(string $sourceFile, string $locale, string $outputFile): void
-    {
-        $this->line("\n".$this->colors['purple_bg'].$this->colors['white'].$this->colors['bold'].' File Translation '.$this->colors['reset']);
-        $this->line($this->colors['yellow'].'  File: '.
-            $this->colors['reset'].$this->colors['bold'].basename($sourceFile).
-            $this->colors['reset']);
-        $this->line($this->colors['yellow'].'  Language: '.
-            $this->colors['reset'].$this->colors['bold'].$locale.
-            $this->colors['reset']);
-        $this->line($this->colors['gray'].'  Source: '.$sourceFile.$this->colors['reset']);
-        $this->line($this->colors['gray'].'  Target: '.$outputFile.$this->colors['reset']);
-    }
-
-    /**
-     * Display translation completion summary
-     */
-    protected function displayTranslationSummary(string $locale, int $fileCount, int $stringCount, int $translatedCount): void
-    {
-        $this->line("\n".str_repeat('─', 80));
-        $this->line($this->colors['green_bg'].$this->colors['white'].$this->colors['bold']." Translation Complete: {$locale} ".$this->colors['reset']);
-        $this->line($this->colors['yellow'].'Files processed: '.$this->colors['reset'].$fileCount);
-        $this->line($this->colors['yellow'].'Strings found: '.$this->colors['reset'].$stringCount);
-        $this->line($this->colors['yellow'].'Strings translated: '.$this->colors['reset'].$translatedCount);
-
-        // Display accumulated token usage
-        if ($this->tokenUsage['total_tokens'] > 0) {
-            $this->line("\n".$this->colors['blue_bg'].$this->colors['white'].$this->colors['bold'].' Total Token Usage '.$this->colors['reset']);
-            $this->line($this->colors['yellow'].'Input Tokens: '.$this->colors['reset'].$this->colors['green'].$this->tokenUsage['input_tokens'].$this->colors['reset']);
-            $this->line($this->colors['yellow'].'Output Tokens: '.$this->colors['reset'].$this->colors['green'].$this->tokenUsage['output_tokens'].$this->colors['reset']);
-            $this->line($this->colors['yellow'].'Total Tokens: '.$this->colors['reset'].$this->colors['bold'].$this->colors['purple'].$this->tokenUsage['total_tokens'].$this->colors['reset']);
-        }
-    }
-
-    /**
-     * Load reference translations (from all files)
-     */
-    protected function loadReferenceTranslations(string $file, string $targetLocale, array $sourceStringList): array
-    {
-        // 타겟 언어와 레퍼런스 언어들을 모두 포함
-        $allReferenceLocales = array_merge([$targetLocale], $this->referenceLocales);
-        $langDirectory = config('ai-translator.source_directory');
-        $currentFileName = basename($file);
-
-        return collect($allReferenceLocales)
-            ->filter(fn ($referenceLocale) => $referenceLocale !== $this->sourceLocale)
-            ->map(function ($referenceLocale) use ($currentFileName) {
-                $referenceLocaleDir = $this->getOutputDirectoryLocale($referenceLocale);
-
-                if (! is_dir($referenceLocaleDir)) {
-                    $this->line($this->colors['gray']."    ℹ Reference directory not found: {$referenceLocale}".$this->colors['reset']);
-
-                    return null;
-                }
-
-                // 해당 로케일 디렉토리의 모든 PHP 파일 가져오기
-                $referenceFiles = glob("{$referenceLocaleDir}/*.php");
-
-                if (empty($referenceFiles)) {
-                    $this->line($this->colors['gray']."    ℹ Reference file not found: {$referenceLocale}".$this->colors['reset']);
-
-                    return null;
-                }
-
-                $this->line($this->colors['blue'].'    ℹ Loading reference: '.
-                    $this->colors['reset']."{$referenceLocale} - ".count($referenceFiles).' files');
-
-                // 유사한 이름의 파일을 먼저 처리하여 컨텍스트 관련성 향상
-                usort($referenceFiles, function ($a, $b) use ($currentFileName) {
-                    $similarityA = similar_text($currentFileName, basename($a));
-                    $similarityB = similar_text($currentFileName, basename($b));
-
-                    return $similarityB <=> $similarityA;
-                });
-
-                $allReferenceStrings = [];
-                $processedFiles = 0;
-
-                foreach ($referenceFiles as $referenceFile) {
-                    try {
-                        $referenceTransformer = new PHPLangTransformer($referenceFile);
-                        $referenceStringList = $referenceTransformer->flatten();
-
-                        if (empty($referenceStringList)) {
-                            continue;
+                    // Execute translation
+                    $result = $builder->translate($strings);
+                    
+                    // Show prompts if requested
+                    if ($this->option('show-prompt')) {
+                        $pluginData = $result->getMetadata('plugin_data');
+                        if ($pluginData) {
+                            $systemPrompt = $pluginData['system_prompt'] ?? null;
+                            $userPrompt = $pluginData['user_prompt'] ?? null;
+                            
+                            if ($systemPrompt || $userPrompt) {
+                                $this->line("\n" . str_repeat('═', 80));
+                                $this->line($this->colors['purple'] . "AI PROMPTS" . $this->colors['reset']);
+                                $this->line(str_repeat('═', 80));
+                                
+                                if ($systemPrompt) {
+                                    $this->line($this->colors['cyan'] . "System Prompt:" . $this->colors['reset']);
+                                    $this->line($this->colors['gray'] . $systemPrompt . $this->colors['reset']);
+                                    $this->line("");
+                                }
+                                
+                                if ($userPrompt) {
+                                    $this->line($this->colors['cyan'] . "User Prompt:" . $this->colors['reset']);
+                                    $this->line($this->colors['gray'] . $userPrompt . $this->colors['reset']);
+                                }
+                                
+                                $this->line(str_repeat('═', 80) . "\n");
+                            }
                         }
-
-                        // 우선순위 적용 (필요한 경우)
-                        if (count($referenceStringList) > 50) {
-                            $referenceStringList = $this->getPrioritizedReferenceStrings($referenceStringList, 50);
-                        }
-
-                        $allReferenceStrings = array_merge($allReferenceStrings, $referenceStringList);
-                        $processedFiles++;
-                    } catch (\Exception $e) {
-                        $this->line($this->colors['gray'].'    ⚠ Reference file loading failed: '.basename($referenceFile).$this->colors['reset']);
-
-                        continue;
                     }
+
+                    // Process results and save to target file
+                    $translations = $result->getTranslations();
+                    $targetFile = str_replace("/{$this->sourceLocale}/", "/{$locale}/", $file);
+                    $targetTransformer = new PHPLangTransformer($targetFile);
+
+                    // Get translations for the specific locale
+                    $localeTranslations = $translations[$locale] ?? [];
+                    
+                    foreach ($localeTranslations as $key => $value) {
+                        $targetTransformer->updateString($key, $value);
+                        $localeTranslatedCount++;
+                        $totalTranslatedCount++;
+                    }
+
+                    // Update token usage
+                    $tokenUsageData = $result->getTokenUsage();
+                    
+                    // Debug: Print raw token usage
+                    $this->line("\n" . $this->colors['yellow'] . "[DEBUG] Raw Token Usage:" . $this->colors['reset']);
+                    $this->line($this->colors['gray'] . json_encode($tokenUsageData, JSON_PRETTY_PRINT) . $this->colors['reset']);
+                    
+                    $this->tokenUsage['input_tokens'] += $tokenUsageData['input_tokens'] ?? 0;
+                    $this->tokenUsage['output_tokens'] += $tokenUsageData['output_tokens'] ?? 0;
+                    $this->tokenUsage['cache_creation_input_tokens'] += $tokenUsageData['cache_creation_input_tokens'] ?? 0;
+                    $this->tokenUsage['cache_read_input_tokens'] += $tokenUsageData['cache_read_input_tokens'] ?? 0;
+                    $this->tokenUsage['total_tokens'] += $tokenUsageData['total_tokens'] ?? 0;
+
+                } catch (\Exception $e) {
+                    $this->error("Translation failed for {$relativeFilePath}: " . $e->getMessage());
+                    Log::error("Translation failed", [
+                        'file' => $relativeFilePath,
+                        'error' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString()
+                    ]);
+                    continue;
                 }
 
-                if (empty($allReferenceStrings)) {
-                    return null;
+                $localeFileCount++;
+                $localeStringCount += $stringCount;
+            }
+
+            $fileCount += $localeFileCount;
+            $totalStringCount += $localeStringCount;
+
+            $this->info("\n".$this->colors['green']."✓ Completed {$targetLanguageName} ({$locale}): {$localeFileCount} files, {$localeTranslatedCount} strings translated".$this->colors['reset']);
+        }
+
+        $this->info("\n".$this->colors['green'].$this->colors['bold']."Translation complete! Total: {$fileCount} files, {$totalTranslatedCount} strings translated".$this->colors['reset']);
+    }
+
+    /**
+     * Get provider configuration from config file
+     */
+    protected function getProviderConfig(): array
+    {
+        $provider = config('ai-translator.ai.provider');
+        $model = config('ai-translator.ai.model');
+        $apiKey = config('ai-translator.ai.api_key');
+        
+        if (!$provider || !$model || !$apiKey) {
+            throw new \Exception('AI provider configuration is incomplete. Please check your config/ai-translator.php file.');
+        }
+
+        return [
+            'provider' => $provider,
+            'model' => $model,
+            'api_key' => $apiKey,
+            'temperature' => config('ai-translator.ai.temperature', 0.3),
+            'thinking' => config('ai-translator.ai.use_extended_thinking', false),
+            'retries' => config('ai-translator.ai.retries', 1),
+            'max_tokens' => config('ai-translator.ai.max_tokens', 4096),
+        ];
+    }
+
+    /**
+     * Get file prefix for namespacing
+     */
+    protected function getFilePrefix(string $file): string
+    {
+        $relativePath = str_replace(base_path() . '/', '', $file);
+        $relativePath = str_replace($this->sourceDirectory . '/', '', $relativePath);
+        $relativePath = str_replace($this->sourceLocale . '/', '', $relativePath);
+        $relativePath = str_replace('.php', '', $relativePath);
+        
+        return str_replace('/', '.', $relativePath);
+    }
+
+    /**
+     * Get relative path for display
+     */
+    protected function getRelativePath(string $file): string
+    {
+        return str_replace(base_path() . '/', '', $file);
+    }
+
+    /**
+     * Display header
+     */
+    protected function displayHeader(): void
+    {
+        $this->line("\n".$this->colors['cyan'].'╔═══════════════════════════════════════════════════════╗'.$this->colors['reset']);
+        $this->line($this->colors['cyan'].'║'.$this->colors['reset'].$this->colors['bold'].'       Laravel AI Translator - String Translation       '.$this->colors['reset'].$this->colors['cyan'].'║'.$this->colors['reset']);
+        $this->line($this->colors['cyan'].'╚═══════════════════════════════════════════════════════╝'.$this->colors['reset']."\n");
+    }
+
+    /**
+     * Display summary
+     */
+    protected function displaySummary(): void
+    {
+        $this->line("\n".$this->colors['cyan'].'═══════════════════════════════════════════════════════'.$this->colors['reset']);
+        $this->line($this->colors['bold'].'Translation Summary'.$this->colors['reset']);
+        $this->line($this->colors['cyan'].'═══════════════════════════════════════════════════════'.$this->colors['reset']);
+
+        // Display raw token usage
+        if ($this->tokenUsage['total_tokens'] > 0 || $this->tokenUsage['input_tokens'] > 0) {
+            $this->line("\n" . $this->colors['yellow'] . "[DEBUG] Total Raw Token Usage:" . $this->colors['reset']);
+            $this->line($this->colors['gray'] . json_encode($this->tokenUsage, JSON_PRETTY_PRINT) . $this->colors['reset'] . "\n");
+            
+            $model = config('ai-translator.ai.model');
+            $printer = new TokenUsagePrinter($model);
+            $printer->printTokenUsageSummary($this, $this->tokenUsage);
+            $printer->printCostEstimation($this, $this->tokenUsage);
+        }
+
+        $this->line($this->colors['cyan'].'═══════════════════════════════════════════════════════'.$this->colors['reset']."\n");
+    }
+
+    /**
+     * Get existing locales
+     */
+    protected function getExistingLocales(): array
+    {
+        $locales = [];
+        $langPath = base_path($this->sourceDirectory);
+        
+        if (is_dir($langPath)) {
+            $dirs = scandir($langPath);
+            foreach ($dirs as $dir) {
+                if ($dir !== '.' && $dir !== '..' && is_dir("{$langPath}/{$dir}") && !str_starts_with($dir, 'backup')) {
+                    $locales[] = $dir;
                 }
-
-                return [
-                    'locale' => $referenceLocale,
-                    'strings' => $allReferenceStrings,
-                ];
-            })
-            ->filter()
-            ->values()
-            ->toArray();
-    }
-
-    /**
-     * 레퍼런스 문자열에 우선순위 적용
-     */
-    protected function getPrioritizedReferenceStrings(array $strings, int $maxItems): array
-    {
-        $prioritized = [];
-
-        // 1. 짧은 문자열 우선 (UI 요소, 버튼 등)
-        foreach ($strings as $key => $value) {
-            if (strlen($value) < 50 && count($prioritized) < $maxItems * 0.7) {
-                $prioritized[$key] = $value;
             }
         }
 
-        // 2. 나머지 항목 추가
-        foreach ($strings as $key => $value) {
-            if (! isset($prioritized[$key]) && count($prioritized) < $maxItems) {
-                $prioritized[$key] = $value;
-            }
-
-            if (count($prioritized) >= $maxItems) {
-                break;
-            }
-        }
-
-        return $prioritized;
+        return $locales;
     }
 
     /**
-     * Get global translation context
-     */
-    protected function getGlobalContext(string $file, string $locale, int $maxContextItems): array
-    {
-        if ($maxContextItems <= 0) {
-            return [];
-        }
-
-        $contextProvider = new TranslationContextProvider;
-        $globalContext = $contextProvider->getGlobalTranslationContext(
-            $this->sourceLocale,
-            $locale,
-            $file,
-            $maxContextItems
-        );
-
-        if (! empty($globalContext)) {
-            $contextItemCount = collect($globalContext)->map(fn ($items) => count($items))->sum();
-            $this->info($this->colors['blue'].'    ℹ Using global context: '.
-                $this->colors['reset'].count($globalContext).' files, '.
-                $contextItemCount.' items');
-        } else {
-            $this->line($this->colors['gray'].'    ℹ No global context available'.$this->colors['reset']);
-        }
-
-        return $globalContext;
-    }
-
-    /**
-     * Setup translator
-     */
-    protected function setupTranslator(
-        string $file,
-        \Illuminate\Support\Collection $chunk,
-        array $referenceStringList,
-        string $locale,
-        array $globalContext
-    ): AIProvider {
-        // 파일 정보 표시
-        $outputFile = $this->getOutputDirectoryLocale($locale).'/'.basename($file);
-        $this->displayFileInfo($file, $locale, $outputFile);
-
-        // 레퍼런스 정보를 적절한 형식으로 변환
-        $references = [];
-        foreach ($referenceStringList as $reference) {
-            $referenceLocale = $reference['locale'];
-            $referenceStrings = $reference['strings'];
-            $references[$referenceLocale] = $referenceStrings;
-        }
-
-        // AIProvider 인스턴스 생성
-        $translator = new AIProvider(
-            $file,
-            $chunk->toArray(),
-            $this->sourceLocale,
-            $locale,
-            $references,
-            [],  // additionalRules
-            $globalContext  // globalTranslationContext
-        );
-
-        $translator->setOnThinking(function ($thinking) {
-            echo $this->colors['gray'].$thinking.$this->colors['reset'];
-        });
-
-        $translator->setOnThinkingStart(function () {
-            $this->line($this->colors['gray'].'    '.'🧠 AI Thinking...'.$this->colors['reset']);
-        });
-
-        $translator->setOnThinkingEnd(function () {
-            $this->line($this->colors['gray'].'    '.'Thinking completed.'.$this->colors['reset']);
-        });
-
-        // Set callback for displaying translation progress
-        $translator->setOnTranslated(function ($item, $status, $translatedItems) use ($chunk) {
-            if ($status === TranslationStatus::COMPLETED) {
-                $totalCount = $chunk->count();
-                $completedCount = count($translatedItems);
-
-                $this->line($this->colors['cyan'].'  ⟳ '.
-                    $this->colors['reset'].$item->key.
-                    $this->colors['gray'].' → '.
-                    $this->colors['reset'].$item->translated.
-                    $this->colors['gray']." ({$completedCount}/{$totalCount})".
-                    $this->colors['reset']);
-            }
-        });
-
-        // 토큰 사용량 콜백 설정
-        $translator->setOnTokenUsage(function ($usage) {
-            $isFinal = $usage['final'] ?? false;
-            $inputTokens = $usage['input_tokens'] ?? 0;
-            $outputTokens = $usage['output_tokens'] ?? 0;
-            $totalTokens = $usage['total_tokens'] ?? 0;
-
-            // 실시간 토큰 사용량 표시
-            $this->line($this->colors['gray'].'    Tokens: '.
-                'Input='.$this->colors['green'].$inputTokens.$this->colors['gray'].', '.
-                'Output='.$this->colors['green'].$outputTokens.$this->colors['gray'].', '.
-                'Total='.$this->colors['purple'].$totalTokens.$this->colors['gray'].
-                $this->colors['reset']);
-        });
-
-        // 프롬프트 로깅 콜백 설정
-        if ($this->option('show-prompt')) {
-            $translator->setOnPromptGenerated(function ($prompt, PromptType $type) {
-                $typeText = match ($type) {
-                    PromptType::SYSTEM => '🤖 System Prompt',
-                    PromptType::USER => '👤 User Prompt',
-                };
-
-                echo "\n    {$typeText}:\n";
-                echo $this->colors['gray'].'    '.str_replace("\n", $this->colors['reset']."\n    ".$this->colors['gray'], $prompt).$this->colors['reset']."\n";
-            });
-        }
-
-        return $translator;
-    }
-
-    /**
-     * 토큰 사용량 총계 업데이트
-     */
-    protected function updateTokenUsageTotals(array $usage): void
-    {
-        $this->tokenUsage['input_tokens'] += ($usage['input_tokens'] ?? 0);
-        $this->tokenUsage['output_tokens'] += ($usage['output_tokens'] ?? 0);
-        $this->tokenUsage['total_tokens'] =
-            $this->tokenUsage['input_tokens'] +
-            $this->tokenUsage['output_tokens'];
-    }
-
-    /**
-     * 사용 가능한 로케일 목록 가져오기
-     *
-     * @return array|string[]
-     */
-    public function getExistingLocales(): array
-    {
-        $root = $this->sourceDirectory;
-        $directories = array_diff(scandir($root), ['.', '..']);
-        // 디렉토리만 필터링하고 _로 시작하는 디렉토리 제외
-        $directories = array_filter($directories, function ($directory) use ($root) {
-            return is_dir($root.'/'.$directory) && !str_starts_with($directory, '_');
-        });
-
-        return collect($directories)->values()->toArray();
-    }
-
-    /**
-     * 출력 디렉토리 경로 가져오기
-     */
-    public function getOutputDirectoryLocale(string $locale): string
-    {
-        return config('ai-translator.source_directory').'/'.$locale;
-    }
-
-    /**
-     * 문자열 파일 경로 목록 가져오기
-     */
-    public function getStringFilePaths(string $locale): array
-    {
-        $files = [];
-        $root = $this->sourceDirectory.'/'.$locale;
-        $directories = array_diff(scandir($root), ['.', '..']);
-        foreach ($directories as $directory) {
-            // PHP 파일만 필터링
-            if (pathinfo($directory, PATHINFO_EXTENSION) !== 'php') {
-                continue;
-            }
-            $files[] = $root.'/'.$directory;
-        }
-
-        return $files;
-    }
-
-    /**
-     * 지정된 로케일 검증 및 필터링
+     * Validate and filter locales
      */
     protected function validateAndFilterLocales(array $specifiedLocales, array $availableLocales): array
     {
         $validLocales = [];
-        $invalidLocales = [];
-
+        
         foreach ($specifiedLocales as $locale) {
             if (in_array($locale, $availableLocales)) {
                 $validLocales[] = $locale;
             } else {
-                $invalidLocales[] = $locale;
+                $this->warn("Locale '{$locale}' not found in available locales.");
             }
         }
 
-        if (! empty($invalidLocales)) {
-            $this->warn('The following locales are invalid or not available: '.implode(', ', $invalidLocales));
-            $this->info('Available locales: '.implode(', ', $availableLocales));
+        return $validLocales;
+    }
+
+    /**
+     * Choose languages interactively
+     */
+    protected function choiceLanguages(string $question, bool $multiple = false, ?string $default = null)
+    {
+        $locales = $this->getExistingLocales();
+        
+        if (empty($locales)) {
+            $this->error('No language directories found.');
+            return $multiple ? [] : null;
         }
 
-        return $validLocales;
+        // Prepare choices with language names
+        $choices = [];
+        foreach ($locales as $locale) {
+            $name = LanguageConfig::getLanguageName($locale);
+            $choices[] = $name ? "{$locale} ({$name})" : $locale;
+        }
+
+        if ($multiple) {
+            $selected = $this->choice($question, $choices, null, null, true);
+            $result = [];
+            foreach ($selected as $choice) {
+                $locale = explode(' ', $choice)[0];
+                $result[] = $locale;
+            }
+            return $result;
+        } else {
+            // Convert locale default to array index
+            $defaultIndex = null;
+            if ($default) {
+                foreach ($choices as $index => $choice) {
+                    if (str_starts_with($choice, $default . ' ')) {
+                        $defaultIndex = $index;
+                        break;
+                    }
+                }
+            }
+            
+            $selected = $this->choice($question, $choices, $defaultIndex);
+            return explode(' ', $selected)[0];
+        }
+    }
+
+    /**
+     * Get PHP string file paths
+     */
+    protected function getStringFilePaths(string $locale): array
+    {
+        $files = [];
+        $langPath = base_path("{$this->sourceDirectory}/{$locale}");
+        
+        if (is_dir($langPath)) {
+            $iterator = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($langPath)
+            );
+            
+            foreach ($iterator as $file) {
+                if ($file->isFile() && $file->getExtension() === 'php') {
+                    $files[] = $file->getPathname();
+                }
+            }
+        }
+
+        return $files;
     }
 }

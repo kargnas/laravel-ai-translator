@@ -2,16 +2,23 @@
 
 namespace Kargnas\LaravelAiTranslator\Models;
 
-use AdrienBrault\Instructrice\Attribute\Prompt;
-
+/**
+ * Simple data object for localized strings
+ */
 class LocalizedString
 {
-    #[Prompt('The key of the string to be translated. Should be kept as it.')]
+    /**
+     * @var string
+     */
     public string $key = '';
 
-    #[Prompt('Translated text into the target language from the source language.')]
-    public string $translated;
+    /**
+     * @var string
+     */
+    public string $translated = '';
 
-    #[Prompt('Optional comment about translation uncertainty or issues.')]
+    /**
+     * @var string|null
+     */
     public ?string $comment = null;
 }

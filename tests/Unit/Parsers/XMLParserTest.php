@@ -1,6 +1,6 @@
 <?php
 
-use Kargnas\LaravelAiTranslator\AI\Parsers\XMLParser;
+use Kargnas\LaravelAiTranslator\Support\Parsers\XMLParser;
 
 test('can parse translation items', function () {
     $xml = '<?xml version="1.0" encoding="UTF-8"?><translations>

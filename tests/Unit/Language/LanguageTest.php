@@ -1,6 +1,6 @@
 <?php
 
-use Kargnas\LaravelAiTranslator\AI\Language\Language;
+use Kargnas\LaravelAiTranslator\Support\Language\Language;
 
 test('can create language instance', function () {
     $language = new Language('ko', 'Korean');

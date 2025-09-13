@@ -1,4 +1,4 @@
-modules = ["php-8.2"]
+modules = ["php-8.2", "php-8.3"]
 run = "composer install && npm install"
 
 [nix]
@@ -6,3 +6,29 @@ channel = "stable-24_05"
 
 [deployment]
 run = ["sh", "-c", "composer install && npm install"]
+
+[agent]
+expertMode = true
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Pest Tests"
+
+[[workflows.workflow]]
+name = "Pest Tests"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "vendor/bin/pest"
+
+[workflows.workflow.metadata]
+outputType = "console"

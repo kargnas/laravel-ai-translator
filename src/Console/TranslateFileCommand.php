@@ -12,6 +12,7 @@ class TranslateFileCommand extends Command
                            {file : Path to the PHP file to translate}
                            {--source-language= : Source language code (uses config default if not specified)}
                            {--target-language=ko : Target language code (ex: ko)}
+                           {--reference=* : Reference languages for guidance}
                            {--rules=* : Additional rules}
                            {--debug : Enable debug mode}
                            {--show-ai-response : Show raw AI response during translation}
@@ -49,6 +50,7 @@ class TranslateFileCommand extends Command
             $sourceLanguage = $this->option('source-language') ?: config('ai-translator.source_locale', 'en');
             $targetLanguage = $this->option('target-language');
             $rules = $this->option('rules') ?: [];
+            $referenceLocales = $this->option('reference') ?: [];
             $showAiResponse = $this->option('show-ai-response');
             $debug = $this->option('debug');
 
@@ -151,6 +153,7 @@ class TranslateFileCommand extends Command
             $builder = TranslationBuilder::make()
                 ->from($sourceLanguage)
                 ->to($targetLanguage)
+                ->trackChanges()
                 ->withProviders(['default' => $providerConfig]);
 
             // Add custom rules if provided
@@ -161,6 +164,21 @@ class TranslateFileCommand extends Command
             // Add context as metadata
             $builder->option('global_context', $globalContext);
             $builder->option('filename', basename($filePath));
+
+            // Add references if provided (same file path pattern across locales)
+            if (!empty($referenceLocales)) {
+                $references = [];
+                foreach ($referenceLocales as $refLocale) {
+                    $refFile = preg_replace('#/(?:[a-z]{2}(?:_[A-Z]{2})?)/#', "/{$refLocale}/", $filePath, 1);
+                    if ($refFile && file_exists($refFile)) {
+                        $refTransformer = new \Kargnas\LaravelAiTranslator\Transformers\PHPLangTransformer($refFile);
+                        $references[$refLocale] = $refTransformer->getTranslatable();
+                    }
+                }
+                if (!empty($references)) {
+                    $builder->withReference($references);
+                }
+            }
 
             // Add progress callback
             $builder->onProgress(function($output) use (&$tokenUsage, &$processedCount, $totalItems, $strings, $showAiResponse) {

@@ -266,6 +266,27 @@ class TranslateStrings extends Command
                         'max_context_items' => $maxContextItems,
                     ]);
 
+                    // Add references if available for the same relative file
+                    if (!empty($this->referenceLocales)) {
+                        $references = [];
+                        foreach ($this->referenceLocales as $refLocale) {
+                            $refFile = str_replace("/{$this->sourceLocale}/", "/{$refLocale}/", $file);
+                            if (file_exists($refFile)) {
+                                $refTransformer = new PHPLangTransformer($refFile);
+                                $references[$refLocale] = $refTransformer->getTranslatable();
+                            }
+                        }
+                        if (!empty($references)) {
+                            $builder->withReference($references);
+                        }
+                    }
+
+                    // Add additional rules from config for the target locale
+                    $additionalRules = $this->getAdditionalRules($locale);
+                    if (!empty($additionalRules)) {
+                        $builder->withStyle('custom', implode("\n", $additionalRules));
+                    }
+
                     // Set progress callback
                     $builder->onProgress(function($output) {
                         if ($output->type === 'thinking' && $this->option('show-prompt')) {
@@ -279,6 +300,34 @@ class TranslateStrings extends Command
 
                     // Execute translation
                     $result = $builder->translate($strings);
+
+                    // Show prompts if requested
+                    if ($this->option('show-prompt')) {
+                        $pluginData = $result->getMetadata('plugin_data');
+                        if ($pluginData) {
+                            $systemPrompt = $pluginData['system_prompt'] ?? null;
+                            $userPrompt = $pluginData['user_prompt'] ?? null;
+
+                            if ($systemPrompt || $userPrompt) {
+                                $this->line("\n" . str_repeat('═', 80));
+                                $this->line($this->colors['purple'] . "AI PROMPTS" . $this->colors['reset']);
+                                $this->line(str_repeat('═', 80));
+
+                                if ($systemPrompt) {
+                                    $this->line($this->colors['cyan'] . "System Prompt:" . $this->colors['reset']);
+                                    $this->line($this->colors['gray'] . $systemPrompt . $this->colors['reset']);
+                                    $this->line("");
+                                }
+
+                                if ($userPrompt) {
+                                    $this->line($this->colors['cyan'] . "User Prompt:" . $this->colors['reset']);
+                                    $this->line($this->colors['gray'] . $userPrompt . $this->colors['reset']);
+                                }
+
+                                $this->line(str_repeat('═', 80) . "\n");
+                            }
+                        }
+                    }
                     
                     // Show prompts if requested
                     if ($this->option('show-prompt')) {
@@ -383,6 +432,37 @@ class TranslateStrings extends Command
     }
 
     /**
+     * Get additional rules for target language
+     */
+    protected function getAdditionalRules(string $locale): array
+    {
+        $rules = [];
+
+        // Get default rules
+        $defaultRules = config('ai-translator.additional_rules.default', []);
+        if (!empty($defaultRules)) {
+            $rules = array_merge($rules, $defaultRules);
+        }
+
+        // Get language-specific rules
+        $localeRules = config("ai-translator.additional_rules.{$locale}", []);
+        if (!empty($localeRules)) {
+            $rules = array_merge($rules, $localeRules);
+        }
+
+        // Also check for language code without region (e.g., 'en' for 'en_US')
+        $langCode = explode('_', $locale)[0];
+        if ($langCode !== $locale) {
+            $langRules = config("ai-translator.additional_rules.{$langCode}", []);
+            if (!empty($langRules)) {
+                $rules = array_merge($rules, $langRules);
+            }
+        }
+
+        return $rules;
+    }
+
+    /**
      * Get file prefix for namespacing
      */
     protected function getFilePrefix(string $file): string
@@ -462,12 +542,14 @@ class TranslateStrings extends Command
     protected function validateAndFilterLocales(array $specifiedLocales, array $availableLocales): array
     {
         $validLocales = [];
-        
+
         foreach ($specifiedLocales as $locale) {
             if (in_array($locale, $availableLocales)) {
                 $validLocales[] = $locale;
             } else {
-                $this->warn("Locale '{$locale}' not found in available locales.");
+                // Allow non-existent/custom locales for output; warn and include
+                $this->warn("Locale '{$locale}' not found in available locales. It will be created as needed.");
+                $validLocales[] = $locale;
             }
         }
 

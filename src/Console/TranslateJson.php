@@ -283,6 +283,16 @@ class TranslateJson extends Command
 
                     // Execute translation
                     $result = $builder->translate($chunk->toArray());
+
+                    // Real-time token usage display (summary after each chunk)
+                    $tokenUsageData = $result->getTokenUsage();
+                    if (!empty($tokenUsageData)) {
+                        $this->line($this->colors['gray']."  Tokens - Input: ".$this->colors['reset'].$tokenUsageData['input_tokens'].
+                            $this->colors['gray']." | Output: ".$this->colors['reset'].$tokenUsageData['output_tokens'].
+                            $this->colors['gray']." | Cache created: ".$this->colors['reset'].($tokenUsageData['cache_creation_input_tokens'] ?? 0).
+                            $this->colors['gray']." | Cache read: ".$this->colors['reset'].($tokenUsageData['cache_read_input_tokens'] ?? 0).
+                            $this->colors['gray']." | Total: ".$this->colors['reset'].$tokenUsageData['total_tokens']);
+                    }
                     
                     // Show prompts if requested
                     if ($this->option('show-prompt')) {
@@ -454,12 +464,14 @@ class TranslateJson extends Command
     protected function validateAndFilterLocales(array $specifiedLocales, array $availableLocales): array
     {
         $validLocales = [];
-        
+
         foreach ($specifiedLocales as $locale) {
             if (in_array($locale, $availableLocales)) {
                 $validLocales[] = $locale;
             } else {
-                $this->warn("Locale '{$locale}' not found in available locales.");
+                // Allow non-existent/custom locales for output; warn and include
+                $this->warn("Locale '{$locale}' not found in available locales. It will be created as needed.");
+                $validLocales[] = $locale;
             }
         }
 

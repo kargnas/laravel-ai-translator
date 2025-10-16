@@ -48,13 +48,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Architecture Overview
 
 ### Package Type
-Laravel package for AI-powered translations supporting multiple AI providers (OpenAI, Anthropic Claude, Google Gemini).
+Laravel package for AI-powered translations supporting multiple AI providers via Prism (Anthropic Claude, OpenAI, Google Gemini, OpenRouter, and more).
 
 ### Key Components
 
 1. **AI Layer** (`src/AI/`)
    - `AIProvider.php`: Factory for creating AI clients
-   - `Clients/`: Provider-specific implementations (OpenAI, Anthropic, Gemini)
+   - Prism-driven provider integration replaces custom HTTP clients
    - `TranslationContextProvider.php`: Manages translation context and prompts
    - System and user prompts in `prompt-system.txt` and `prompt-user.txt`
 

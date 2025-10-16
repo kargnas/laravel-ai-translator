@@ -154,7 +154,7 @@ These custom styles offer creative ways to customize your translations, adding a
 
    You can obtain an API key from the [Anthropic Console](https://console.anthropic.com/settings/keys).
 
-(If you want to use OpenAI's GPT or Google's Gemini instead, see step 4 below for configuration instructions.)
+(If you want to use OpenAI's GPT, Google's Gemini, or OpenRouter's multi-provider gateway instead, see step 4 below for configuration instructions.)
 
 3. (Optional) Publish the configuration file:
 
@@ -164,7 +164,7 @@ These custom styles offer creative ways to customize your translations, adding a
 
    This step is optional but recommended if you want to customize the package's behavior. It will create a `config/ai-translator.php` file where you can modify various settings.
 
-4. (Optional) The package is configured to use Claude by default. If you want to use OpenAI's GPT or Google's Gemini instead, update the `config/ai-translator.php` file:
+4. (Optional) The package is configured to use Claude by default. If you want to use OpenAI's GPT, Google's Gemini, or OpenRouter instead, update the `config/ai-translator.php` file:
 
    For OpenAI GPT:
 
@@ -186,18 +186,56 @@ These custom styles offer creative ways to customize your translations, adding a
    ],
    ```
 
-   Then, add the OpenAI or Gemini API key to your `.env` file:
+   Or for OpenRouter (route to any provider available on openrouter.ai):
+
+   ```php
+   'ai' => [
+       'provider' => 'openrouter',
+       'model' => 'anthropic/claude-3.5-sonnet',
+       'api_key' => env('OPENROUTER_API_KEY'),
+       // Optional: override headers or other provider-specific settings
+       // 'prism' => [
+       //     'providers' => [
+       //         'openrouter' => [
+       //             'site' => [
+       //                 'http_referer' => env('OPENROUTER_HTTP_REFERER', 'https://kargn.as'),
+       //                 'x_title' => env('OPENROUTER_X_TITLE', 'Sangrak'),
+       //             ],
+       //         ],
+       //     ],
+       // ],
+   ],
+   ```
+
+   Then, add the required API keys to your `.env` file:
 
    ```
    OPENAI_API_KEY=your-openai-api-key-here
    GEMINI_API_KEY=your-gemini-api-key-here
+   OPENROUTER_API_KEY=your-openrouter-api-key-here
+   # Optional overrides for OpenRouter's site headers
+   # OPENROUTER_HTTP_REFERER=https://kargn.as
+   # OPENROUTER_X_TITLE=Sangrak
    ```
 
    You can obtain API keys from:
    - OpenAI: [OpenAI Platform](https://platform.openai.com/account/api-keys)
    - Gemini: [Google AI Studio](https://aistudio.google.com/app/apikey)
+   - OpenRouter: [OpenRouter Dashboard](https://openrouter.ai/keys)
 
    **We strongly recommend using Claude for the best translation quality and accuracy.**
+
+### Advanced provider configuration (Prism)
+
+Laravel AI Translator now relies on [Prism PHP](https://github.com/prism-php/prism) for provider interoperability. Two configurat
+ion keys give you fine-grained control:
+
+- `ai.provider_options`: Pass raw provider options to Prism (e.g. enable Anthropic extended thinking or tweak OpenAI tool choices).
+- `ai.prism.providers`: Override Prism's provider configuration for this package without touching the global `prism.php` file. You
+  can update base URLs, site headers, or add credentials for additional providers supported by Prism.
+
+With these options you can experiment with other Prism providers (Groq, Mistral, DeepSeek, etc.) by adding their credentials und
+er `ai.prism.providers` and switching the `provider` key in the main configuration.
 
 5. You're now ready to use the Laravel AI Translator!
 
@@ -473,7 +511,7 @@ This will create a `config/ai-translator.php` file where you can modify the foll
   ],
   ```
 
-  This package supports Anthropic's Claude, Google's Gemini, and OpenAI's GPT models for translations. Here are the tested and verified models:
+  This package supports Anthropic's Claude, Google's Gemini, OpenAI's GPT models, and any other provider that Prism PHP exposes (including the OpenRouter catalog). Here are the tested and verified models:
 
   | Provider    | Model                            | Extended Thinking | Context Window | Max Tokens |
   | ----------- | -------------------------------- | ----------------- | -------------- | ---------- |
@@ -485,13 +523,15 @@ This will create a `config/ai-translator.php` file where you can modify the foll
   | `openai`    | `gpt-4o-mini`                    | ❌                | 128K           | 4K         |
   | `gemini`    | `gemini-2.5-pro-preview-05-06`   | ❌                | 1000K          | 64K        |
   | `gemini`    | `gemini-2.5-flash-preview-04-17` | ❌                | 1000K          | 64K        |
+  | `openrouter` | `anthropic/claude-3.5-sonnet`    | ✅\*              | 200K              | 8K/64K\*         |
 
-  \* 8K tokens for normal mode, 64K tokens when extended thinking is enabled
+  \* 8K tokens for normal mode, 64K tokens when extended thinking is enabled. When using OpenRouter the exact limits follow the underlying provider (e.g. Anthropic models retain their extended thinking budgets).
 
   For available models:
 
   - Anthropic: See [Anthropic Models Documentation](https://docs.anthropic.com/en/docs/about-claude/models)
   - OpenAI: See [OpenAI Models Documentation](https://platform.openai.com/docs/models)
+  - OpenRouter: See [OpenRouter Models Directory](https://openrouter.ai/models)
 
   > **⭐️ Strong Recommendation**: We highly recommend using Anthropic's Claude models, particularly `claude-sonnet-4-20250514` or `claude-3-7-sonnet-latest`. Here's why:
   >

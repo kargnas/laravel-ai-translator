@@ -8,6 +8,7 @@ function providerKeys(): array
         'openai' => ! empty(env('OPENAI_API_KEY')),
         'anthropic' => ! empty(env('ANTHROPIC_API_KEY')),
         'gemini' => ! empty(env('GEMINI_API_KEY')),
+        'openrouter' => ! empty(env('OPENROUTER_API_KEY')),
     ];
 }
 
@@ -16,10 +17,11 @@ beforeEach(function () {
     $this->hasOpenAI = $keys['openai'];
     $this->hasAnthropic = $keys['anthropic'];
     $this->hasGemini = $keys['gemini'];
+    $this->hasOpenRouter = $keys['openrouter'];
 });
 
 test('environment variables are loaded from .env.testing', function () {
-    if (! ($this->hasOpenAI || $this->hasAnthropic || $this->hasGemini)) {
+    if (! ($this->hasOpenAI || $this->hasAnthropic || $this->hasGemini || $this->hasOpenRouter)) {
         $this->markTestSkipped('API keys not found in environment. Skipping test.');
     }
 
@@ -35,6 +37,11 @@ test('environment variables are loaded from .env.testing', function () {
 
     if ($this->hasGemini) {
         expect(env('GEMINI_API_KEY'))->not()->toBeNull()
+            ->toBeString();
+    }
+
+    if ($this->hasOpenRouter) {
+        expect(env('OPENROUTER_API_KEY'))->not()->toBeNull()
             ->toBeString();
     }
 });
@@ -85,7 +92,6 @@ test('can translate strings using Gemini', function () {
     }
 
     config()->set('ai-translator.ai.provider', 'gemini');
-    config()->set('ai-translator.ai.model', 'gemini-2.5-pro');
     config()->set('ai-translator.ai.model', 'gemini-2.5-flash');
     config()->set('ai-translator.ai.api_key', env('GEMINI_API_KEY'));
 
@@ -98,6 +104,27 @@ test('can translate strings using Gemini', function () {
 
     $result = $provider->translate();
     expect($result)->toBeArray()->toHaveCount(1);
+});
+
+test('can translate strings using OpenRouter', function () {
+    if (! $this->hasOpenRouter) {
+        $this->markTestSkipped('OpenRouter API key not found in environment. Skipping test.');
+    }
+
+    config()->set('ai-translator.ai.provider', 'openrouter');
+    config()->set('ai-translator.ai.model', 'anthropic/claude-3.5-sonnet');
+    config()->set('ai-translator.ai.api_key', env('OPENROUTER_API_KEY'));
+    config()->set('ai-translator.ai.provider_options', []);
+
+    $provider = new AIProvider(
+        'test.php',
+        ['greeting' => 'Hello, world!'],
+        'en',
+        'ko'
+    );
+
+    $result = $provider->translate();
+    expect($result)->toBeArray();
 });
 
 test('throws exception for unsupported provider', function () {

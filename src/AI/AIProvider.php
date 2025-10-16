@@ -2,10 +2,8 @@
 
 namespace Kargnas\LaravelAiTranslator\AI;
 
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
-use Kargnas\LaravelAiTranslator\AI\Clients\AnthropicClient;
-use Kargnas\LaravelAiTranslator\AI\Clients\GeminiClient;
-use Kargnas\LaravelAiTranslator\AI\Clients\OpenAIClient;
 use Kargnas\LaravelAiTranslator\AI\Language\Language;
 use Kargnas\LaravelAiTranslator\AI\Language\LanguageRules;
 use Kargnas\LaravelAiTranslator\AI\Parsers\AIResponseParser;
@@ -13,6 +11,17 @@ use Kargnas\LaravelAiTranslator\Enums\PromptType;
 use Kargnas\LaravelAiTranslator\Enums\TranslationStatus;
 use Kargnas\LaravelAiTranslator\Exceptions\VerifyFailedException;
 use Kargnas\LaravelAiTranslator\Models\LocalizedString;
+use InvalidArgumentException;
+use Prism\Prism\Enums\Provider as PrismProvider;
+use Prism\Prism\Prism;
+use Prism\Prism\Streaming\Events\StreamEndEvent;
+use Prism\Prism\Streaming\Events\StreamEvent;
+use Prism\Prism\Streaming\Events\TextDeltaEvent;
+use Prism\Prism\Streaming\Events\ThinkingCompleteEvent;
+use Prism\Prism\Streaming\Events\ThinkingEvent;
+use Prism\Prism\Streaming\Events\ThinkingStartEvent;
+use Prism\Prism\Text\PendingRequest as PrismPendingTextRequest;
+use Prism\Prism\ValueObjects\Usage;
 
 class AIProvider
 {
@@ -37,6 +46,12 @@ class AIProvider
     protected int $outputTokens = 0;
 
     protected int $totalTokens = 0;
+
+    protected ?int $cacheCreationTokens = null;
+
+    protected ?int $cacheReadTokens = null;
+
+    protected ?int $thoughtTokens = null;
 
     // Callback properties
     protected $onTranslated = null;
@@ -95,6 +110,9 @@ class AIProvider
         $this->inputTokens = 0;
         $this->outputTokens = 0;
         $this->totalTokens = 0;
+        $this->cacheCreationTokens = null;
+        $this->cacheReadTokens = null;
+        $this->thoughtTokens = null;
 
         Log::info("AIProvider initiated: Source language = {$this->sourceLanguageObj->name} ({$this->sourceLanguageObj->code}), Target language = {$this->targetLanguageObj->name} ({$this->targetLanguageObj->code})");
         Log::info('AIProvider additional rules: '.json_encode($this->additionalRules));
@@ -379,429 +397,303 @@ class AIProvider
         return [];
     }
 
+
     protected function getTranslatedObjects(): array
     {
-        return match ($this->configProvider) {
-            'anthropic' => $this->getTranslatedObjectsFromAnthropic(),
-            'openai' => $this->getTranslatedObjectsFromOpenAI(),
-            'gemini' => $this->getTranslatedObjectsFromGemini(),
-            default => throw new \Exception("Provider {$this->configProvider} is not supported."),
-        };
+        return $this->translateWithPrism();
     }
 
-    protected function getTranslatedObjectsFromOpenAI(): array
+    protected function translateWithPrism(): array
     {
-        $client = new OpenAIClient(config('ai-translator.ai.api_key'));
-        $totalItems = count($this->strings);
-
-        // Initialize response parser
-        $responseParser = new AIResponseParser($this->onTranslated);
-
-        // Prepare request data
-        $requestData = [
-            'model' => $this->configModel,
-            'messages' => [
-                [
-                    'role' => 'system',
-                    'content' => $this->getSystemPrompt(),
-                ],
-                [
-                    'role' => 'user',
-                    'content' => $this->getUserPrompt(),
-                ],
-            ],
-            'temperature' => config('ai-translator.ai.temperature', 0),
-            'stream' => true,
-        ];
-
-        // Response text buffer
-        $responseText = '';
-
-        // Execute streaming request
-        if (! config('ai-translator.ai.disable_stream', false)) {
-            $response = $client->createChatStream(
-                $requestData,
-                function ($chunk, $data) use (&$responseText, $responseParser) {
-                    // Extract text content
-                    if (isset($data['choices'][0]['delta']['content'])) {
-                        $content = $data['choices'][0]['delta']['content'];
-                        $responseText .= $content;
-
-                        // Parse response text to extract translated items
-                        $responseParser->parse($responseText);
-
-                        // Call progress callback with current response
-                        if ($this->onProgress) {
-                            ($this->onProgress)($content, $responseParser->getTranslatedItems());
-                        }
-                    }
-                }
-            );
-        } else {
-            $response = $client->createChatStream($requestData, null);
-            $responseText = $response['choices'][0]['message']['content'];
-            $responseParser->parse($responseText);
-
-            if ($this->onProgress) {
-                ($this->onProgress)($responseText, $responseParser->getTranslatedItems());
-            }
-
-            if ($this->onTranslated) {
-                foreach ($responseParser->getTranslatedItems() as $item) {
-                    ($this->onTranslated)($item, TranslationStatus::STARTED, $responseParser->getTranslatedItems());
-                    ($this->onTranslated)($item, TranslationStatus::COMPLETED, $responseParser->getTranslatedItems());
-                }
-            }
-
-            // 토큰 사용량 콜백 호출 (설정된 경우)
-            if ($this->onTokenUsage) {
-                ($this->onTokenUsage)($this->getTokenUsage());
-            }
-        }
-
-        return $responseParser->getTranslatedItems();
-    }
-
-    protected function getTranslatedObjectsFromGemini(): array
-    {
-        $client = new GeminiClient(config('ai-translator.ai.api_key'));
-
-        $responseParser = new AIResponseParser($this->onTranslated);
-
-        $contents = [
-            [
-                'role' => 'user',
-                'parts' => [
-                    ['text' => $this->getSystemPrompt()."\n\n".$this->getUserPrompt()],
-                ],
-            ],
-        ];
-
-        $response = $client->request($this->configModel, $contents);
-        $responseText = $response['candidates'][0]['content']['parts'][0]['text'] ?? '';
-        $responseParser->parse($responseText);
-
-        if ($this->onProgress) {
-            ($this->onProgress)($responseText, $responseParser->getTranslatedItems());
-        }
-
-        if ($this->onTranslated) {
-            foreach ($responseParser->getTranslatedItems() as $item) {
-                ($this->onTranslated)($item, TranslationStatus::COMPLETED, $responseParser->getTranslatedItems());
-            }
-        }
-
-        return $responseParser->getTranslatedItems();
-    }
-
-    protected function getTranslatedObjectsFromAnthropic(): array
-    {
-        $client = new AnthropicClient(config('ai-translator.ai.api_key'));
-        $useExtendedThinking = config('ai-translator.ai.use_extended_thinking', false);
-        $totalItems = count($this->strings);
         $debugMode = config('app.debug', false);
 
-        // 토큰 사용량 초기화
+        $responseParser = new AIResponseParser($this->onTranslated, $debugMode);
+
         $this->inputTokens = 0;
         $this->outputTokens = 0;
         $this->totalTokens = 0;
+        $this->cacheCreationTokens = null;
+        $this->cacheReadTokens = null;
+        $this->thoughtTokens = null;
 
-        // Initialize response parser with debug mode enabled in development
-        $responseParser = new AIResponseParser($this->onTranslated, $debugMode);
-
-        if ($debugMode) {
-            Log::debug('AIProvider: Starting translation with Anthropic', [
-                'model' => $this->configModel,
-                'source_language' => $this->sourceLanguageObj->name,
-                'target_language' => $this->targetLanguageObj->name,
-                'extended_thinking' => $useExtendedThinking,
-            ]);
+        try {
+            $request = $this->buildPrismTextRequest();
+        } catch (InvalidArgumentException $e) {
+            throw new \Exception("Provider {$this->configProvider} is not supported.", 0, $e);
         }
 
-        // Prepare request data
-        $requestData = [
-            'model' => $this->configModel,
-            'messages' => [
-                ['role' => 'user', 'content' => $this->getUserPrompt()],
-            ],
-            'system' => [
-                [
-                    'type' => 'text',
-                    'text' => $this->getSystemPrompt(),
-                    'cache_control' => [
-                        'type' => 'ephemeral',
-                    ],
-                ],
-            ],
-        ];
-
-        $defaultMaxTokens = 4096;
-
-        if (preg_match('/^claude\-3\-5\-/', $this->configModel)) {
-            $defaultMaxTokens = 8192;
-        } elseif (preg_match('/^claude\-3\-7\-/', $this->configModel)) {
-            // @TODO: if add betas=["output-128k-2025-02-19"], then 128000
-            $defaultMaxTokens = 64000;
-        }
-
-        // Set up Extended Thinking
-        if ($useExtendedThinking && preg_match('/^claude\-3\-7\-/', $this->configModel)) {
-            $requestData['thinking'] = [
-                'type' => 'enabled',
-                'budget_tokens' => 10000,
-            ];
-        }
-
-        $requestData['max_tokens'] = (int) config('ai-translator.ai.max_tokens', $defaultMaxTokens);
-
-        // verify options before request
-        if (isset($requestData['thinking']) && $requestData['max_tokens'] < $requestData['thinking']['budget_tokens']) {
-            throw new \Exception("Max tokens is less than thinking budget tokens. Please increase max tokens. Current max tokens: {$requestData['max_tokens']}, Thinking budget tokens: {$requestData['thinking']['budget_tokens']}");
-        }
-
-        // Response text buffer
-        $responseText = '';
-        $detectedXml = '';
-        $translatedItems = [];
-        $processedKeys = [];
-        $inThinkingBlock = false;
-        $currentThinkingContent = '';
-
-        // Execute streaming request
         if (! config('ai-translator.ai.disable_stream', false)) {
-            $response = $client->messages()->createStream(
-                $requestData,
-                function ($chunk, $data) use (&$responseText, $responseParser, &$inThinkingBlock, &$currentThinkingContent, $debugMode, &$detectedXml, &$translatedItems, &$processedKeys, $totalItems) {
-                    // 토큰 사용량 추적
-                    $this->trackTokenUsage($data);
+            return $this->translateWithPrismStream($request, $responseParser);
+        }
 
-                    // Skip if data is null or not an array
-                    if (! is_array($data)) {
-                        return;
-                    }
+        return $this->translateWithPrismText($request, $responseParser);
+    }
 
-                    // Handle content_block_start event
-                    if ($data['type'] === 'content_block_start') {
-                        if (isset($data['content_block']['type']) && $data['content_block']['type'] === 'thinking') {
-                            $inThinkingBlock = true;
-                            $currentThinkingContent = '';
+    protected function buildPrismTextRequest(): PrismPendingTextRequest
+    {
+        $providerKey = $this->normalizeProviderKey($this->configProvider);
+        $providerConfig = $this->resolvePrismProviderConfig($providerKey);
 
-                            // Call thinking start callback
-                            if ($this->onThinkingStart) {
-                                ($this->onThinkingStart)();
-                            }
-                        }
-                    }
+        $request = Prism::text()
+            ->using($providerKey, $this->configModel, $providerConfig)
+            ->withSystemPrompt($this->getSystemPrompt())
+            ->withPrompt($this->getUserPrompt());
 
-                    // Process thinking delta
-                    if (
-                        $data['type'] === 'content_block_delta' &&
-                        isset($data['delta']['type']) && $data['delta']['type'] === 'thinking_delta' &&
-                        isset($data['delta']['thinking'])
-                    ) {
-                        $thinkingDelta = $data['delta']['thinking'];
-                        $currentThinkingContent .= $thinkingDelta;
+        $providerOptions = $this->buildProviderOptions();
 
-                        // Call thinking callback
-                        if ($this->onThinking) {
-                            ($this->onThinking)($thinkingDelta);
-                        }
-                    }
+        $maxTokensConfig = config('ai-translator.ai.max_tokens');
+        $maxTokens = $maxTokensConfig !== null ? (int) $maxTokensConfig : $this->determineDefaultMaxTokens();
 
-                    // Handle content_block_stop event
-                    if ($data['type'] === 'content_block_stop') {
-                        // If we're ending a thinking block
-                        if ($inThinkingBlock) {
-                            $inThinkingBlock = false;
+        $thinkingBudget = Arr::get($providerOptions, 'thinking.budget_tokens');
+        if ($thinkingBudget !== null && $maxTokens !== null && $maxTokens < $thinkingBudget) {
+            throw new \Exception("Max tokens is less than thinking budget tokens. Please increase max tokens. Current max tokens: {$maxTokens}, Thinking budget tokens: {$thinkingBudget}");
+        }
 
-                            // Call thinking end callback
-                            if ($this->onThinkingEnd) {
-                                ($this->onThinkingEnd)($currentThinkingContent);
-                            }
-                        }
-                    }
+        if ($maxTokens !== null) {
+            $request->withMaxTokens($maxTokens);
+        }
 
-                    // Extract text content (content_block_delta event with text_delta)
-                    if (
-                        $data['type'] === 'content_block_delta' &&
-                        isset($data['delta']['type']) && $data['delta']['type'] === 'text_delta' &&
-                        isset($data['delta']['text'])
-                    ) {
-                        $text = $data['delta']['text'];
-                        $responseText .= $text;
+        $temperature = config('ai-translator.ai.temperature', 0);
+        if ($temperature !== null) {
+            $request->usingTemperature($temperature);
+        }
 
-                        // Parse XML
-                        $previousItemCount = count($responseParser->getTranslatedItems());
-                        $responseParser->parseChunk($text);
-                        $currentItems = $responseParser->getTranslatedItems();
-                        $currentItemCount = count($currentItems);
+        if (! empty($providerOptions)) {
+            $request->withProviderOptions($providerOptions);
+        }
 
-                        // Check if new translation items have been added
-                        if ($currentItemCount > $previousItemCount) {
-                            $newItems = array_slice($currentItems, $previousItemCount);
-                            $translatedItems = $currentItems; // Update complete translation results
+        return $request;
+    }
 
-                            // Call callback for each new translation item
-                            foreach ($newItems as $index => $newItem) {
-                                // Skip already processed keys
-                                if (isset($processedKeys[$newItem->key])) {
-                                    continue;
-                                }
+    protected function translateWithPrismText(PrismPendingTextRequest $request, AIResponseParser $responseParser): array
+    {
+        $response = $request->asText();
 
-                                $processedKeys[$newItem->key] = true;
-                                $translatedCount = count($processedKeys);
+        $responseText = $response->text;
+        self::$lastRawResponse = $responseText;
 
-                                if ($this->onTranslated) {
-                                    // Only call with 'completed' status for completed translations
-                                    if ($newItem->translated) {
-                                        ($this->onTranslated)($newItem, TranslationStatus::COMPLETED, $translatedItems);
-                                    }
+        $responseParser->parse($responseText);
+        $translatedItems = $responseParser->getTranslatedItems();
 
-                                    if ($debugMode) {
-                                        Log::debug('AIProvider: Calling onTranslated callback', [
-                                            'key' => $newItem->key,
-                                            'status' => $newItem->translated ? TranslationStatus::COMPLETED : TranslationStatus::STARTED,
-                                            'translated_count' => $translatedCount,
-                                            'total_count' => $totalItems,
-                                            'translated_text' => $newItem->translated,
-                                        ]);
-                                    }
-                                }
-                            }
-                        }
+        $this->updateTokenUsageFromUsage($response->usage ?? null, false);
 
-                        // Call progress callback with current response
-                        if ($this->onProgress) {
-                            ($this->onProgress)($responseText, $currentItems);
-                        }
-                    }
+        if ($this->onProgress) {
+            ($this->onProgress)($responseText, $translatedItems);
+        }
 
-                    // Handle message_start event
-                    if ($data['type'] === 'message_start' && isset($data['message']['content'])) {
-                        // If there's initial content in the message
-                        foreach ($data['message']['content'] as $content) {
-                            if (isset($content['text'])) {
-                                $text = $content['text'];
-                                $responseText .= $text;
+        if ($this->onTranslated) {
+            foreach ($translatedItems as $item) {
+                ($this->onTranslated)($item, TranslationStatus::STARTED, $translatedItems);
+                ($this->onTranslated)($item, TranslationStatus::COMPLETED, $translatedItems);
+            }
+        }
 
-                                // Collect XML fragments in debug mode (without logging)
-                                if (
-                                    $debugMode && (
-                                        strpos($text, '<translations') !== false ||
-                                        strpos($text, '<item') !== false ||
-                                        strpos($text, '<trx') !== false ||
-                                        strpos($text, 'CDATA') !== false
-                                    )
-                                ) {
-                                    $detectedXml .= $text;
-                                }
+        return $translatedItems;
+    }
 
-                                $responseParser->parseChunk($text);
+    protected function translateWithPrismStream(PrismPendingTextRequest $request, AIResponseParser $responseParser): array
+    {
+        $responseText = '';
+        $processedKeys = [];
+        $thinkingBuffer = '';
 
-                                // Call progress callback with current response
-                                if ($this->onProgress) {
-                                    ($this->onProgress)($responseText, $responseParser->getTranslatedItems());
-                                }
-                            }
-                        }
-                    }
-                }
+        foreach ($request->asStream() as $event) {
+            $this->handleStreamEvent(
+                $event,
+                $responseParser,
+                $responseText,
+                $processedKeys,
+                $thinkingBuffer
             );
+        }
 
-            // 토큰 사용량 최종 확인
-            if (isset($response['usage'])) {
-                if (isset($response['usage']['input_tokens'])) {
-                    $this->inputTokens = (int) $response['usage']['input_tokens'];
-                }
-
-                if (isset($response['usage']['output_tokens'])) {
-                    $this->outputTokens = (int) $response['usage']['output_tokens'];
-                }
-
-                $this->totalTokens = $this->inputTokens + $this->outputTokens;
-            }
-
-            // 디버깅: 최종 응답 구조 로깅
-            if ($debugMode) {
-                Log::debug('Final response structure', [
-                    'has_usage' => isset($response['usage']),
-                    'usage' => $response['usage'] ?? null,
-                ]);
-            }
-
-            // 토큰 사용량 로깅
-            $this->logTokenUsage();
-        } else {
-            $response = $client->messages()->create($requestData);
-
-            // 토큰 사용량 추적 (스트리밍이 아닌 경우)
-            if (isset($response['usage'])) {
-                if (isset($response['usage']['input_tokens'])) {
-                    $this->inputTokens = $response['usage']['input_tokens'];
-                }
-                if (isset($response['usage']['output_tokens'])) {
-                    $this->outputTokens = $response['usage']['output_tokens'];
-                }
-                $this->totalTokens = $this->inputTokens + $this->outputTokens;
-            }
-
-            $responseText = $response['content'][0]['text'];
+        if (empty($responseParser->getTranslatedItems()) && $responseText !== '') {
             $responseParser->parse($responseText);
+        }
+
+        $translatedItems = $responseParser->getTranslatedItems();
+        self::$lastRawResponse = $responseText;
+
+        if ($this->onTranslated) {
+            foreach ($translatedItems as $item) {
+                if (! isset($processedKeys[$item->key])) {
+                    $processedKeys[$item->key] = true;
+                    ($this->onTranslated)($item, TranslationStatus::COMPLETED, $translatedItems);
+                }
+            }
+        }
+
+        return $translatedItems;
+    }
+
+    protected function handleStreamEvent(
+        StreamEvent $event,
+        AIResponseParser $responseParser,
+        string &$responseText,
+        array &$processedKeys,
+        string &$thinkingBuffer
+    ): void {
+        if ($event instanceof ThinkingStartEvent) {
+            $thinkingBuffer = '';
+            if ($this->onThinkingStart) {
+                ($this->onThinkingStart)();
+            }
+
+            return;
+        }
+
+        if ($event instanceof ThinkingEvent) {
+            $thinkingBuffer .= $event->delta;
+            if ($this->onThinking) {
+                ($this->onThinking)($event->delta);
+            }
+
+            return;
+        }
+
+        if ($event instanceof ThinkingCompleteEvent) {
+            if ($this->onThinkingEnd) {
+                ($this->onThinkingEnd)($thinkingBuffer);
+            }
+
+            return;
+        }
+
+        if ($event instanceof TextDeltaEvent) {
+            $delta = $event->delta;
+            $responseText .= $delta;
+
+            $previousCount = count($responseParser->getTranslatedItems());
+            $responseParser->parseChunk($delta);
+            $currentItems = $responseParser->getTranslatedItems();
+            $currentCount = count($currentItems);
 
             if ($this->onProgress) {
-                ($this->onProgress)($responseText, $responseParser->getTranslatedItems());
+                ($this->onProgress)($delta, $currentItems);
             }
 
-            if ($this->onTranslated) {
-                foreach ($responseParser->getTranslatedItems() as $item) {
-                    ($this->onTranslated)($item, TranslationStatus::STARTED, $responseParser->getTranslatedItems());
-                    ($this->onTranslated)($item, TranslationStatus::COMPLETED, $responseParser->getTranslatedItems());
-                }
-            }
-
-            // 토큰 사용량 콜백 호출 (설정된 경우)
-            if ($this->onTokenUsage) {
-                $tokenUsage = $this->getTokenUsage();
-                $tokenUsage['final'] = false; // 중간 업데이트임을 표시
-                ($this->onTokenUsage)($tokenUsage);
-            }
-
-            // 토큰 사용량 로깅
-            $this->logTokenUsage();
-        }
-
-        // Process final response
-        if (empty($responseParser->getTranslatedItems()) && ! empty($responseText)) {
-            if ($debugMode) {
-                Log::debug('AIProvider: No items parsed from response, trying final parse', [
-                    'response_length' => strlen($responseText),
-                    'detected_xml_length' => strlen($detectedXml),
-                    'response_text' => $responseText,
-                    'detected_xml' => $detectedXml,
-                ]);
-            }
-
-            // Try parsing the entire response
-            $responseParser->parse($responseText);
-            $finalItems = $responseParser->getTranslatedItems();
-
-            // Process last parsed items with callback
-            if (! empty($finalItems) && $this->onTranslated) {
-                foreach ($finalItems as $item) {
+            if ($this->onTranslated && $currentCount > $previousCount) {
+                $newItems = array_slice($currentItems, $previousCount);
+                foreach ($newItems as $item) {
                     if (! isset($processedKeys[$item->key])) {
                         $processedKeys[$item->key] = true;
-                        $translatedCount = count($processedKeys);
-
-                        // Don't call completed status in final parsing
-                        if ($translatedCount === 1) {
-                            ($this->onTranslated)($item, TranslationStatus::STARTED, $finalItems);
-                        }
+                        ($this->onTranslated)($item, TranslationStatus::COMPLETED, $currentItems);
                     }
                 }
             }
+
+            return;
         }
 
-        return $responseParser->getTranslatedItems();
+        if ($event instanceof StreamEndEvent) {
+            $this->updateTokenUsageFromUsage($event->usage ?? null, false);
+        }
+    }
+
+    protected function resolvePrismProviderConfig(PrismProvider|string $provider): array
+    {
+        $providerKey = $provider instanceof PrismProvider ? $provider->value : strtolower($provider);
+
+        $baseConfig = config("prism.providers.{$providerKey}", []);
+        $customConfig = config("ai-translator.ai.prism.providers.{$providerKey}", []);
+
+        $config = array_replace_recursive(
+            is_array($baseConfig) ? $baseConfig : [],
+            is_array($customConfig) ? $customConfig : []
+        );
+
+        $apiKey = config('ai-translator.ai.api_key');
+        $existingKey = Arr::get($config, 'api_key');
+        if ($apiKey && empty($existingKey)) {
+            Arr::set($config, 'api_key', $apiKey);
+        }
+
+        if ($providerKey === PrismProvider::OpenRouter->value) {
+            $site = Arr::get($config, 'site', []);
+            $site['http_referer'] = $site['http_referer'] ?? 'https://kargn.as';
+            $site['x_title'] = $site['x_title'] ?? 'Sangrak';
+            Arr::set($config, 'site', $site);
+        }
+
+        return $config;
+    }
+
+    protected function normalizeProviderKey(string $provider): PrismProvider|string
+    {
+        $normalized = strtolower($provider);
+
+        return PrismProvider::tryFrom($normalized) ?? $normalized;
+    }
+
+    protected function buildProviderOptions(): array
+    {
+        $options = [];
+        $configured = config('ai-translator.ai.provider_options', []);
+        if (is_array($configured)) {
+            $options = $configured;
+        }
+
+        if ($this->isAnthropicProvider() && config('ai-translator.ai.use_extended_thinking', false)) {
+            $budget = (int) config('ai-translator.ai.extended_thinking_budget', 10000);
+            $options = array_replace_recursive([
+                'thinking' => [
+                    'type' => 'enabled',
+                    'budget_tokens' => $budget,
+                ],
+            ], $options);
+        }
+
+        return $options;
+    }
+
+    protected function isAnthropicProvider(): bool
+    {
+        return strtolower($this->configProvider) === PrismProvider::Anthropic->value;
+    }
+
+    protected function determineDefaultMaxTokens(): ?int
+    {
+        if (! $this->isAnthropicProvider()) {
+            return null;
+        }
+
+        if (preg_match('/^claude\-3\-5\-/', $this->configModel)) {
+            return 8192;
+        }
+
+        if (preg_match('/^claude\-3\-7\-/', $this->configModel)) {
+            return 64000;
+        }
+
+        return 4096;
+    }
+
+    protected function updateTokenUsageFromUsage(?Usage $usage, bool $finalUpdate): void
+    {
+        if (! $usage) {
+            return;
+        }
+
+        $this->inputTokens = $usage->promptTokens;
+        $this->outputTokens = $usage->completionTokens;
+        $this->cacheCreationTokens = $usage->cacheWriteInputTokens;
+        $this->cacheReadTokens = $usage->cacheReadInputTokens;
+        $this->thoughtTokens = $usage->thoughtTokens;
+        $this->totalTokens = $this->inputTokens + $this->outputTokens;
+
+        $this->notifyTokenUsage($finalUpdate);
+    }
+
+    protected function notifyTokenUsage(bool $final): void
+    {
+        if (! $this->onTokenUsage) {
+            return;
+        }
+
+        $usage = $this->getTokenUsage();
+        $usage['final'] = $final;
+
+        ($this->onTokenUsage)($usage);
     }
 
     /**
@@ -809,13 +701,15 @@ class AIProvider
      *
      * @return array 토큰 사용량 정보
      */
+
     public function getTokenUsage(): array
     {
         return [
             'input_tokens' => $this->inputTokens,
             'output_tokens' => $this->outputTokens,
-            'cache_creation_input_tokens' => null,
-            'cache_read_input_tokens' => null,
+            'cache_creation_input_tokens' => $this->cacheCreationTokens,
+            'cache_read_input_tokens' => $this->cacheReadTokens,
+            'thought_tokens' => $this->thoughtTokens,
             'total_tokens' => $this->totalTokens,
         ];
     }
@@ -832,89 +726,11 @@ class AIProvider
             'output_tokens' => $tokenInfo['output_tokens'],
             'cache_creation_input_tokens' => $tokenInfo['cache_creation_input_tokens'],
             'cache_read_input_tokens' => $tokenInfo['cache_read_input_tokens'],
+            'thought_tokens' => $tokenInfo['thought_tokens'],
             'total_tokens' => $tokenInfo['total_tokens'],
         ]);
     }
 
-    /**
-     * API 응답 데이터에서 토큰 사용량 정보를 추적합니다.
-     *
-     * @param  array  $data  API 응답 데이터
-     */
-    protected function trackTokenUsage(array $data): void
-    {
-        // 디버그 모드인 경우 전체 이벤트 데이터 로깅
-        if (config('app.debug', false) || config('ai-translator.debug', false)) {
-            $eventType = $data['type'] ?? 'unknown';
-            if (in_array($eventType, ['message_start', 'message_stop', 'message_delta'])) {
-                Log::debug("Anthropic API Event: {$eventType}", json_decode(json_encode($data), true));
-            }
-        }
-
-        // message_start 이벤트에서 토큰 정보 추출
-        if (isset($data['type']) && $data['type'] === 'message_start') {
-            // 유형 1: 루트 레벨에 usage가 있는 경우
-            if (isset($data['usage'])) {
-                $this->extractTokensFromUsage($data['usage']);
-            }
-
-            // 유형 2: message 안에 usage가 있는 경우
-            if (isset($data['message']['usage'])) {
-                $this->extractTokensFromUsage($data['message']['usage']);
-            }
-
-            // 유형 3: message.content_policy.input_tokens, output_tokens가 있는 경우
-            if (isset($data['message']['content_policy'])) {
-                if (isset($data['message']['content_policy']['input_tokens'])) {
-                    $this->inputTokens = $data['message']['content_policy']['input_tokens'];
-                }
-                if (isset($data['message']['content_policy']['output_tokens'])) {
-                    $this->outputTokens = $data['message']['content_policy']['output_tokens'];
-                }
-                $this->totalTokens = $this->inputTokens + $this->outputTokens;
-            }
-
-            // 토큰 사용량 정보를 실시간으로 업데이트하기 위한 콜백 호출
-            if ($this->onTokenUsage) {
-                $tokenUsage = $this->getTokenUsage();
-                $tokenUsage['final'] = false; // 중간 업데이트임을 표시
-                ($this->onTokenUsage)($tokenUsage);
-            }
-        }
-
-        // message_stop 이벤트에서 토큰 정보 추출
-        if (isset($data['type']) && $data['type'] === 'message_stop') {
-            // 최종 토큰 사용량 정보 업데이트
-            if (isset($data['usage'])) {
-                $this->extractTokensFromUsage($data['usage']);
-            }
-
-            // 중간 업데이트이므로 토큰 사용량 콜백 호출
-            if ($this->onTokenUsage) {
-                $tokenUsage = $this->getTokenUsage();
-                $tokenUsage['final'] = false; // 중간 업데이트임을 표시
-                ($this->onTokenUsage)($tokenUsage);
-            }
-        }
-    }
-
-    /**
-     * usage 객체에서 토큰 정보를 추출합니다.
-     *
-     * @param  array  $usage  토큰 사용량 정보
-     */
-    protected function extractTokensFromUsage(array $usage): void
-    {
-        if (isset($usage['input_tokens'])) {
-            $this->inputTokens = (int) $usage['input_tokens'];
-        }
-
-        if (isset($usage['output_tokens'])) {
-            $this->outputTokens = (int) $usage['output_tokens'];
-        }
-
-        $this->totalTokens = $this->inputTokens + $this->outputTokens;
-    }
 
     /**
      * 현재 사용 중인 AI 모델을 반환합니다.

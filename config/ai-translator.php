@@ -32,6 +32,11 @@ return [
         // 'model' => 'gemini-2.5-pro-preview-05-06',
         // 'api_key' => env('GEMINI_API_KEY'),
 
+        // openrouter (multi-provider routing)
+        // 'provider' => 'openrouter',
+        // 'model' => 'anthropic/claude-3.5-sonnet',
+        // 'api_key' => env('OPENROUTER_API_KEY'),
+
         // Additional options
         // 'retries' => 5,
         // 'max_tokens' => 4096,
@@ -40,6 +45,22 @@ return [
 
         // 'prompt_custom_system_file_path' => null, // Full path to your own custom prompt-system.txt - i.e. resource_path('prompt-system.txt')
         // 'prompt_custom_user_file_path' => null, // Full path to your own custom prompt-user.txt - i.e. resource_path('prompt-user.txt')
+
+        'provider_options' => [],
+
+        'prism' => [
+            'providers' => [
+                'openrouter' => [
+                    'site' => [
+                        'http_referer' => env('OPENROUTER_HTTP_REFERER', 'https://kargn.as'),
+                        'x_title' => env('OPENROUTER_X_TITLE', 'Sangrak'),
+                    ],
+                ],
+                'gemini' => [
+                    'url' => env('GEMINI_API_URL', 'https://generativelanguage.googleapis.com/v1beta'),
+                ],
+            ],
+        ],
     ],
 
     // 'disable_plural' => true,

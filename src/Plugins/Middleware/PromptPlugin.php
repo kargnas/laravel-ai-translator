@@ -62,17 +62,8 @@ class PromptPlugin extends AbstractMiddlewarePlugin
     protected function getSystemPrompt(): string
     {
         if (!isset($this->systemPromptCache['content'])) {
-            $promptPath = __DIR__ . '/../Support/Prompts/system-prompt.txt';
-            
-            if (!file_exists($promptPath)) {
-                // Fallback to resources location
-                $promptPath = base_path('resources/prompts/system-prompt.txt');
-            }
-            
-            if (!file_exists($promptPath)) {
-                throw new \Exception("System prompt file not found. Expected at: src/Support/Prompts/system-prompt.txt");
-            }
-            
+            $promptPath = $this->resolvePromptPath('system-prompt.txt');
+
             $this->systemPromptCache['content'] = file_get_contents($promptPath);
         }
         
@@ -85,21 +76,48 @@ class PromptPlugin extends AbstractMiddlewarePlugin
     protected function getUserPrompt(): string
     {
         if (!isset($this->userPromptCache['content'])) {
-            $promptPath = __DIR__ . '/../Support/Prompts/user-prompt.txt';
-            
-            if (!file_exists($promptPath)) {
-                // Fallback to resources location
-                $promptPath = base_path('resources/prompts/user-prompt.txt');
-            }
-            
-            if (!file_exists($promptPath)) {
-                throw new \Exception("User prompt file not found. Expected at: src/Support/Prompts/user-prompt.txt");
-            }
-            
+            $promptPath = $this->resolvePromptPath('user-prompt.txt');
+
             $this->userPromptCache['content'] = file_get_contents($promptPath);
         }
         
         return $this->userPromptCache['content'];
+    }
+
+    /**
+     * Resolve the absolute path to a prompt file.
+     */
+    private function resolvePromptPath(string $filename): string
+    {
+        $packagePromptPath = realpath(__DIR__ . "/../../../resources/prompts/{$filename}");
+
+        if ($packagePromptPath !== false && file_exists($packagePromptPath)) {
+            return $packagePromptPath;
+        }
+
+        $candidatePaths = [];
+
+        if (function_exists('resource_path')) {
+            $candidatePaths[] = resource_path("vendor/laravel-ai-translator/prompts/{$filename}");
+            $candidatePaths[] = resource_path("prompts/{$filename}");
+        } else {
+            $candidatePaths[] = base_path("resources/prompts/{$filename}");
+        }
+
+        foreach ($candidatePaths as $candidatePath) {
+            if ($candidatePath !== null && file_exists($candidatePath)) {
+                return $candidatePath;
+            }
+        }
+
+        $checkedPaths = array_filter(
+            array_merge([$packagePromptPath], $candidatePaths),
+            static fn ($path) => $path !== null && $path !== false,
+        );
+
+        $checkedList = implode(', ', $checkedPaths);
+
+        throw new \RuntimeException("Prompt file {$filename} not found. Checked: {$checkedList}");
     }
 
     /**

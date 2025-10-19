@@ -1,3 +1,4 @@
 {
-    "php.version": "8.1"
+    "php.version": "8.1",
+    "karsCommitAI.commitLanguage": "en_US"
 }

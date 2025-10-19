@@ -112,6 +112,8 @@ class TranslateCrowdinParallel extends TranslateCrowdin
     ): array {
         $cmd = [
             'php',
+            '-d',
+            'memory_limit=2G',
             'artisan',
             'ai-translator:translate-crowdin',
             '--token='.$token,

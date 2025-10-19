@@ -11,7 +11,17 @@ class GeminiClient
     public function __construct(string $apiKey)
     {
         $this->apiKey = $apiKey;
-        $this->client = \Gemini::client($apiKey);
+        
+        // Set timeout to 30 minutes
+        $timeout = 1800; // 30 minutes
+        
+        // Create client with timeout configuration
+        $this->client = \Gemini::factory()
+            ->withApiKey($apiKey)
+            ->withHttpClient(new \GuzzleHttp\Client([
+                'timeout' => $timeout,
+            ]))
+            ->make();
     }
 
     public function request(string $model, array $contents): array

@@ -87,6 +87,12 @@ print_step "Publishing AI Translator configuration..."
 php artisan vendor:publish --provider="Kargnas\LaravelAiTranslator\ServiceProvider" --no-interaction
 print_success "Configuration published"
 
+# Install Debug tool
+print_step "Installing debug tool..."
+composer require spatie/laravel-ray --dev
+php artisan ray:publish-config
+print_success "Debug tool installed"
+
 # Step 6: Create sample language files
 print_step "Creating sample language files for testing..."
 

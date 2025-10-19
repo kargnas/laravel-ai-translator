@@ -65,6 +65,7 @@ class AnthropicProvider extends AbstractAIProvider
                 ];
                 
                 $response = Prism::text()
+                    ->withClientOptions($this->getClientOptions())
                     ->using(Provider::Anthropic, $this->getConfig('model'))
                     ->withSystemPrompt($systemPrompt)  // System prompt must use this method
                     ->withMessages($messages)
@@ -80,6 +81,7 @@ class AnthropicProvider extends AbstractAIProvider
             } else {
                 // Use standard approach without caching
                 $response = Prism::text()
+                    ->withClientOptions($this->getClientOptions())
                     ->using(Provider::Anthropic, $this->getConfig('model'))
                     ->withSystemPrompt($systemPrompt)
                     ->withPrompt($content)
@@ -165,6 +167,7 @@ class AnthropicProvider extends AbstractAIProvider
             
             if ($shouldCache) {
                 $response = Prism::text()
+                    ->withClientOptions($this->getClientOptions())
                     ->using(Provider::Anthropic, $config['model'] ?? $this->getConfig('model'))
                     ->withMessages([
                         (new UserMessage($prompt))
@@ -180,6 +183,7 @@ class AnthropicProvider extends AbstractAIProvider
                 ]);
             } else {
                 $response = Prism::text()
+                    ->withClientOptions($this->getClientOptions())
                     ->using(Provider::Anthropic, $config['model'] ?? $this->getConfig('model'))
                     ->withPrompt($prompt)
                     ->usingTemperature($config['temperature'] ?? $this->getConfig('temperature', 0.3))

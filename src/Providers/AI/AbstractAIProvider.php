@@ -68,6 +68,19 @@ abstract class AbstractAIProvider
     {
         return $this->config[$key] ?? $default;
     }
+
+    /**
+     * Get HTTP client options for Prism requests with enforced timeout.
+     */
+    protected function getClientOptions(): array
+    {
+        $options = $this->getConfig('client_options', []);
+
+        $configuredTimeout = (int) ($options['timeout'] ?? $this->getConfig('timeout', 0));
+        $options['timeout'] = max(600, $configuredTimeout);
+
+        return $options;
+    }
     
     /**
      * Log provider activity for debugging

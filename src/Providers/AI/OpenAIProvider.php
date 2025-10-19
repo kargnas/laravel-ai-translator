@@ -32,6 +32,7 @@ class OpenAIProvider extends AbstractAIProvider
             
             // Create the Prism request
             $response = Prism::text()
+                ->withClientOptions($this->getClientOptions())
                 ->using(Provider::OpenAI, $this->getConfig('model', 'gpt-4o'))
                 ->withSystemPrompt($metadata['system_prompt'] ?? $this->getDefaultSystemPrompt($sourceLocale, $targetLocale))
                 ->withPrompt($content)
@@ -88,6 +89,7 @@ class OpenAIProvider extends AbstractAIProvider
             }
             
             $response = Prism::text()
+                ->withClientOptions($this->getClientOptions())
                 ->using(Provider::OpenAI, $model)
                 ->withPrompt($prompt)
                 ->usingTemperature($temperature)

@@ -32,6 +32,7 @@ class GeminiProvider extends AbstractAIProvider
             
             // Create the Prism request with Gemini-specific configurations
             $response = Prism::text()
+                ->withClientOptions($this->getClientOptions())
                 ->using(Provider::Gemini, $this->getConfig('model', 'gemini-2.5-pro'))
                 ->withSystemPrompt($metadata['system_prompt'] ?? $this->getDefaultSystemPrompt($sourceLocale, $targetLocale))
                 ->withPrompt($content)
@@ -80,6 +81,7 @@ class GeminiProvider extends AbstractAIProvider
             ]);
             
             $response = Prism::text()
+                ->withClientOptions($this->getClientOptions())
                 ->using(Provider::Gemini, $config['model'] ?? $this->getConfig('model', 'gemini-2.5-pro'))
                 ->withPrompt($prompt)
                 ->usingTemperature($config['temperature'] ?? $this->getConfig('temperature', 0.3))

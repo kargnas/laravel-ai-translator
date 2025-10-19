@@ -100,7 +100,7 @@ class MultiProviderPlugin extends AbstractMiddlewarePlugin
             'consensus_threshold' => 2, // Minimum providers that must agree
             'fallback_on_failure' => true,
             'retry_attempts' => 2,
-            'timeout' => 30, // seconds per provider
+            'timeout' => 600, // seconds per provider
         ];
     }
 

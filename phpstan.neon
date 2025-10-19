@@ -63,3 +63,5 @@ parameters:
         
         # Collection type issues
         - '#Illuminate\\Support\\Collection<\*NEVER\*, \*NEVER\*> does not accept#'
+
+        - '#Anonymous function has an unused use .*#'

@@ -41,7 +41,10 @@ class JSONLangTransformer
         return array_key_exists($key, $flattened);
     }
 
-    public function flatten(): array
+    /**
+     * Get translatable content
+     */
+    public function getTranslatable(): array
     {
         // Exclude _comment field from flattening as it's metadata
         $contentWithoutComment = array_filter($this->content, function ($key) {
@@ -49,6 +52,14 @@ class JSONLangTransformer
         }, ARRAY_FILTER_USE_KEY);
 
         return $this->flattenArray($contentWithoutComment);
+    }
+
+    /**
+     * Get flattened array (alias for getTranslatable)
+     */
+    public function flatten(): array
+    {
+        return $this->getTranslatable();
     }
 
     private function flattenArray(array $array, string $prefix = ''): array
@@ -111,6 +122,7 @@ class JSONLangTransformer
 
         $this->saveToFile();
     }
+
 
     private function saveToFile(): void
     {

@@ -36,9 +36,20 @@ class PHPLangTransformer
         return array_key_exists($key, $flattened);
     }
 
-    public function flatten(): array
+    /**
+     * Get translatable strings from the file
+     */
+    public function getTranslatable(): array
     {
         return $this->flattenArray($this->content);
+    }
+
+    /**
+     * Get flattened array (alias for getTranslatable)
+     */
+    public function flatten(): array
+    {
+        return $this->getTranslatable();
     }
 
     private function flattenArray(array $array, string $prefix = ''): array
@@ -101,6 +112,7 @@ class PHPLangTransformer
 
         $this->saveToFile();
     }
+
 
     private function saveToFile(): void
     {

@@ -38,6 +38,10 @@ class AIProvider
 
     protected int $totalTokens = 0;
 
+    protected int $cacheCreationTokens = 0;
+
+    protected int $cacheReadTokens = 0;
+
     // Callback properties
     protected $onTranslated = null;
 
@@ -172,34 +176,74 @@ class AIProvider
             Log::debug("AIProvider: Using translation context - {$contextFileCount} files, {$contextItemCount} items");
 
             $translationContext = collect($this->globalTranslationContext)->map(function ($translations, $file) {
-                // Remove .php extension from filename
-                $rootKey = pathinfo($file, PATHINFO_FILENAME);
-                $itemCount = count($translations);
+                // Handle both PHP and JSON context structures
+                $isJsonContext = isset($translations['source']) && isset($translations['target']);
 
-                Log::debug("AIProvider: Including context file - {$rootKey}: {$itemCount} items");
+                if ($isJsonContext) {
+                    // JSON context structure from JSONTranslationContextProvider
+                    $sourceStrings = $translations['source'];
+                    $targetStrings = $translations['target'];
 
-                $translationsText = collect($translations)->map(function ($item, $key) use ($rootKey) {
-                    $sourceText = $item['source'] ?? '';
-
-                    if (empty($sourceText)) {
+                    if (empty($sourceStrings)) {
                         return null;
                     }
 
-                    $text = "`{$rootKey}.{$key}`: src=\"\"\"{$sourceText}\"\"\"";
+                    $itemCount = count($sourceStrings);
+                    Log::debug("AIProvider: Including context file - {$file}: {$itemCount} items");
 
-                    // Check reference information
-                    $referenceKey = $key;
-                    foreach ($this->references as $locale => $strings) {
-                        if (isset($strings[$referenceKey]) && ! empty($strings[$referenceKey])) {
-                            $text .= "\n    {$locale}=\"\"\"{$strings[$referenceKey]}\"\"\"";
+                    $translationsText = collect($sourceStrings)->map(function ($sourceText, $key) use ($targetStrings) {
+                        if (empty($sourceText)) {
+                            return null;
                         }
-                    }
 
-                    return $text;
-                })->filter()->implode("\n");
+                        $text = "    <item>\n";
+                        $text .= "      <key>{$key}</key>\n";
+                        $text .= "      <source><![CDATA[{$sourceText}]]></source>\n";
 
-                return empty($translationsText) ? '' : "## `{$rootKey}`\n{$translationsText}";
-            })->filter()->implode("\n\n");
+                        if (isset($targetStrings[$key]) && ! empty($targetStrings[$key])) {
+                            $text .= "      <target><![CDATA[{$targetStrings[$key]}]]></target>\n";
+                        }
+
+                        $text .= '    </item>';
+
+                        return $text;
+                    })->filter()->implode("\n");
+
+                    return empty($translationsText) ? '' : "  <file name=\"{$file}\">\n{$translationsText}\n  </file>";
+                } else {
+                    // PHP context structure from TranslationContextProvider
+                    $rootKey = pathinfo($file, PATHINFO_FILENAME);
+                    $itemCount = count($translations);
+                    Log::debug("AIProvider: Including context file - {$rootKey}: {$itemCount} items");
+
+                    $translationsText = collect($translations)->map(function ($item, $key) use ($rootKey) {
+                        $sourceText = $item['source'] ?? '';
+
+                        if (empty($sourceText)) {
+                            return null;
+                        }
+
+                        $text = "    <item>\n";
+                        $text .= "      <key>{$rootKey}.{$key}</key>\n";
+                        $text .= "      <source><![CDATA[{$sourceText}]]></source>\n";
+
+                        if (isset($item['target']) && ! empty($item['target'])) {
+                            $text .= "      <target><![CDATA[{$item['target']}]]></target>\n";
+                        }
+
+                        $text .= '    </item>';
+
+                        return $text;
+                    })->filter()->implode("\n");
+
+                    return empty($translationsText) ? '' : "  <file name=\"{$rootKey}\">\n{$translationsText}\n  </file>";
+                }
+            })->filter()->implode("\n");
+
+            // Wrap in global_context XML tags
+            if (! empty($translationContext)) {
+                $translationContext = "<global_context>\n{$translationContext}\n</global_context>";
+            }
 
             $contextLength = strlen($translationContext);
             Log::debug("AIProvider: Generated context size - {$contextLength} bytes");
@@ -241,16 +285,21 @@ class AIProvider
             'parentKey' => pathinfo($this->filename, PATHINFO_FILENAME),
             'keys' => collect($this->strings)->keys()->implode('`, `'),
             'strings' => collect($this->strings)->map(function ($string, $key) {
-                if (is_string($string)) {
-                    return "  - `{$key}`: \"\"\"{$string}\"\"\"";
-                } else {
-                    $text = "  - `{$key}`: \"\"\"{$string['text']}\"\"\"";
-                    if (isset($string['context'])) {
-                        $text .= "\n    - Context: \"\"\"{$string['context']}\"\"\"";
-                    }
+                $text = "  <string>\n";
+                $text .= "    <key>{$key}</key>\n";
 
-                    return $text;
+                if (\is_array($string)) {
+                    $text .= "    <source><![CDATA[{$string['text']}]]></source>\n";
+                    if (isset($string['context'])) {
+                        $text .= "    <context><![CDATA[{$string['context']}]]></context>\n";
+                    }
+                } else {
+                    $text .= "    <source><![CDATA[{$string}]]></source>\n";
                 }
+
+                $text .= '  </string>';
+
+                return $text;
             })->implode("\n"),
         ]);
 
@@ -521,9 +570,6 @@ class AIProvider
         // Prepare request data
         $requestData = [
             'model' => $this->configModel,
-            'messages' => [
-                ['role' => 'user', 'content' => $this->getUserPrompt()],
-            ],
             'system' => [
                 [
                     'type' => 'text',
@@ -533,19 +579,22 @@ class AIProvider
                     ],
                 ],
             ],
+            'messages' => [
+                ['role' => 'user', 'content' => $this->getUserPrompt()],
+            ],
         ];
 
         $defaultMaxTokens = 4096;
 
         if (preg_match('/^claude\-3\-5\-/', $this->configModel)) {
             $defaultMaxTokens = 8192;
-        } elseif (preg_match('/^claude\-3\-7\-/', $this->configModel)) {
+        } elseif (preg_match('/^claude.*(3\-7|4)/', $this->configModel)) {
             // @TODO: if add betas=["output-128k-2025-02-19"], then 128000
             $defaultMaxTokens = 64000;
         }
 
         // Set up Extended Thinking
-        if ($useExtendedThinking && preg_match('/^claude\-3\-7\-/', $this->configModel)) {
+        if ($useExtendedThinking && preg_match('/^claude.*(3\-7|4)/', $this->configModel)) {
             $requestData['thinking'] = [
                 'type' => 'enabled',
                 'budget_tokens' => 10000,
@@ -745,6 +794,14 @@ class AIProvider
                 $this->totalTokens = $this->inputTokens + $this->outputTokens;
             }
 
+            // 캐시 토큰 추적
+            if (isset($response['cache_creation_input_tokens'])) {
+                $this->cacheCreationTokens = (int) $response['cache_creation_input_tokens'];
+            }
+            if (isset($response['cache_read_input_tokens'])) {
+                $this->cacheReadTokens = (int) $response['cache_read_input_tokens'];
+            }
+
             $responseText = $response['content'][0]['text'];
             $responseParser->parse($responseText);
 
@@ -813,8 +870,8 @@ class AIProvider
         return [
             'input_tokens' => $this->inputTokens,
             'output_tokens' => $this->outputTokens,
-            'cache_creation_input_tokens' => null,
-            'cache_read_input_tokens' => null,
+            'cache_creation_input_tokens' => $this->cacheCreationTokens,
+            'cache_read_input_tokens' => $this->cacheReadTokens,
             'total_tokens' => $this->totalTokens,
         ];
     }
@@ -860,6 +917,14 @@ class AIProvider
             // 유형 2: message 안에 usage가 있는 경우
             if (isset($data['message']['usage'])) {
                 $this->extractTokensFromUsage($data['message']['usage']);
+            }
+
+            // 캐시 토큰 정보 추출
+            if (isset($data['message']['cache_creation_input_tokens'])) {
+                $this->cacheCreationTokens = (int) $data['message']['cache_creation_input_tokens'];
+            }
+            if (isset($data['message']['cache_read_input_tokens'])) {
+                $this->cacheReadTokens = (int) $data['message']['cache_read_input_tokens'];
             }
 
             // 유형 3: message.content_policy.input_tokens, output_tokens가 있는 경우

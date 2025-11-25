@@ -2,6 +2,8 @@ includes:
     - ./vendor/phpstan/phpstan-phpunit/extension.neon
 
 parameters:
+    bootstrapFiles:
+        - phpstan-bootstrap.php
     level: 5
     paths:
         - src

@@ -782,11 +782,10 @@ class AIProvider
             }
 
             // Try parsing the entire response
-            $responseParser->parse($responseText);
-            $finalItems = $responseParser->getTranslatedItems();
+            $finalItems = $responseParser->parse($responseText);
 
             // Process last parsed items with callback
-            if (! empty($finalItems) && $this->onTranslated) {
+            if ($this->onTranslated && $finalItems !== []) {
                 foreach ($finalItems as $item) {
                     if (! isset($processedKeys[$item->key])) {
                         $processedKeys[$item->key] = true;

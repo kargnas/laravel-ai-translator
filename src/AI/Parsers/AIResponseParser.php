@@ -111,11 +111,6 @@ class AIResponseParser
             ) {
                 $startedKey = $this->cleanContent($keyMatch[1]);
 
-                // Array to check if started event has occurred
-                if (! isset($this->startedKeys)) {
-                    $this->startedKeys = [];
-                }
-
                 // Process only for keys that haven't had started event
                 if (! in_array($startedKey, $this->startedKeys)) {
                     $startedString = new LocalizedString;
@@ -461,6 +456,7 @@ class AIResponseParser
         $this->xmlParser->reset();
         $this->translatedItems = [];
         $this->processedKeys = [];
+        $this->startedKeys = [];
         $this->fullResponse = '';
 
         return $this;

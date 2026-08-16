@@ -10,6 +10,7 @@ use Kargnas\LaravelAiTranslator\Enums\PromptType;
 use Kargnas\LaravelAiTranslator\Enums\TranslationStatus;
 use Kargnas\LaravelAiTranslator\Exceptions\VerifyFailedException;
 use Kargnas\LaravelAiTranslator\Models\LocalizedString;
+use Kargnas\LaravelAiTranslator\Translation\Validator;
 use Prism\Prism\Enums\Provider;
 use Prism\Prism\Facades\Prism;
 use Prism\Prism\Streaming\Events\StreamEndEvent;
@@ -156,6 +157,42 @@ class AIProvider
         // Warning for extra keys
         if ($extraKeys->count() > 0) {
             Log::warning("Found unexpected translation keys: {$extraKeys->implode(', ')}");
+        }
+
+        $validator = new Validator;
+        $translatedItemCount = 0;
+        $invalidItems = [];
+
+        foreach ($list as $item) {
+            /** @var LocalizedString $item */
+            if (empty($item->key) || ! isset($item->translated) || ! array_key_exists($item->key, $this->strings)) {
+                continue;
+            }
+
+            $source = $this->strings[$item->key];
+            $original = is_array($source) ? ($source['text'] ?? '') : $source;
+            $issues = $validator->validate((string) $original, $item->translated);
+            $translatedItemCount++;
+
+            if ($issues === []) {
+                continue;
+            }
+
+            $issueSummary = implode('; ', $issues);
+            Log::warning("Translation validation issues for key '{$item->key}': {$issueSummary}");
+
+            if (empty($item->comment)) {
+                $item->comment = $issueSummary;
+            }
+
+            $invalidItems[] = "{$item->key} ({$issueSummary})";
+        }
+
+        if ($translatedItemCount > 0 && count($invalidItems) * 2 > $translatedItemCount) {
+            $sample = implode('; ', array_slice($invalidItems, 0, 3));
+            throw new VerifyFailedException(
+                'Post-translation validation failed for '.count($invalidItems)." of {$translatedItemCount} items: {$sample}"
+            );
         }
 
         // After verification is complete, restore original keys

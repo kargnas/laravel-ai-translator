@@ -4,6 +4,7 @@ namespace Kargnas\LaravelAiTranslator\Tests;
 
 use Kargnas\LaravelAiTranslator\ServiceProvider;
 use Orchestra\Testbench\TestCase as Orchestra;
+use Prism\Prism\PrismServiceProvider;
 
 class TestCase extends Orchestra
 {
@@ -20,6 +21,7 @@ class TestCase extends Orchestra
     protected function getPackageProviders($app): array
     {
         return [
+            PrismServiceProvider::class,
             ServiceProvider::class,
         ];
     }

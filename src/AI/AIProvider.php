@@ -13,6 +13,14 @@ use Kargnas\LaravelAiTranslator\Enums\PromptType;
 use Kargnas\LaravelAiTranslator\Enums\TranslationStatus;
 use Kargnas\LaravelAiTranslator\Exceptions\VerifyFailedException;
 use Kargnas\LaravelAiTranslator\Models\LocalizedString;
+use Prism\Prism\Enums\Provider;
+use Prism\Prism\Facades\Prism;
+use Prism\Prism\Streaming\Events\StreamEndEvent;
+use Prism\Prism\Streaming\Events\TextDeltaEvent;
+use Prism\Prism\Streaming\Events\ThinkingCompleteEvent;
+use Prism\Prism\Streaming\Events\ThinkingEvent;
+use Prism\Prism\Streaming\Events\ThinkingStartEvent;
+use Prism\Prism\ValueObjects\Usage;
 
 class AIProvider
 {
@@ -382,11 +390,108 @@ class AIProvider
     protected function getTranslatedObjects(): array
     {
         return match ($this->configProvider) {
+            'openrouter' => $this->getTranslatedObjectsFromOpenRouter(),
             'anthropic' => $this->getTranslatedObjectsFromAnthropic(),
             'openai' => $this->getTranslatedObjectsFromOpenAI(),
             'gemini' => $this->getTranslatedObjectsFromGemini(),
             default => throw new \Exception("Provider {$this->configProvider} is not supported."),
         };
+    }
+
+    protected function getTranslatedObjectsFromOpenRouter(): array
+    {
+        $responseParser = new AIResponseParser($this->onTranslated, config('app.debug', false));
+        $request = Prism::text()
+            ->using(Provider::OpenRouter, $this->configModel, [
+                'api_key' => config('ai-translator.ai.api_key'),
+            ])
+            ->withSystemPrompt($this->getSystemPrompt())
+            ->withPrompt($this->getUserPrompt())
+            ->usingTemperature(config('ai-translator.ai.temperature'))
+            ->withMaxTokens((int) config('ai-translator.ai.max_tokens', 128000))
+            ->withProviderOptions([
+                'reasoning' => config('ai-translator.ai.reasoning'),
+            ]);
+
+        if (config('ai-translator.ai.disable_stream', false)) {
+            $response = $request->asText();
+            $this->trackPrismUsage($response->usage);
+            $responseParser->parse($response->text);
+
+            if ($this->onProgress) {
+                ($this->onProgress)($response->text, $responseParser->getTranslatedItems());
+            }
+
+            return $responseParser->getTranslatedItems();
+        }
+
+        $responseText = '';
+        $thinkingContent = '';
+
+        foreach ($request->asStream() as $event) {
+            if ($event instanceof StreamEndEvent && $event->usage !== null) {
+                $this->trackPrismUsage($event->usage);
+            }
+
+            if ($event instanceof ThinkingStartEvent) {
+                $thinkingContent = '';
+
+                if ($this->onThinkingStart) {
+                    ($this->onThinkingStart)();
+                }
+
+                continue;
+            }
+
+            if ($event instanceof ThinkingEvent) {
+                $thinkingContent .= $event->delta;
+
+                if ($this->onThinking) {
+                    ($this->onThinking)($event->delta);
+                }
+
+                continue;
+            }
+
+            if ($event instanceof ThinkingCompleteEvent) {
+                if ($this->onThinkingEnd) {
+                    ($this->onThinkingEnd)($thinkingContent);
+                }
+
+                continue;
+            }
+
+            if (! $event instanceof TextDeltaEvent) {
+                continue;
+            }
+
+            $responseText .= $event->delta;
+            $responseParser->parseChunk($event->delta);
+
+            if ($this->onProgress) {
+                ($this->onProgress)($event->delta, $responseParser->getTranslatedItems());
+            }
+        }
+
+        if ($responseParser->getTranslatedItems() === [] && $responseText !== '') {
+            $responseParser->parse($responseText);
+        }
+
+        return $responseParser->getTranslatedItems();
+    }
+
+    protected function trackPrismUsage(Usage $usage): void
+    {
+        $this->inputTokens = $usage->promptTokens;
+        $this->outputTokens = $usage->completionTokens;
+        $this->totalTokens = $this->inputTokens + $this->outputTokens;
+
+        // Existing console callbacks expect an intermediate update before translate() emits the final one.
+        if ($this->onTokenUsage) {
+            $tokenUsage = $this->getTokenUsage();
+            $tokenUsage['final'] = false;
+            ($this->onTokenUsage)($tokenUsage);
+        }
     }
 
     protected function getTranslatedObjectsFromOpenAI(): array

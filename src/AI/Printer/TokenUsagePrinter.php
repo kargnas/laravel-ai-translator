@@ -3,141 +3,32 @@
 namespace Kargnas\LaravelAiTranslator\AI\Printer;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
+use RuntimeException;
+use Throwable;
 
 /**
  * 토큰 사용량 및 비용 계산을 출력하는 유틸리티 클래스
  */
 class TokenUsagePrinter
 {
-    public const MODEL_CLAUDE_OPUS_5 = 'anthropic/claude-opus-5';
+    protected const OPENROUTER_MODELS_URL = 'https://openrouter.ai/api/v1/models';
 
-    public const MODEL_GPT_5_6_SOL = 'openai/gpt-5.6-sol';
+    protected const PRICING_CACHE_KEY = 'laravel-ai-translator.openrouter-model-pricing';
 
-    public const MODEL_GEMINI_3_7_FLASH = 'google/gemini-3.7-flash';
+    protected const PRICING_CACHE_TTL_SECONDS = 21_600;
 
-    /**
-     * 지원되는 모델 목록
-     */
-    // Legacy models (for backward compatibility)
-    public const MODEL_CLAUDE_3_OPUS = 'claude-3-opus-20240229';
-
-    public const MODEL_CLAUDE_3_5_SONNET_OLD = 'claude-3-5-sonnet-20240620';
-
-    public const MODEL_CLAUDE_3_HAIKU = 'claude-3-haiku-20240307';
-
-    // Older direct-provider models
-    public const MODEL_CLAUDE_3_5_SONNET = 'claude-3-5-sonnet-20241022';
-
-    public const MODEL_CLAUDE_3_5_HAIKU = 'claude-3-5-haiku-20241022';
-
-    public const MODEL_CLAUDE_3_7_SONNET = 'claude-3-7-sonnet-20250219';
-
-    public const MODEL_CLAUDE_SONNET_4 = 'claude-sonnet-4-20250514';
-
-    public const MODEL_CLAUDE_OPUS_4 = 'claude-opus-4-20250514';
-
-    public const MODEL_CLAUDE_OPUS_4_1 = 'claude-opus-4-1-20250805';
-
-    /**
-     * 모델별 가격 정보 ($ per million tokens)
-     */
-    protected const MODEL_RATES = [
-        self::MODEL_CLAUDE_OPUS_5 => [
-            'input' => 5.0,
-            'output' => 25.0,
-            'cache_write' => 6.25,
-            'cache_read' => 0.5,
-            'name' => 'Claude Opus 5',
-        ],
-        self::MODEL_GPT_5_6_SOL => [
-            'input' => 5.0,
-            'output' => 30.0,
-            'cache_write' => 6.25,
-            'cache_read' => 0.5,
-            'name' => 'GPT-5.6 Sol',
-        ],
-        self::MODEL_GEMINI_3_7_FLASH => [
-            'input' => 0.375,
-            'output' => 1.875,
-            'cache_write' => 0.020833,
-            'cache_read' => 0.0375,
-            'name' => 'Gemini 3.7 Flash',
-        ],
-
-        // Opus models
-        self::MODEL_CLAUDE_OPUS_4_1 => [
-            'input' => 15.0,
-            'output' => 75.0,
-            'cache_write' => 18.75, // 25% 할증 (5m cache)
-            'cache_read' => 1.5,    // 10% (90% 할인)
-            'name' => 'Claude Opus 4.1',
-        ],
-        self::MODEL_CLAUDE_OPUS_4 => [
-            'input' => 15.0,
-            'output' => 75.0,
-            'cache_write' => 18.75, // 25% 할증 (5m cache)
-            'cache_read' => 1.5,    // 10% (90% 할인)
-            'name' => 'Claude Opus 4',
-        ],
-        self::MODEL_CLAUDE_3_OPUS => [
-            'input' => 15.0,
-            'output' => 75.0,
-            'cache_write' => 18.75, // 25% 할증
-            'cache_read' => 1.5,    // 10% (90% 할인)
-            'name' => 'Claude 3 Opus',
-        ],
-        
-        // Sonnet models
-        self::MODEL_CLAUDE_SONNET_4 => [
-            'input' => 3.0,
-            'output' => 15.0,
-            'cache_write' => 3.75,  // 25% 할증 (5m cache)
-            'cache_read' => 0.3,    // 10% (90% 할인)
-            'name' => 'Claude Sonnet 4',
-        ],
-        self::MODEL_CLAUDE_3_7_SONNET => [
-            'input' => 3.0,
-            'output' => 15.0,
-            'cache_write' => 3.75,  // 25% 할증 (5m cache)
-            'cache_read' => 0.3,    // 10% (90% 할인)
-            'name' => 'Claude 3.7 Sonnet',
-        ],
-        self::MODEL_CLAUDE_3_5_SONNET => [
-            'input' => 3.0,
-            'output' => 15.0,
-            'cache_write' => 3.75,  // 25% 할증 (5m cache)
-            'cache_read' => 0.3,    // 10% (90% 할인)
-            'name' => 'Claude 3.5 Sonnet',
-        ],
-        self::MODEL_CLAUDE_3_5_SONNET_OLD => [
-            'input' => 3.0,
-            'output' => 15.0,
-            'cache_write' => 3.75,  // 25% 할증
-            'cache_read' => 0.3,    // 10% (90% 할인)
-            'name' => 'Claude 3.5 Sonnet (old)',
-        ],
-        
-        // Haiku models
-        self::MODEL_CLAUDE_3_5_HAIKU => [
-            'input' => 0.80,
-            'output' => 4.0,
-            'cache_write' => 1.0,   // 25% 할증 (5m cache)
-            'cache_read' => 0.08,   // 10% (90% 할인)
-            'name' => 'Claude 3.5 Haiku',
-        ],
-        self::MODEL_CLAUDE_3_HAIKU => [
-            'input' => 0.25,
-            'output' => 1.25,
-            'cache_write' => 0.30,  // 20% 할증 (5m cache)
-            'cache_read' => 0.03,   // 12% (88% 할인)
-            'name' => 'Claude 3 Haiku',
-        ],
+    protected const COMPARISON_MODELS = [
+        'anthropic/claude-opus-5',
+        'openai/gpt-5.6-sol',
+        'google/gemini-3.7-flash',
     ];
 
     /**
      * 사용자 정의 색상 코드
      */
-    protected $colors = [
+    protected array $colors = [
         'gray' => "\033[38;5;245m",
         'blue' => "\033[38;5;33m",
         'green' => "\033[38;5;40m",
@@ -153,205 +44,230 @@ class TokenUsagePrinter
         'line_clear' => "\033[2K\r",
     ];
 
-    /**
-     * 현재 사용 중인 모델
-     */
-    protected string $currentModel;
+    protected ?string $currentModel;
 
-    /**
-     * 원래 모델
-     */
-    protected ?string $originalModel = null;
+    protected string $provider;
 
-    /**
-     * 생성자
-     */
-    public function __construct(?string $model = null)
+    protected ?array $openRouterModels = null;
+
+    protected ?RuntimeException $pricingError = null;
+
+    public function __construct(?string $model = null, ?string $provider = null)
     {
-        // 모델이 지정되지 않으면 그대로 null 유지
         $this->currentModel = $model;
-        $this->originalModel = $model;
-
-        // 지정된 모델이 있지만 정확히 일치하지 않는 경우, 가장 유사한 모델 찾기
-        if ($this->currentModel !== null && ! isset(self::MODEL_RATES[$this->currentModel])) {
-            $this->currentModel = $this->findClosestModel($this->currentModel);
-        }
+        $this->provider = $provider ?? (string) config('ai-translator.ai.provider', 'openrouter');
     }
 
-    /**
-     * 모델명에서 버전 번호와 접미사를 제거하고 정규화합니다.
-     */
-    protected function normalizeModelName(string $modelName): string
-    {
-        // 접미사 제거 및 소문자로 변환
-        return strtolower(preg_replace('/-(?:latest|\d+)/', '', $modelName));
-    }
-
-    /**
-     * 사람이 읽기 쉬운 형식의 모델명으로 변환합니다.
-     */
-    protected function getHumanReadableModelName(string $modelId): string
-    {
-        $name = $modelId;
-
-        // 기존 모델 이름으로 매핑
-        if (isset(self::MODEL_RATES[$modelId])) {
-            return self::MODEL_RATES[$modelId]['name'];
-        }
-
-        // 기본 모델명 정리
-        $name = preg_replace('/-(?:latest|\d+)/', '', $name);
-        $name = str_replace('-', ' ', $name);
-        $name = ucwords($name); // 각 단어 첫 글자 대문자로
-
-        return $name;
-    }
-
-    /**
-     * 가장 유사한 모델을 찾아 반환합니다.
-     *
-     * @param  string  $modelName  모델 이름
-     * @return string 가장 유사한 등록된 모델 이름
-     */
-    protected function findClosestModel(string $modelName): string
-    {
-        $bestMatch = self::MODEL_CLAUDE_3_5_SONNET; // 기본값
-        $bestScore = 0;
-
-        // 정규식으로 접미사 제거 (-latest 또는 -숫자 형식)
-        $simplifiedName = $this->normalizeModelName($modelName);
-
-        // 정확한 매칭부터 시도
-        foreach (array_keys(self::MODEL_RATES) as $availableModel) {
-            $simplifiedAvailableModel = $this->normalizeModelName($availableModel);
-
-            // 정확한 매칭이면 바로 반환
-            if ($simplifiedName === $simplifiedAvailableModel) {
-                return $availableModel;
-            }
-
-            // 부분 매칭 검사
-            if (
-                stripos($simplifiedAvailableModel, $simplifiedName) !== false ||
-                stripos($simplifiedName, $simplifiedAvailableModel) !== false
-            ) {
-
-                // 유사도 점수 계산
-                $score = $this->calculateSimilarity($simplifiedName, $simplifiedAvailableModel);
-
-                // 주요 모델 타입 일치 (haiku, sonnet, opus) 시 가산점
-                if (stripos($simplifiedName, 'haiku') !== false && stripos($simplifiedAvailableModel, 'haiku') !== false) {
-                    $score += 0.2;
-                } elseif (stripos($simplifiedName, 'sonnet') !== false && stripos($simplifiedAvailableModel, 'sonnet') !== false) {
-                    $score += 0.2;
-                } elseif (stripos($simplifiedName, 'opus') !== false && stripos($simplifiedAvailableModel, 'opus') !== false) {
-                    $score += 0.2;
-                }
-
-                // Add a bonus for exact version matches
-                if (
-                    preg_match('/claude-(\d+(?:\-\d+)?)/', $simplifiedName, $inputMatches) &&
-                    preg_match('/claude-(\d+(?:\-\d+)?)/', $simplifiedAvailableModel, $availableMatches)
-                ) {
-                    if ($inputMatches[1] === $availableMatches[1]) {
-                        $score += 0.3;
-                    }
-                }
-
-                if ($score > $bestScore) {
-                    $bestScore = $score;
-                    $bestMatch = $availableModel;
-                }
-            }
-        }
-
-        return $bestMatch;
-    }
-
-    /**
-     * 두 문자열 간의 유사도를 계산합니다.
-     *
-     * @param  string  $str1  첫 번째 문자열
-     * @param  string  $str2  두 번째 문자열
-     * @return float 0~1 사이의 유사도 값 (1이 완전 일치)
-     */
-    protected function calculateSimilarity(string $str1, string $str2): float
-    {
-        // 단순화된 유사도 계산: 공통 부분 문자열 길이 / 가장 긴 문자열 길이
-        $str1 = strtolower($str1);
-        $str2 = strtolower($str2);
-
-        // 레벤슈타인 거리 기반 유사도 계산
-        $levDistance = levenshtein($str1, $str2);
-        $maxLength = max(strlen($str1), strlen($str2));
-
-        // 거리가 작을수록 유사도는 높음
-        return 1 - ($levDistance / $maxLength);
-    }
-
-    /**
-     * 사용 중인 모델을 변경합니다
-     */
     public function setModel(string $model): self
     {
-        if ($model === null) {
-            $this->currentModel = null;
-            $this->originalModel = null;
-
-            return $this;
-        }
-
-        $this->originalModel = $model;
-
-        if (isset(self::MODEL_RATES[$model])) {
-            $this->currentModel = $model;
-        } else {
-            // 정확히 일치하지 않으면 가장 유사한 모델 찾기
-            $this->currentModel = $this->findClosestModel($model);
-        }
+        $this->currentModel = $model;
 
         return $this;
     }
 
-    /**
-     * 현재 사용 중인 모델에 대한 가격 정보를 반환합니다
-     */
-    protected function getModelRates(): array
+    protected function getOpenRouterModelId(string $model): string
     {
-        // 모델이 지정되지 않았거나 존재하지 않으면 기본 모델 사용
-        if ($this->currentModel === null || ! isset(self::MODEL_RATES[$this->currentModel])) {
-            return self::MODEL_RATES[self::MODEL_CLAUDE_3_5_SONNET];
+        if (str_contains($model, '/')) {
+            return $model;
         }
 
-        return self::MODEL_RATES[$this->currentModel];
+        return match ($this->provider) {
+            'openai' => "openai/{$model}",
+            'anthropic' => "anthropic/{$model}",
+            'gemini' => "google/{$model}",
+            default => $model,
+        };
     }
 
-    /**
-     * 현재 모델의 가격 계수를 반환합니다 ($ per token)
-     */
-    protected function getRateInput(): float
+    protected function getOpenRouterModels(): array
     {
-        return $this->getModelRates()['input'] / 1000000;
+        if ($this->pricingError !== null) {
+            throw $this->pricingError;
+        }
+
+        if ($this->openRouterModels !== null) {
+            return $this->openRouterModels;
+        }
+
+        try {
+            // The catalog is several megabytes, so cache it instead of downloading it for every report.
+            $models = Cache::remember(
+                self::PRICING_CACHE_KEY,
+                self::PRICING_CACHE_TTL_SECONDS,
+                function (): array {
+                    // Never forward a direct-provider API key to the public OpenRouter catalog.
+                    $response = Http::acceptJson()
+                        ->timeout(10)
+                        ->get(self::OPENROUTER_MODELS_URL);
+
+                    if (! $response->successful()) {
+                        throw new RuntimeException("OpenRouter pricing request failed with HTTP {$response->status()}.");
+                    }
+
+                    $models = $response->json('data');
+                    if (! is_array($models)) {
+                        throw new RuntimeException('OpenRouter pricing response did not contain a model catalog.');
+                    }
+
+                    return $models;
+                }
+            );
+
+            if (! is_array($models)) {
+                throw new RuntimeException('The cached OpenRouter model catalog is invalid.');
+            }
+
+            return $this->openRouterModels = $models;
+        } catch (RuntimeException $exception) {
+            $this->pricingError = $exception;
+
+            throw $exception;
+        } catch (Throwable $exception) {
+            $this->pricingError = new RuntimeException(
+                "OpenRouter pricing request failed: {$exception->getMessage()}",
+                0,
+                $exception
+            );
+
+            throw $this->pricingError;
+        }
     }
 
-    protected function getRateOutput(): float
+    protected function getModelRates(int $promptTokens, ?string $model = null): array
     {
-        return $this->getModelRates()['output'] / 1000000;
+        $requestedModel = $model ?? $this->currentModel;
+        if ($requestedModel === null || $requestedModel === '') {
+            throw new RuntimeException('A model is required to load pricing from OpenRouter.');
+        }
+
+        $openRouterModelId = $this->getOpenRouterModelId($requestedModel);
+        $modelData = null;
+
+        foreach ($this->getOpenRouterModels() as $candidate) {
+            if (is_array($candidate) && ($candidate['id'] ?? null) === $openRouterModelId) {
+                $modelData = $candidate;
+                break;
+            }
+        }
+
+        if ($modelData === null) {
+            throw new RuntimeException("Pricing for '{$requestedModel}' is not available from OpenRouter.");
+        }
+
+        $pricing = $modelData['pricing'] ?? null;
+        if (! is_array($pricing)) {
+            throw new RuntimeException("Pricing for '{$requestedModel}' is not available from OpenRouter.");
+        }
+
+        $pricing = $this->applyPricingOverride($pricing, $promptTokens);
+
+        return [
+            'id' => $openRouterModelId,
+            'name' => is_string($modelData['name'] ?? null) ? $modelData['name'] : $openRouterModelId,
+            'input' => $this->requiredPrice($pricing, 'prompt', $requestedModel),
+            'output' => $this->requiredPrice($pricing, 'completion', $requestedModel),
+            'cache_write' => $this->optionalPrice($pricing, 'input_cache_write'),
+            'cache_read' => $this->optionalPrice($pricing, 'input_cache_read'),
+        ];
     }
 
-    protected function getRateCacheWrite(): float
+    protected function applyPricingOverride(array $pricing, int $promptTokens): array
     {
-        return $this->getModelRates()['cache_write'] / 1000000;
+        $overrides = $pricing['overrides'] ?? [];
+        if (! is_array($overrides)) {
+            return $pricing;
+        }
+
+        usort($overrides, function ($left, $right): int {
+            return ((int) ($left['min_prompt_tokens'] ?? 0)) <=> ((int) ($right['min_prompt_tokens'] ?? 0));
+        });
+
+        foreach ($overrides as $override) {
+            if (! is_array($override)) {
+                continue;
+            }
+
+            $minimum = (int) ($override['min_prompt_tokens'] ?? 0);
+            $maximum = isset($override['max_prompt_tokens']) ? (int) $override['max_prompt_tokens'] : null;
+
+            if ($promptTokens < $minimum || ($maximum !== null && $promptTokens > $maximum)) {
+                continue;
+            }
+
+            $pricing = array_replace($pricing, $override);
+        }
+
+        return $pricing;
     }
 
-    protected function getRateCacheRead(): float
+    protected function requiredPrice(array $pricing, string $field, string $model): float
     {
-        return $this->getModelRates()['cache_read'] / 1000000;
+        $price = $pricing[$field] ?? null;
+        if (! is_numeric($price)) {
+            throw new RuntimeException("Pricing field '{$field}' for '{$model}' is not available from OpenRouter.");
+        }
+
+        return (float) $price;
     }
 
-    protected function getModelName(): string
+    protected function optionalPrice(array $pricing, string $field): ?float
     {
-        return $this->getModelRates()['name'];
+        $price = $pricing[$field] ?? null;
+
+        return is_numeric($price) ? (float) $price : null;
+    }
+
+    protected function getPromptTokenCount(array $usage): int
+    {
+        return (int) ($usage['input_tokens'] ?? 0)
+            + (int) ($usage['cache_creation_input_tokens'] ?? 0)
+            + (int) ($usage['cache_read_input_tokens'] ?? 0);
+    }
+
+    protected function calculateCosts(array $rates, array $usage): array
+    {
+        $inputTokens = (int) ($usage['input_tokens'] ?? 0);
+        $outputTokens = (int) ($usage['output_tokens'] ?? 0);
+        $cacheCreationTokens = (int) ($usage['cache_creation_input_tokens'] ?? 0);
+        $cacheReadTokens = (int) ($usage['cache_read_input_tokens'] ?? 0);
+
+        if ($cacheCreationTokens > 0 && $rates['cache_write'] === null) {
+            throw new RuntimeException("Cache-write pricing for '{$rates['id']}' is not available from OpenRouter.");
+        }
+
+        if ($cacheReadTokens > 0 && $rates['cache_read'] === null) {
+            throw new RuntimeException("Cache-read pricing for '{$rates['id']}' is not available from OpenRouter.");
+        }
+
+        $inputCost = $inputTokens * $rates['input'];
+        $outputCost = $outputTokens * $rates['output'];
+        $cacheCreationCost = $cacheCreationTokens * ($rates['cache_write'] ?? 0);
+        $cacheReadCost = $cacheReadTokens * ($rates['cache_read'] ?? 0);
+        $noCacheTotalCost = (($inputTokens + $cacheCreationTokens + $cacheReadTokens) * $rates['input']) + $outputCost;
+        $totalCost = $inputCost + $outputCost + $cacheCreationCost + $cacheReadCost;
+        $savedCost = $noCacheTotalCost - $totalCost;
+
+        return [
+            'input' => $inputCost,
+            'output' => $outputCost,
+            'cache_write' => $cacheCreationCost,
+            'cache_read' => $cacheReadCost,
+            'total' => $totalCost,
+            'no_cache_total' => $noCacheTotalCost,
+            'saved' => $savedCost,
+            'saved_percentage' => $noCacheTotalCost > 0 ? ($savedCost / $noCacheTotalCost) * 100 : 0,
+        ];
+    }
+
+    protected function formatRate(?float $rate): string
+    {
+        if ($rate === null) {
+            return 'Not listed';
+        }
+
+        $perMillion = rtrim(rtrim(number_format($rate * 1_000_000, 6, '.', ''), '0'), '.');
+
+        return "\${$perMillion} per million tokens";
     }
 
     /**
@@ -361,8 +277,6 @@ class TokenUsagePrinter
     {
         $command->line("\n".str_repeat('─', 80));
         $command->line($this->colors['blue_bg'].$this->colors['white'].$this->colors['bold'].' Token Usage Summary '.$this->colors['reset']);
-
-        // 토큰 사용량 테이블 출력
         $command->line($this->colors['yellow'].'Input Tokens'.$this->colors['reset'].': '.$this->colors['green'].$usage['input_tokens'].$this->colors['reset']);
         $command->line($this->colors['yellow'].'Output Tokens'.$this->colors['reset'].': '.$this->colors['green'].$usage['output_tokens'].$this->colors['reset']);
         $command->line($this->colors['yellow'].'Cache Created'.$this->colors['reset'].': '.$this->colors['blue'].$usage['cache_creation_input_tokens'].$this->colors['reset']);
@@ -375,59 +289,39 @@ class TokenUsagePrinter
      */
     public function printCostEstimation(Command $command, array $usage): void
     {
+        try {
+            $rates = $this->getModelRates($this->getPromptTokenCount($usage));
+            $costs = $this->calculateCosts($rates, $usage);
+        } catch (RuntimeException $exception) {
+            $command->warn($exception->getMessage());
+
+            return;
+        }
+
         $command->line("\n".str_repeat('─', 80));
-
-        // 원래 모델 이름과 매칭된 모델이 다를 경우 정보 제공
-        $modelHeader = ' Cost Estimation ('.$this->getModelName().') ';
-
-        // 원래 요청한 모델이 직접 매치되지 않은 경우
-        if ($this->originalModel && $this->originalModel !== $this->currentModel) {
-            $modelHeader = ' Cost Estimation ('.$this->getModelName()." - mapped from '{$this->originalModel}') ";
+        $modelHeader = ' Cost Estimation ('.$rates['name'].') ';
+        if ($this->currentModel !== $rates['id']) {
+            $modelHeader = ' Cost Estimation ('.$rates['name']." - mapped from '{$this->currentModel}') ";
         }
 
         $command->line($this->colors['blue_bg'].$this->colors['white'].$this->colors['bold'].$modelHeader.$this->colors['reset']);
-
-        // 기본 입출력 비용
-        $inputCost = $usage['input_tokens'] * $this->getRateInput();
-        $outputCost = $usage['output_tokens'] * $this->getRateOutput();
-
-        // 캐시 관련 비용 계산
-        $cacheCreationCost = $usage['cache_creation_input_tokens'] * $this->getRateCacheWrite();
-        $cacheReadCost = $usage['cache_read_input_tokens'] * $this->getRateCacheRead();
-
-        // 캐시 없이 사용했을 경우 비용
-        $noCacheTotalInputTokens = $usage['input_tokens'] + $usage['cache_creation_input_tokens'] + $usage['cache_read_input_tokens'];
-        $noCacheInputCost = $noCacheTotalInputTokens * $this->getRateInput();
-        $noCacheTotalCost = $noCacheInputCost + $outputCost;
-
-        // 캐시 사용 총 비용
-        $totalCost = $inputCost + $outputCost + $cacheCreationCost + $cacheReadCost;
-
-        // 절약된 비용
-        $savedCost = $noCacheTotalCost - $totalCost;
-        $savedPercentage = $noCacheTotalCost > 0 ? ($savedCost / $noCacheTotalCost) * 100 : 0;
-
-        // 모델 가격 정보
-        $modelRates = $this->getModelRates();
         $command->line($this->colors['gray'].'Model Pricing:'.$this->colors['reset']);
-        $command->line($this->colors['gray'].'  Input: $'.number_format($modelRates['input'], 2).' per million tokens'.$this->colors['reset']);
-        $command->line($this->colors['gray'].'  Output: $'.number_format($modelRates['output'], 2).' per million tokens'.$this->colors['reset']);
-        $command->line($this->colors['gray'].'  Cache Write: $'.number_format($modelRates['cache_write'], 2).' per million tokens (25% premium)'.$this->colors['reset']);
-        $command->line($this->colors['gray'].'  Cache Read: $'.number_format($modelRates['cache_read'], 2).' per million tokens (90% discount)'.$this->colors['reset']);
+        $command->line($this->colors['gray'].'  Input: '.$this->formatRate($rates['input']).$this->colors['reset']);
+        $command->line($this->colors['gray'].'  Output: '.$this->formatRate($rates['output']).$this->colors['reset']);
+        $command->line($this->colors['gray'].'  Cache Write: '.$this->formatRate($rates['cache_write']).$this->colors['reset']);
+        $command->line($this->colors['gray'].'  Cache Read: '.$this->formatRate($rates['cache_read']).$this->colors['reset']);
 
-        // 비용 출력
         $command->line("\n".$this->colors['yellow'].'Your Cost Breakdown'.$this->colors['reset'].':');
-        $command->line('  Regular Input Cost: $'.number_format($inputCost, 6));
-        $command->line('  Cache Creation Cost: $'.number_format($cacheCreationCost, 6).' (25% premium over regular input)');
-        $command->line('  Cache Read Cost: $'.number_format($cacheReadCost, 6).' (90% discount from regular input)');
-        $command->line('  Output Cost: $'.number_format($outputCost, 6));
-        $command->line('  Total Cost: $'.number_format($totalCost, 6));
+        $command->line('  Regular Input Cost: $'.number_format($costs['input'], 6));
+        $command->line('  Cache Creation Cost: $'.number_format($costs['cache_write'], 6));
+        $command->line('  Cache Read Cost: $'.number_format($costs['cache_read'], 6));
+        $command->line('  Output Cost: $'.number_format($costs['output'], 6));
+        $command->line('  Total Cost: $'.number_format($costs['total'], 6));
 
-        // 비용 절약 정보 추가
-        if ($usage['cache_read_input_tokens'] > 0) {
+        if ((int) ($usage['cache_read_input_tokens'] ?? 0) > 0) {
             $command->line("\n".$this->colors['green'].$this->colors['bold'].'Cache Savings'.$this->colors['reset']);
-            $command->line('  Cost without Caching: $'.number_format($noCacheTotalCost, 6));
-            $command->line('  Saved Amount: $'.number_format($savedCost, 6).' ('.number_format($savedPercentage, 2).'% reduction)');
+            $command->line('  Cost without Caching: $'.number_format($costs['no_cache_total'], 6));
+            $command->line('  Saved Amount: $'.number_format($costs['saved'], 6).' ('.number_format($costs['saved_percentage'], 2).'% reduction)');
         }
     }
 
@@ -436,88 +330,66 @@ class TokenUsagePrinter
      */
     public function printModelComparison(Command $command, array $usage): void
     {
+        if ($this->currentModel === null || $this->currentModel === '') {
+            $command->warn('A model is required to compare OpenRouter pricing.');
+
+            return;
+        }
+
         $command->line("\n".str_repeat('─', 80));
         $command->line($this->colors['blue_bg'].$this->colors['white'].$this->colors['bold'].' Model Cost Comparison '.$this->colors['reset']);
 
-        $currentModel = $this->currentModel;
+        $promptTokens = $this->getPromptTokenCount($usage);
+        $currentModelId = $this->getOpenRouterModelId($this->currentModel);
+        $models = array_values(array_unique([$currentModelId, ...self::COMPARISON_MODELS]));
         $comparison = [];
 
-        foreach (self::MODEL_RATES as $model => $rates) {
-            // 임시로 모델 변경
-            $this->currentModel = $model;
+        foreach ($models as $model) {
+            try {
+                $rates = $this->getModelRates($promptTokens, $model);
+                $costs = $this->calculateCosts($rates, $usage);
+            } catch (RuntimeException $exception) {
+                $command->warn($exception->getMessage());
 
-            // 기본 입출력 비용
-            $inputCost = $usage['input_tokens'] * $this->getRateInput();
-            $outputCost = $usage['output_tokens'] * $this->getRateOutput();
+                continue;
+            }
 
-            // 캐시 관련 비용 계산
-            $cacheCreationCost = $usage['cache_creation_input_tokens'] * $this->getRateCacheWrite();
-            $cacheReadCost = $usage['cache_read_input_tokens'] * $this->getRateCacheRead();
-
-            // 캐시 사용 총 비용
-            $totalCost = $inputCost + $outputCost + $cacheCreationCost + $cacheReadCost;
-
-            // 비교 데이터 저장
-            $comparison[$model] = [
+            $comparison[$rates['id']] = [
                 'name' => $rates['name'],
-                'total_cost' => $totalCost,
-                'input_cost' => $inputCost,
-                'output_cost' => $outputCost,
-                'cache_write_cost' => $cacheCreationCost,
-                'cache_read_cost' => $cacheReadCost,
+                'total_cost' => $costs['total'],
             ];
         }
 
-        // 원래 모델로 복원
-        $this->currentModel = $currentModel;
+        $currentModelCost = $comparison[$currentModelId]['total_cost'] ?? 0;
+        uasort($comparison, function ($left, $right): int {
+            return $left['total_cost'] <=> $right['total_cost'];
+        });
 
-        // 테이블 헤더
         $command->line('');
         $command->line($this->colors['bold'].'MODEL'.str_repeat(' ', 20).'TOTAL COST'.str_repeat(' ', 5).'SAVINGS vs CURRENT'.$this->colors['reset']);
         $command->line(str_repeat('─', 80));
 
-        // 현재 모델의 비용
-        $currentModelCost = isset($comparison[$currentModel]) ? $comparison[$currentModel]['total_cost'] : 0;
-
-        // 모델별 비용 비교 테이블 출력 (비용 기준 오름차순 정렬)
-        uasort($comparison, function ($a, $b) {
-            return $a['total_cost'] <=> $b['total_cost'];
-        });
-
         foreach ($comparison as $model => $data) {
-            $isCurrentModel = ($model === $currentModel);
-
-            // 모델 이름 형식
+            $isCurrentModel = $model === $currentModelId;
             $modelName = str_pad($data['name'], 25, ' ');
-            if ($isCurrentModel) {
-                $modelName = $this->colors['green'].'➤ '.$modelName.$this->colors['reset'];
-            } else {
-                $modelName = '  '.$modelName;
-            }
-
-            // 비용 형식
-            $costStr = '$'.str_pad(number_format($data['total_cost'], 6), 12, ' ', STR_PAD_LEFT);
-
-            // 현재 모델과의 비용 차이
+            $modelName = $isCurrentModel
+                ? $this->colors['green'].'➤ '.$modelName.$this->colors['reset']
+                : '  '.$modelName;
+            $cost = '$'.str_pad(number_format($data['total_cost'], 6), 12, ' ', STR_PAD_LEFT);
             $savingsAmount = $currentModelCost - $data['total_cost'];
-            $savingsPercent = $currentModelCost > 0 ? ($savingsAmount / $currentModelCost) * 100 : 0;
+            $savingsPercentage = $currentModelCost > 0 ? ($savingsAmount / $currentModelCost) * 100 : 0;
 
-            $savingsStr = '';
-            if (! $isCurrentModel && $currentModelCost > 0) {
-                if ($savingsAmount > 0) {
-                    // 비용 절감
-                    $savingsStr = $this->colors['green'].str_pad(number_format($savingsAmount, 6), 10, ' ', STR_PAD_LEFT).
-                        ' ('.number_format($savingsPercent, 1).'% less)'.$this->colors['reset'];
-                } else {
-                    // 비용 증가
-                    $savingsStr = $this->colors['red'].str_pad(number_format(abs($savingsAmount), 6), 10, ' ', STR_PAD_LEFT).
-                        ' ('.number_format(abs($savingsPercent), 1).'% more)'.$this->colors['reset'];
-                }
+            if ($isCurrentModel || $currentModelCost <= 0) {
+                $savings = str_pad('—', 25, ' ');
+            } elseif ($savingsAmount > 0) {
+                $savings = $this->colors['green'].str_pad(number_format($savingsAmount, 6), 10, ' ', STR_PAD_LEFT).
+                    ' ('.number_format($savingsPercentage, 1).'% less)'.$this->colors['reset'];
             } else {
-                $savingsStr = str_pad('—', 25, ' ');
+                $savings = $this->colors['red'].str_pad(number_format(abs($savingsAmount), 6), 10, ' ', STR_PAD_LEFT).
+                    ' ('.number_format(abs($savingsPercentage), 1).'% more)'.$this->colors['reset'];
             }
 
-            $command->line($modelName.$costStr.'  '.$savingsStr);
+            $command->line($modelName.$cost.'  '.$savings);
         }
     }
 

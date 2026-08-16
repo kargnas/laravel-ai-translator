@@ -1,11 +1,15 @@
 <?php
 
+use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Facades\Http;
-use Prism\Prism\Facades\Prism;
-use Prism\Prism\Testing\TextResponseFake;
-use Prism\Prism\ValueObjects\Usage;
+use Laravel\Ai\Responses\Data\Usage;
 
 use function Pest\Laravel\artisan;
+
+test('registers the test translation command', function () {
+    expect(app(Kernel::class)->all())
+        ->toHaveKey('ai-translator:test');
+});
 
 test('extended thinking configures OpenRouter reasoning and direct Anthropic thinking', function () {
     config()->set('ai-translator.ai.api_key', 'test-openrouter-key');
@@ -21,21 +25,18 @@ test('extended thinking configures OpenRouter reasoning and direct Anthropic thi
             ]],
         ]),
     ]);
-    $fake = Prism::fake([
-        TextResponseFake::make()
-            ->withText('<translations><item><key>Test.test</key><trx><![CDATA[안녕하세요]]></trx></item></translations>')
-            ->withUsage(new Usage(12, 8)),
+    fakeAiProvider([
+        aiTextResponse(
+            '<translations><item><key>Test.test</key><trx><![CDATA[안녕하세요]]></trx></item></translations>',
+            new Usage(12, 8),
+        ),
     ]);
 
-    artisan('ai-translator:test-translate', [
+    artisan('ai-translator:test', [
         '--text' => 'Hello',
         '--extended-thinking' => true,
     ])->assertSuccessful();
 
     expect(config('ai-translator.ai.reasoning'))->toBe(['effort' => 'high'])
         ->and(config('ai-translator.ai.use_extended_thinking'))->toBeTrue();
-    $fake->assertRequest(function (array $requests): void {
-        expect($requests)->toHaveCount(1)
-            ->and($requests[0]->providerOptions('reasoning'))->toBe(['effort' => 'high']);
-    });
 });

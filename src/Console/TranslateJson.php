@@ -3,23 +3,29 @@
 namespace Kargnas\LaravelAiTranslator\Console;
 
 use Illuminate\Console\Command;
-use Kargnas\LaravelAiTranslator\AI\AIProvider;
+use Illuminate\Support\Collection;
 use Kargnas\LaravelAiTranslator\AI\Language\LanguageConfig;
 use Kargnas\LaravelAiTranslator\AI\Printer\TokenUsagePrinter;
 use Kargnas\LaravelAiTranslator\AI\TranslationContextProvider;
-use Kargnas\LaravelAiTranslator\Enums\PromptType;
-use Kargnas\LaravelAiTranslator\Enums\TranslationStatus;
+use Kargnas\LaravelAiTranslator\Console\Concerns\WiresTranslatorOutput;
+use Kargnas\LaravelAiTranslator\Contracts\Translator;
 use Kargnas\LaravelAiTranslator\Transformers\JSONLangTransformer;
+use Kargnas\LaravelAiTranslator\Translation\ChangeDetector;
+use Kargnas\LaravelAiTranslator\Translation\TokenChunker;
+use Kargnas\LaravelAiTranslator\Translation\TranslatorFactory;
 
 class TranslateJson extends Command
 {
+    use WiresTranslatorOutput;
+
     protected $signature = 'ai-translator:translate-json
         {--s|source= : Source language to translate from (e.g. --source=en)}
         {--l|locale=* : Target locales to translate (e.g. --locale=ko,ja). If not provided, will ask interactively}
         {--r|reference= : Reference languages for translation guidance (e.g. --reference=fr,es). If not provided, will ask interactively}
-        {--c|chunk= : Chunk size for translation (e.g. --chunk=100)}
+        {--max-tokens-per-chunk= : Maximum estimated source tokens per translation request (default 1500)}
         {--m|max-context= : Maximum number of context items to include (e.g. --max-context=1000)}
         {--force-big-files : Force translation of files with more than 500 strings}
+        {--force-retranslate : Bypass source change detection}
         {--show-prompt : Show the whole AI prompts during translation}
         {--non-interactive : Run in non-interactive mode, using default or provided values}';
 
@@ -29,15 +35,19 @@ class TranslateJson extends Command
 
     protected string $sourceDirectory;
 
-    protected int $chunkSize;
+    protected int $maxTokensPerChunk;
 
     protected array $referenceLocales = [];
 
-    protected int $defaultChunkSize = 100;
+    protected int $defaultMaxTokensPerChunk = 1500;
 
     protected int $defaultMaxContextItems = 1000;
 
     protected int $warningStringCount = 500;
+
+    // Chunks whose translation threw; a non-zero count must fail the command
+    // instead of ending in a green "completed" banner (issue #20).
+    protected int $failedChunkCount = 0;
 
     /**
      * Token usage tracking
@@ -135,16 +145,16 @@ class TranslateJson extends Command
             );
         }
 
-        // Set chunk size
-        if ($nonInteractive || $this->option('chunk')) {
-            $this->chunkSize = (int) ($this->option('chunk') ?? $this->defaultChunkSize);
-            $this->info($this->colors['green'].'✓ Chunk size: '.
-                $this->colors['reset'].$this->colors['bold'].$this->chunkSize.
+        // Use a token budget so batches stay within model request limits.
+        if ($nonInteractive || $this->option('max-tokens-per-chunk')) {
+            $this->maxTokensPerChunk = (int) ($this->option('max-tokens-per-chunk') ?? $this->defaultMaxTokensPerChunk);
+            $this->info($this->colors['green'].'✓ Maximum estimated source tokens per request: '.
+                $this->colors['reset'].$this->colors['bold'].$this->maxTokensPerChunk.
                 $this->colors['reset']);
         } else {
-            $this->chunkSize = (int) $this->ask(
-                $this->colors['yellow'].'Enter the chunk size for translation. Translate strings in a batch. The higher, the cheaper.'.$this->colors['reset'],
-                $this->defaultChunkSize
+            $this->maxTokensPerChunk = (int) $this->ask(
+                $this->colors['yellow'].'Enter the maximum estimated source tokens per translation request. The higher, the cheaper.'.$this->colors['reset'],
+                $this->defaultMaxTokensPerChunk
             );
         }
 
@@ -164,7 +174,7 @@ class TranslateJson extends Command
         // Execute translation
         $this->translate($maxContextItems);
 
-        return 0;
+        return $this->failedChunkCount > 0 ? 1 : 0;
     }
 
     /**
@@ -235,6 +245,8 @@ class TranslateJson extends Command
             return;
         }
 
+        $this->announceConsensusMode();
+
         $totalStringCount = 0;
         $totalTranslatedCount = 0;
 
@@ -263,8 +275,14 @@ class TranslateJson extends Command
             $totalTranslatedCount += $result['translatedCount'];
         }
 
-        // Display total completion message
-        $this->line("\n".$this->colors['green_bg'].$this->colors['white'].$this->colors['bold'].' All translations completed '.$this->colors['reset']);
+        // Completion banner: red when any chunk failed so a failed run can never
+        // end looking green (issue #20).
+        if ($this->failedChunkCount > 0) {
+            $this->line("\n".$this->colors['red_bg'].$this->colors['white'].$this->colors['bold'].' Translation finished with failures '.$this->colors['reset']);
+            $this->line($this->colors['red'].'Failed chunks: '.$this->colors['reset'].$this->failedChunkCount);
+        } else {
+            $this->line("\n".$this->colors['green_bg'].$this->colors['white'].$this->colors['bold'].' All translations completed '.$this->colors['reset']);
+        }
         $this->line($this->colors['yellow'].'Total strings found: '.$this->colors['reset'].$totalStringCount);
         $this->line($this->colors['yellow'].'Total strings translated: '.$this->colors['reset'].$totalTranslatedCount);
 
@@ -301,12 +319,30 @@ class TranslateJson extends Command
         $targetTransformer = new JSONLangTransformer($targetFile);
 
         $sourceStrings = $sourceTransformer->flatten();
-        $stringsToTranslate = collect($sourceStrings)
+        $stateStringList = $sourceStrings;
+        $seedStateKeys = collect($sourceStrings)
+            ->filter(fn ($value, $key) => $targetTransformer->isTranslated($key))
+            ->keys()
+            ->all();
+        $untranslatedStrings = collect($sourceStrings)
             ->filter(fn ($v, $k) => ! $targetTransformer->isTranslated($k))
             ->toArray();
 
+        $changeDetector = new ChangeDetector;
+        if ($this->option('force-retranslate')) {
+            $stringsToTranslate = $sourceStrings;
+        } else {
+            $changedStrings = $changeDetector->changedAgainstState(
+                $sourceStrings,
+                $this->sourceLocale,
+                $locale
+            );
+            $stringsToTranslate = $untranslatedStrings + $changedStrings;
+        }
+
         if (count($stringsToTranslate) === 0) {
-            $this->info($this->colors['green'].'  ✓ '.$this->colors['reset'].'All strings are already translated. Skipping.');
+            $changeDetector->saveState($seedStateKeys, $stateStringList, $this->sourceLocale, $locale);
+            $this->info($this->colors['green'].'  ✓ '.$this->colors['reset'].'No source changes detected. Skipping.');
 
             return ['stringCount' => 0, 'translatedCount' => 0];
         }
@@ -337,11 +373,12 @@ class TranslateJson extends Command
 
         // Process in chunks
         $chunkCount = 0;
-        $totalChunks = ceil($stringCount / $this->chunkSize);
+        $chunks = (new TokenChunker)->chunk($stringsToTranslate, $this->maxTokensPerChunk);
+        $totalChunks = count($chunks);
 
-        collect($stringsToTranslate)
-            ->chunk($this->chunkSize)
-            ->each(function ($chunk) use ($locale, $sourceFile, $targetTransformer, $referenceStringList, $globalContext, &$translatedCount, &$chunkCount, $totalChunks) {
+        collect($chunks)
+            ->each(function (array $chunkStrings) use ($locale, $sourceFile, $targetTransformer, $referenceStringList, $globalContext, $changeDetector, $stateStringList, $seedStateKeys, &$translatedCount, &$chunkCount, $totalChunks) {
+                $chunk = collect($chunkStrings);
                 $chunkCount++;
                 $this->info($this->colors['yellow'].'  ⏺ Processing chunk '.
                     $this->colors['reset']."{$chunkCount}/{$totalChunks}".
@@ -363,9 +400,17 @@ class TranslateJson extends Command
                     $translatedCount += count($translatedItems);
 
                     // Save translation results
+                    $translatedKeys = [];
                     foreach ($translatedItems as $item) {
                         $targetTransformer->updateString($item->key, $item->translated);
+                        $translatedKeys[] = $item->key;
                     }
+                    $changeDetector->saveState(
+                        array_merge($seedStateKeys, $translatedKeys),
+                        $stateStringList,
+                        $this->sourceLocale,
+                        $locale
+                    );
 
                     // Display number of saved items
                     $this->info($this->colors['green'].'  ✓ '.$this->colors['reset']."{$translatedCount} strings saved.");
@@ -378,6 +423,7 @@ class TranslateJson extends Command
                     $this->updateTokenUsageTotals($usage);
 
                 } catch (\Exception $e) {
+                    $this->failedChunkCount++;
                     $this->error('Translation failed: '.$e->getMessage());
                 }
             });
@@ -494,11 +540,11 @@ class TranslateJson extends Command
      */
     protected function setupTranslator(
         string $file,
-        \Illuminate\Support\Collection $chunk,
+        Collection $chunk,
         array $referenceStringList,
         string $locale,
         array $globalContext
-    ): AIProvider {
+    ): Translator {
         // Convert reference info to proper format
         $references = [];
         foreach ($referenceStringList as $reference) {
@@ -507,79 +553,23 @@ class TranslateJson extends Command
             $references[$referenceLocale] = $referenceStrings;
         }
 
-        // Create AIProvider instance
-        $translator = new AIProvider(
+        $translator = TranslatorFactory::make(
             $file,
             $chunk->toArray(),
             $this->sourceLocale,
             $locale,
             $references,
-            [],  // additionalRules
-            $globalContext  // globalTranslationContext
+            [],
+            $globalContext,
         );
 
-        $translator->setOnThinking(function ($thinking) {
-            echo $this->colors['gray'].$thinking.$this->colors['reset'];
-        });
-
-        $translator->setOnThinkingStart(function () {
-            $this->line($this->colors['gray'].'    '.'🧠 AI Thinking...'.$this->colors['reset']);
-        });
-
-        $translator->setOnThinkingEnd(function () {
-            $this->line($this->colors['gray'].'    '.'Thinking completed.'.$this->colors['reset']);
-        });
-
-        // Set translation progress callback
-        $translator->setOnTranslated(function ($item, $status, $translatedItems) use ($chunk) {
-            if ($status === TranslationStatus::COMPLETED) {
-                $totalCount = $chunk->count();
-                $completedCount = count($translatedItems);
-
-                $this->line($this->colors['cyan'].'  ⟳ '.
-                    $this->colors['reset'].$item->key.
-                    $this->colors['gray'].' → '.
-                    $this->colors['reset'].$item->translated.
-                    $this->colors['gray']." ({$completedCount}/{$totalCount})".
-                    $this->colors['reset']);
-            }
-        });
-
-        // Set token usage callback
-        $translator->setOnTokenUsage(function ($usage) {
-            $isFinal = $usage['final'] ?? false;
-            $inputTokens = $usage['input_tokens'] ?? 0;
-            $outputTokens = $usage['output_tokens'] ?? 0;
-            $totalTokens = $usage['total_tokens'] ?? 0;
-
-            // Display real-time token usage
-            $this->line($this->colors['gray'].'    Tokens: '.
-                'Input='.$this->colors['green'].$inputTokens.$this->colors['gray'].', '.
-                'Output='.$this->colors['green'].$outputTokens.$this->colors['gray'].', '.
-                'Total='.$this->colors['purple'].$totalTokens.$this->colors['gray'].
-                $this->colors['reset']);
-        });
-
-        // Set prompt logging callback
-        if ($this->option('show-prompt')) {
-            $translator->setOnPromptGenerated(function ($prompt, PromptType $type) {
-                $typeText = match ($type) {
-                    PromptType::SYSTEM => '🤖 System Prompt',
-                    PromptType::USER => '👤 User Prompt',
-                };
-
-                echo "\n    {$typeText}:\n";
-                echo $this->colors['gray'].'    '.str_replace("\n", $this->colors['reset']."\n    ".$this->colors['gray'], $prompt).$this->colors['reset']."\n";
-            });
-        }
-
-        return $translator;
+        return $this->wireTranslatorOutput($translator, $chunk->count());
     }
 
     /**
      * Display cost estimation
      */
-    protected function displayCostEstimation(AIProvider $translator): void
+    protected function displayCostEstimation(Translator $translator): void
     {
         $usage = $translator->getTokenUsage();
         $printer = new TokenUsagePrinter($translator->getModel());
@@ -629,7 +619,7 @@ class TranslateJson extends Command
 
         return collect($files)
             ->map(fn ($file) => pathinfo($file, PATHINFO_FILENAME))
-            ->filter(fn ($filename) => !str_starts_with($filename, '_'))
+            ->filter(fn ($filename) => ! str_starts_with($filename, '_'))
             ->values()
             ->toArray();
     }

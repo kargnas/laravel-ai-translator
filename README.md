@@ -35,7 +35,7 @@ Maintainers can also run the `Release` workflow manually and choose a patch, min
   - Strict path matching to prevent unintended deletions
 - 🔁 **Parallel Translation**: Translate multiple locales concurrently with the `translate-parallel` command
 - **AI Providers**: Uses OpenRouter by default while retaining direct OpenAI, Anthropic, and Gemini support
-  - Uses PrismPHP for OpenRouter with Claude Opus 5 as the default model
+  - Uses the official Laravel AI SDK for OpenRouter with Claude Opus 5 as the default model
   - Supports GPT-5.6 Sol and Gemini 3.7 Flash model IDs
   - Supports streaming responses and reasoning callbacks
   - Loads pricing from OpenRouter for every provider and caches the catalog for six hours
@@ -141,8 +141,8 @@ These custom styles offer creative ways to customize your translations, adding a
 
 ## Prerequisites
 
-- PHP 8.2 or higher
-- Laravel 11.0 or higher
+- PHP 8.3 or higher
+- Laravel 12.0 or higher
 
 ## Installation
 
@@ -480,6 +480,22 @@ This will create a `config/ai-translator.php` file where you can modify the foll
 
 - `locale_names`: This mapping of locale codes to language names enhances translation quality by providing context to the AI.
 
+- `consensus`: Optional multi-translator mode. Configure two or more entries in `translators` plus a `judge`; each translator handles the full chunk and the judge selects the best candidate per key. Leave `translators` empty to use the single `ai` configuration:
+
+  ```php
+  'consensus' => [
+      'translators' => [
+          ['provider' => 'anthropic', 'model' => 'claude-sonnet-4-20250514', 'api_key' => env('ANTHROPIC_API_KEY')],
+          ['provider' => 'openrouter', 'model' => 'anthropic/claude-sonnet-4.5', 'api_key' => env('OPENROUTER_API_KEY')],
+      ],
+      'judge' => [
+          'provider' => 'openrouter',
+          'model' => 'anthropic/claude-sonnet-4.5',
+          'api_key' => env('OPENROUTER_API_KEY'),
+      ],
+  ],
+  ```
+
 - `additional_rules`: Add custom rules to the translation prompt. This is useful for customizing the style of the messages or creating entirely new language styles.
 
 - `disable_plural`: Disable pluralization. Use ":count apples" instead of ":count apple|:count apples"
@@ -554,9 +570,10 @@ All translation commands support these options:
 - `--source=LOCALE`: Source language (e.g., `--source=en`)
 - `--locale=LOCALE1,LOCALE2`: Target locales (e.g., `--locale=ko,ja`)
 - `--reference=LOCALE1,LOCALE2`: Reference languages for guidance (e.g., `--reference=fr,es`)
-- `--chunk=SIZE`: Chunk size for batch processing (default: 100)
+- `--max-tokens-per-chunk=TOKENS`: Maximum estimated source tokens per translation request (default: 1500)
 - `--max-context=COUNT`: Maximum context items (default: 1000)
 - `--force-big-files`: Force translation of files with 500+ strings
+- `--force-retranslate`: Bypass source change detection
 - `--show-prompt`: Display AI prompts during translation
 - `--non-interactive`: Run without interactive prompts
 

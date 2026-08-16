@@ -82,8 +82,6 @@ class TranslateFileCommand extends Command
             $this->info("Target language: {$targetLanguage}");
             $this->info('Total strings: '.count($strings));
 
-            config(['ai-translator.ai.disable_stream' => false]);
-
             // Get global translation context
             $contextProvider = new TranslationContextProvider;
             $maxContextItems = (int) $this->option('max-context-items') ?: 100;

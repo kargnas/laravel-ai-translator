@@ -61,6 +61,13 @@ class PHPLangTransformer
         $result = [];
         foreach ($array as $key => $value) {
             $parts = explode('.', $key);
+            // Sentence keys ending with '.' split into an empty segment; keep them flat
+            // instead of nesting under an '' key (issue #19).
+            if (in_array('', $parts, true)) {
+                $result[$key] = $value;
+
+                continue;
+            }
             $current = &$result;
             foreach ($parts as $i => $part) {
                 if ($i === count($parts) - 1) {
@@ -79,25 +86,11 @@ class PHPLangTransformer
 
     public function updateString(string $key, string $translated): void
     {
-        if ($this->useDotNotation) {
-            $flattened = $this->flattenArray($this->content);
-            $flattened[$key] = $translated;
-            $this->content = $flattened;
-        } else {
-            $parts = explode('.', $key);
-            $current = &$this->content;
-
-            foreach ($parts as $i => $part) {
-                if ($i === count($parts) - 1) {
-                    $current[$part] = $translated;
-                } else {
-                    if (! isset($current[$part]) || ! is_array($current[$part])) {
-                        $current[$part] = [];
-                    }
-                    $current = &$current[$part];
-                }
-            }
-        }
+        // Store flat; saveToFile() re-nests via unflattenArray when dot_notation is off,
+        // so the sentence-key guard there applies to every write path.
+        $flattened = $this->flattenArray($this->content);
+        $flattened[$key] = $translated;
+        $this->content = $flattened;
 
         $this->saveToFile();
     }

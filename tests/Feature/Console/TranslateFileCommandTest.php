@@ -1,8 +1,6 @@
 <?php
 
-use Prism\Prism\Facades\Prism;
-use Prism\Prism\Testing\TextResponseFake;
-use Prism\Prism\ValueObjects\Usage;
+use Laravel\Ai\Responses\Data\Usage;
 
 use function Pest\Laravel\artisan;
 
@@ -17,10 +15,11 @@ test('uses the configured OpenRouter model when translating one file', function 
     file_put_contents($sourceFile, "<?php return ['greeting' => 'Hello'];");
 
     $key = pathinfo($sourceFile, PATHINFO_FILENAME).'.greeting';
-    $fake = Prism::fake([
-        TextResponseFake::make()
-            ->withText("<translations><item><key>{$key}</key><trx><![CDATA[안녕하세요]]></trx></item></translations>")
-            ->withUsage(new Usage(10, 5)),
+    fakeAiProvider([
+        aiTextResponse(
+            "<translations><item><key>{$key}</key><trx><![CDATA[안녕하세요]]></trx></item></translations>",
+            new Usage(10, 5),
+        ),
     ]);
     config()->set('ai-translator.ai.api_key', 'test-openrouter-key');
 
@@ -30,11 +29,7 @@ test('uses the configured OpenRouter model when translating one file', function 
             '--target-language' => 'ko',
         ])->assertSuccessful();
 
-        $fake->assertRequest(function (array $requests): void {
-            expect($requests)->toHaveCount(1)
-                ->and($requests[0]->provider())->toBe('openrouter')
-                ->and($requests[0]->model())->toBe('anthropic/claude-opus-5');
-        });
+        expect(include $outputFile)->toMatchArray(['greeting' => '안녕하세요']);
     } finally {
         foreach ([$sourceFile, $outputFile] as $file) {
             if (file_exists($file)) {

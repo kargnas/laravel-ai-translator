@@ -7,6 +7,11 @@ return [
     // Source language for translations. Default is 'en' for English.
     'source_locale' => 'en',
 
+    // Disk for source checksum state.
+    'state' => [
+        'disk' => 'local',
+    ],
+
     'ai' => [
         // Supported providers: OpenRouter (default), OpenAI, Anthropic, and Gemini.
         'provider' => 'openrouter',
@@ -22,6 +27,19 @@ return [
 
         // 'prompt_custom_system_file_path' => null, // Full path to your own custom prompt-system.txt - i.e. resource_path('prompt-system.txt')
         // 'prompt_custom_user_file_path' => null, // Full path to your own custom prompt-user.txt - i.e. resource_path('prompt-user.txt')
+    ],
+
+    // Consensus mode: when 2+ translators are configured, each translates the chunk
+    // and the judge picks the best candidate per key. Leave 'translators' empty to
+    // use the single 'ai' config above.
+    'consensus' => [
+        'translators' => [
+            // ['provider' => 'anthropic', 'model' => 'claude-sonnet-4-5', 'api_key' => env('ANTHROPIC_API_KEY'), 'temperature' => 0.3, 'use_extended_thinking' => false],
+            // ['provider' => 'openai', 'model' => 'gpt-5', 'api_key' => env('OPENAI_API_KEY')],
+        ],
+        'judge' => [
+            // 'provider' => 'openai', 'model' => 'gpt-5', 'api_key' => env('OPENAI_API_KEY'),
+        ],
     ],
 
     // 'disable_plural' => true,

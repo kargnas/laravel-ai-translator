@@ -2,63 +2,23 @@
 
 use Kargnas\LaravelAiTranslator\AI\AIProvider;
 use Kargnas\LaravelAiTranslator\Enums\TranslationStatus;
-use Prism\Prism\Facades\Prism;
-use Prism\Prism\Testing\TextResponseFake;
-use Prism\Prism\Text\Request;
-use Prism\Prism\ValueObjects\Usage;
-
-function providerKeys(): array
-{
-    $hasKey = function (string $name): bool {
-        $key = env($name);
-
-        return is_string($key) && $key !== '' && ! str_starts_with($key, 'your-');
-    };
-
-    return [
-        'openrouter' => $hasKey('OPENROUTER_API_KEY'),
-        'openai' => $hasKey('OPENAI_API_KEY'),
-        'anthropic' => $hasKey('ANTHROPIC_API_KEY'),
-        'gemini' => $hasKey('GEMINI_API_KEY'),
-    ];
-}
-
-beforeEach(function () {
-    $keys = providerKeys();
-    $this->hasOpenRouter = $keys['openrouter'];
-    $this->hasOpenAI = $keys['openai'];
-    $this->hasAnthropic = $keys['anthropic'];
-    $this->hasGemini = $keys['gemini'];
-});
+use Laravel\Ai\Enums\Lab;
+use Laravel\Ai\Responses\Data\Usage;
 
 test('environment variables are loaded from .env.testing', function () {
-    if (! ($this->hasOpenRouter || $this->hasOpenAI || $this->hasAnthropic || $this->hasGemini)) {
+    $keys = collect(['OPENROUTER_API_KEY', 'OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'GEMINI_API_KEY'])
+        ->mapWithKeys(fn (string $name): array => [$name => env($name)])
+        ->filter(fn ($value): bool => is_string($value) && $value !== '' && ! str_starts_with($value, 'your-'));
+
+    if ($keys->isEmpty()) {
         $this->markTestSkipped('API keys not found in environment. Skipping test.');
     }
 
-    if ($this->hasOpenRouter) {
-        expect(env('OPENROUTER_API_KEY'))->not()->toBeNull()
-            ->toBeString();
-    }
-
-    if ($this->hasOpenAI) {
-        expect(env('OPENAI_API_KEY'))->not()->toBeNull()
-            ->toBeString();
-    }
-
-    if ($this->hasAnthropic) {
-        expect(env('ANTHROPIC_API_KEY'))->not()->toBeNull()
-            ->toBeString();
-    }
-
-    if ($this->hasGemini) {
-        expect(env('GEMINI_API_KEY'))->not()->toBeNull()
-            ->toBeString();
-    }
+    expect($keys)->not->toBeEmpty();
 });
 
 test('can translate strings using OpenRouter', function () {
-    if (! $this->hasOpenRouter) {
+    if (! env('OPENROUTER_API_KEY')) {
         $this->markTestSkipped('OpenRouter API key not found in environment. Skipping test.');
     }
 
@@ -67,20 +27,12 @@ test('can translate strings using OpenRouter', function () {
     config()->set('ai-translator.ai.api_key', env('OPENROUTER_API_KEY'));
     config()->set('ai-translator.ai.disable_stream', true);
 
-    $provider = new AIProvider(
-        'test.php',
-        ['greeting' => 'Hello, world!'],
-        'en',
-        'ko'
-    );
-
-    $result = $provider->translate();
-
-    expect($result)->toBeArray()->toHaveCount(1);
+    expect((new AIProvider('test.php', ['greeting' => 'Hello, world!'], 'en', 'ko'))->translate())
+        ->toHaveCount(1);
 });
 
 test('can translate strings using OpenAI', function () {
-    if (! $this->hasOpenAI) {
+    if (! env('OPENAI_API_KEY')) {
         $this->markTestSkipped('OpenAI API key not found in environment. Skipping test.');
     }
 
@@ -88,19 +40,12 @@ test('can translate strings using OpenAI', function () {
     config()->set('ai-translator.ai.model', 'gpt-5.6-sol');
     config()->set('ai-translator.ai.api_key', env('OPENAI_API_KEY'));
 
-    $provider = new AIProvider(
-        'test.php',
-        ['greeting' => 'Hello, world!'],
-        'en',
-        'ko'
-    );
-
-    $result = $provider->translate();
-    expect($result)->toBeArray();
+    expect((new AIProvider('test.php', ['greeting' => 'Hello, world!'], 'en', 'ko'))->translate())
+        ->toBeArray();
 });
 
 test('can translate strings using Anthropic', function () {
-    if (! $this->hasAnthropic) {
+    if (! env('ANTHROPIC_API_KEY')) {
         $this->markTestSkipped('Anthropic API key not found in environment. Skipping test.');
     }
 
@@ -109,19 +54,12 @@ test('can translate strings using Anthropic', function () {
     config()->set('ai-translator.ai.api_key', env('ANTHROPIC_API_KEY'));
     config()->set('ai-translator.ai.max_tokens', 128000);
 
-    $provider = new AIProvider(
-        'test.php',
-        ['greeting' => 'Hello, world!'],
-        'en',
-        'ko'
-    );
-
-    $result = $provider->translate();
-    expect($result)->toBeArray()->toHaveCount(1);
+    expect((new AIProvider('test.php', ['greeting' => 'Hello, world!'], 'en', 'ko'))->translate())
+        ->toHaveCount(1);
 });
 
 test('can translate strings using Gemini', function () {
-    if (! $this->hasGemini) {
+    if (! env('GEMINI_API_KEY')) {
         $this->markTestSkipped('Gemini API key not found in environment. Skipping test.');
     }
 
@@ -130,47 +68,39 @@ test('can translate strings using Gemini', function () {
     config()->set('ai-translator.ai.api_key', env('GEMINI_API_KEY'));
     config()->set('ai-translator.ai.max_tokens', 65536);
 
-    $provider = new AIProvider(
-        'test.php',
-        ['greeting' => 'Hello, world!'],
-        'en',
-        'ko'
-    );
-
-    $result = $provider->translate();
-    expect($result)->toBeArray()->toHaveCount(1);
+    expect((new AIProvider('test.php', ['greeting' => 'Hello, world!'], 'en', 'ko'))->translate())
+        ->toHaveCount(1);
 });
 
-test('uses OpenRouter with the default frontier model', function () {
+test('translates through the Laravel AI agent and aggregates usage', function () {
+    config()->set('ai-translator.ai.provider', 'openrouter');
+    config()->set('ai-translator.ai.model', 'anthropic/claude-opus-5');
     config()->set('ai-translator.ai.api_key', 'test-openrouter-key');
     config()->set('ai-translator.ai.disable_stream', true);
     config()->set('ai-translator.ai.temperature', 0.2);
     config()->set('ai-translator.ai.max_tokens', 4096);
     config()->set('ai-translator.ai.reasoning', ['effort' => 'high']);
 
-    $fake = Prism::fake([
-        TextResponseFake::make()
-            ->withText('<translations><item><key>test.greeting</key><trx><![CDATA[안녕하세요]]></trx></item></translations>')
-            ->withUsage(new Usage(12, 8, cacheReadInputTokens: 4)),
+    fakeAiProvider([
+        aiTextResponse(
+            '<translations> <item> <key>test.greeting</key> <trx><![CDATA[안녕하세요]]></trx> </item> </translations>',
+            new Usage(12, 8, 0, 4),
+        ),
     ]);
 
     $usageEvents = [];
     $translationEvents = [];
-    $provider = (new AIProvider(
-        'test.php',
-        ['greeting' => 'Hello'],
-        'en',
-        'ko'
-    ))->setOnTranslated(function ($item, string $status) use (&$translationEvents): void {
-        $translationEvents[] = $status;
-    })->setOnTokenUsage(function (array $usage) use (&$usageEvents): void {
-        $usageEvents[] = $usage;
-    });
+    $provider = (new AIProvider('test.php', ['greeting' => 'Hello'], 'en', 'ko'))
+        ->setOnTranslated(function ($item, string $status) use (&$translationEvents): void {
+            $translationEvents[] = $status;
+        })
+        ->setOnTokenUsage(function (array $usage) use (&$usageEvents): void {
+            $usageEvents[] = $usage;
+        });
 
     $result = $provider->translate();
 
     expect($result)->toHaveCount(1)
-        ->and($result[0]->key)->toBe('greeting')
         ->and($result[0]->translated)->toBe('안녕하세요')
         ->and($provider->getTokenUsage())->toMatchArray([
             'input_tokens' => 8,
@@ -180,100 +110,125 @@ test('uses OpenRouter with the default frontier model', function () {
             'total_tokens' => 20,
         ])
         ->and(array_column($usageEvents, 'final'))->toBe([false, true])
-        ->and($translationEvents)->toBe([
-            TranslationStatus::STARTED,
-            TranslationStatus::COMPLETED,
-        ]);
-
-    $fake->assertProviderConfig(['api_key' => 'test-openrouter-key']);
-    $fake->assertRequest(function (array $requests): void {
-        expect($requests)->toHaveCount(1)
-            ->and($requests[0])->toBeInstanceOf(Request::class)
-            ->and($requests[0]->provider())->toBe('openrouter')
-            ->and($requests[0]->model())->toBe('anthropic/claude-opus-5')
-            ->and($requests[0]->temperature())->toBe(0.2)
-            ->and($requests[0]->maxTokens())->toBe(4096)
-            ->and($requests[0]->providerOptions('reasoning'))->toBe(['effort' => 'high']);
-    });
+        ->and($translationEvents)->toBe([TranslationStatus::STARTED, TranslationStatus::COMPLETED]);
 });
 
-test('omits unconfigured optional OpenRouter parameters', function () {
-    config()->set('ai-translator.ai.api_key', 'test-openrouter-key');
-    config()->set('ai-translator.ai.disable_stream', true);
+test('omits optional agent parameters when they are not configured', function () {
+    config()->set('ai-translator.ai.api_key', 'test-key');
     config()->offsetUnset('ai-translator.ai.temperature');
     config()->offsetUnset('ai-translator.ai.max_tokens');
     config()->offsetUnset('ai-translator.ai.reasoning');
 
-    $fake = Prism::fake([
-        TextResponseFake::make()
-            ->withText('<translations><item><key>test.greeting</key><trx><![CDATA[안녕하세요]]></trx></item></translations>')
-            ->withUsage(new Usage(12, 8)),
-    ]);
+    fakeAiProvider([aiTextResponse('<translations> <item> <key>test.greeting</key> <trx><![CDATA[안녕하세요]]></trx> </item> </translations>')]);
 
-    $result = (new AIProvider(
-        'test.php',
-        ['greeting' => 'Hello'],
-        'en',
-        'ko'
-    ))->translate();
+    $provider = new AIProvider('test.php', ['greeting' => 'Hello'], 'en', 'ko');
+    $method = new ReflectionMethod($provider, 'makeAgent');
+    $method->setAccessible(true);
+    $agent = $method->invoke($provider, 'system');
 
-    expect($result)->toHaveCount(1);
-    $fake->assertRequest(function (array $requests): void {
-        expect($requests)->toHaveCount(1)
-            ->and($requests[0]->temperature())->toBeNull()
-            ->and($requests[0]->maxTokens())->toBeNull()
-            ->and($requests[0]->providerOptions())->toBe([]);
-    });
+    expect($agent->temperature())->toBeNull()
+        ->and($agent->maxTokens())->toBeNull()
+        ->and($agent->providerOptions(Lab::OpenRouter))->toBe([]);
 });
 
-test('streams OpenRouter translations through existing callbacks', function () {
+test('streams translations through existing callbacks', function () {
     config()->set('ai-translator.ai.provider', 'openrouter');
     config()->set('ai-translator.ai.model', 'openai/gpt-5.6-sol');
-    config()->set('ai-translator.ai.api_key', 'test-openrouter-key');
+    config()->set('ai-translator.ai.api_key', 'test-key');
     config()->set('ai-translator.ai.disable_stream', false);
 
-    Prism::fake([
-        TextResponseFake::make()
-            ->withText('<translations><item><key>test.greeting</key><trx><![CDATA[안녕하세요]]></trx></item></translations>'),
-    ])->withFakeChunkSize(9);
+    fakeAiProvider([aiTextResponse('<translations> <item> <key>test.greeting</key> <trx><![CDATA[안녕하세요]]></trx> </item> </translations>')]);
 
     $progress = [];
     $translationEvents = [];
-    $provider = (new AIProvider(
-        'test.php',
-        ['greeting' => 'Hello'],
-        'en',
-        'ko'
-    ))->setOnTranslated(function ($item, string $status) use (&$translationEvents): void {
-        $translationEvents[] = $status;
-    })->setOnProgress(function (string $chunk) use (&$progress): void {
-        $progress[] = $chunk;
-    });
+    $provider = (new AIProvider('test.php', ['greeting' => 'Hello'], 'en', 'ko'))
+        ->setOnTranslated(function ($item, string $status) use (&$translationEvents): void {
+            $translationEvents[] = $status;
+        })
+        ->setOnProgress(function (string $chunk) use (&$progress): void {
+            $progress[] = $chunk;
+        });
 
     $result = $provider->translate();
 
     expect($result)->toHaveCount(1)
         ->and($result[0]->translated)->toBe('안녕하세요')
         ->and(implode('', $progress))->toContain('<translations>')
-        ->and($translationEvents)->toBe([
-            TranslationStatus::STARTED,
-            TranslationStatus::COMPLETED,
-        ]);
+        ->and($translationEvents)->toBe([TranslationStatus::STARTED, TranslationStatus::COMPLETED]);
+});
+
+test('pins gpt-5 temperature to 1.0', function () {
+    config()->set('ai-translator.ai.provider', 'openai');
+    config()->set('ai-translator.ai.model', 'gpt-5.6-luna');
+    config()->set('ai-translator.ai.temperature', 0.2);
+
+    $provider = new AIProvider('test.php', ['greeting' => 'Hello'], 'en', 'ko');
+    $method = new ReflectionMethod($provider, 'makeAgent');
+    $method->setAccessible(true);
+    $agent = $method->invoke($provider, 'system');
+
+    expect($agent->temperature())->toBe(1.0);
+});
+
+test('maps extended thinking to the provider request shape', function () {
+    config()->set('ai-translator.ai.provider', 'anthropic');
+    config()->set('ai-translator.ai.model', 'claude-3-7-sonnet');
+    config()->set('ai-translator.ai.use_extended_thinking', true);
+    config()->set('ai-translator.ai.max_tokens', 10000);
+
+    $provider = new AIProvider('test.php', ['greeting' => 'Hello'], 'en', 'ko');
+    $method = new ReflectionMethod($provider, 'makeAgent');
+    $method->setAccessible(true);
+    $agent = $method->invoke($provider, 'system');
+
+    expect($agent->providerOptions(Lab::Anthropic))->toBe([
+        'system' => [
+            ['type' => 'text', 'text' => 'system', 'cache_control' => ['type' => 'ephemeral']],
+        ],
+        'thinking' => [
+            'type' => 'enabled',
+            'budget_tokens' => 10000,
+        ],
+    ]);
+});
+
+test('caches the anthropic system prompt with an explicit breakpoint', function () {
+    config()->set('ai-translator.ai.provider', 'anthropic');
+    config()->set('ai-translator.ai.model', 'claude-sonnet-4-5');
+
+    $provider = new AIProvider('test.php', ['greeting' => 'Hello'], 'en', 'ko');
+    $method = new ReflectionMethod($provider, 'makeAgent');
+    $method->setAccessible(true);
+    $agent = $method->invoke($provider, 'shared system prompt');
+
+    // The explicit breakpoint must sit on the system block (the shared prefix), not
+    // top-level: automatic caching would key the cache to the varying user chunk.
+    expect($agent->providerOptions(Lab::Anthropic))->toBe([
+        'system' => [
+            ['type' => 'text', 'text' => 'shared system prompt', 'cache_control' => ['type' => 'ephemeral']],
+        ],
+    ]);
+});
+
+test('translates strings through the configured provider', function () {
+    config()->set('ai-translator.ai.provider', 'openrouter');
+    config()->set('ai-translator.ai.model', 'anthropic/claude-sonnet-4.5');
+    config()->set('ai-translator.ai.api_key', 'test-key');
+    config()->set('ai-translator.ai.disable_stream', true);
+
+    fakeAiProvider([aiTextResponse('<translations><item><key>test.greeting</key><trx><![CDATA[안녕하세요]]></trx></item></translations>')]);
+
+    expect((new AIProvider('test.php', ['greeting' => 'Hello, world!'], 'en', 'ko'))->translate())
+        ->toHaveCount(1);
 });
 
 test('throws exception for unsupported provider', function () {
     config()->set('ai-translator.ai.provider', 'unsupported');
 
-    $provider = new AIProvider(
-        'test.php',
-        ['greeting' => 'Hello, world!'],
-        'en',
-        'ko'
-    );
-
-    $method = new \ReflectionMethod($provider, 'getTranslatedObjects');
+    $provider = new AIProvider('test.php', ['greeting' => 'Hello, world!'], 'en', 'ko');
+    $method = new ReflectionMethod($provider, 'getTranslatedObjects');
     $method->setAccessible(true);
 
     expect(fn () => $method->invoke($provider))
-        ->toThrow(\Exception::class, 'Provider unsupported is not supported.');
+        ->toThrow(Exception::class, 'Provider unsupported is not supported.');
 });

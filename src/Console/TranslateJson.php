@@ -3,6 +3,7 @@
 namespace Kargnas\LaravelAiTranslator\Console;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Collection;
 use Kargnas\LaravelAiTranslator\AI\AIProvider;
 use Kargnas\LaravelAiTranslator\AI\Language\LanguageConfig;
 use Kargnas\LaravelAiTranslator\AI\Printer\TokenUsagePrinter;
@@ -10,6 +11,7 @@ use Kargnas\LaravelAiTranslator\AI\TranslationContextProvider;
 use Kargnas\LaravelAiTranslator\Enums\PromptType;
 use Kargnas\LaravelAiTranslator\Enums\TranslationStatus;
 use Kargnas\LaravelAiTranslator\Transformers\JSONLangTransformer;
+use Kargnas\LaravelAiTranslator\Translation\ChangeDetector;
 
 class TranslateJson extends Command
 {
@@ -20,6 +22,7 @@ class TranslateJson extends Command
         {--c|chunk= : Chunk size for translation (e.g. --chunk=100)}
         {--m|max-context= : Maximum number of context items to include (e.g. --max-context=1000)}
         {--force-big-files : Force translation of files with more than 500 strings}
+        {--force-retranslate : Bypass source change detection}
         {--show-prompt : Show the whole AI prompts during translation}
         {--non-interactive : Run in non-interactive mode, using default or provided values}';
 
@@ -301,12 +304,30 @@ class TranslateJson extends Command
         $targetTransformer = new JSONLangTransformer($targetFile);
 
         $sourceStrings = $sourceTransformer->flatten();
-        $stringsToTranslate = collect($sourceStrings)
+        $stateStringList = $sourceStrings;
+        $seedStateKeys = collect($sourceStrings)
+            ->filter(fn ($value, $key) => $targetTransformer->isTranslated($key))
+            ->keys()
+            ->all();
+        $untranslatedStrings = collect($sourceStrings)
             ->filter(fn ($v, $k) => ! $targetTransformer->isTranslated($k))
             ->toArray();
 
+        $changeDetector = new ChangeDetector;
+        if ($this->option('force-retranslate')) {
+            $stringsToTranslate = $sourceStrings;
+        } else {
+            $changedStrings = $changeDetector->changedAgainstState(
+                $sourceStrings,
+                $this->sourceLocale,
+                $locale
+            );
+            $stringsToTranslate = $untranslatedStrings + $changedStrings;
+        }
+
         if (count($stringsToTranslate) === 0) {
-            $this->info($this->colors['green'].'  ✓ '.$this->colors['reset'].'All strings are already translated. Skipping.');
+            $changeDetector->saveState($seedStateKeys, $stateStringList, $this->sourceLocale, $locale);
+            $this->info($this->colors['green'].'  ✓ '.$this->colors['reset'].'No source changes detected. Skipping.');
 
             return ['stringCount' => 0, 'translatedCount' => 0];
         }
@@ -341,7 +362,7 @@ class TranslateJson extends Command
 
         collect($stringsToTranslate)
             ->chunk($this->chunkSize)
-            ->each(function ($chunk) use ($locale, $sourceFile, $targetTransformer, $referenceStringList, $globalContext, &$translatedCount, &$chunkCount, $totalChunks) {
+            ->each(function ($chunk) use ($locale, $sourceFile, $targetTransformer, $referenceStringList, $globalContext, $changeDetector, $stateStringList, $seedStateKeys, &$translatedCount, &$chunkCount, $totalChunks) {
                 $chunkCount++;
                 $this->info($this->colors['yellow'].'  ⏺ Processing chunk '.
                     $this->colors['reset']."{$chunkCount}/{$totalChunks}".
@@ -363,9 +384,17 @@ class TranslateJson extends Command
                     $translatedCount += count($translatedItems);
 
                     // Save translation results
+                    $translatedKeys = [];
                     foreach ($translatedItems as $item) {
                         $targetTransformer->updateString($item->key, $item->translated);
+                        $translatedKeys[] = $item->key;
                     }
+                    $changeDetector->saveState(
+                        array_merge($seedStateKeys, $translatedKeys),
+                        $stateStringList,
+                        $this->sourceLocale,
+                        $locale
+                    );
 
                     // Display number of saved items
                     $this->info($this->colors['green'].'  ✓ '.$this->colors['reset']."{$translatedCount} strings saved.");
@@ -494,7 +523,7 @@ class TranslateJson extends Command
      */
     protected function setupTranslator(
         string $file,
-        \Illuminate\Support\Collection $chunk,
+        Collection $chunk,
         array $referenceStringList,
         string $locale,
         array $globalContext
@@ -629,7 +658,7 @@ class TranslateJson extends Command
 
         return collect($files)
             ->map(fn ($file) => pathinfo($file, PATHINFO_FILENAME))
-            ->filter(fn ($filename) => !str_starts_with($filename, '_'))
+            ->filter(fn ($filename) => ! str_starts_with($filename, '_'))
             ->values()
             ->toArray();
     }

@@ -3,6 +3,7 @@
 namespace Kargnas\LaravelAiTranslator\Console;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Collection;
 use Kargnas\LaravelAiTranslator\AI\AIProvider;
 use Kargnas\LaravelAiTranslator\AI\Language\LanguageConfig;
 use Kargnas\LaravelAiTranslator\AI\Printer\TokenUsagePrinter;
@@ -10,6 +11,7 @@ use Kargnas\LaravelAiTranslator\AI\TranslationContextProvider;
 use Kargnas\LaravelAiTranslator\Enums\PromptType;
 use Kargnas\LaravelAiTranslator\Enums\TranslationStatus;
 use Kargnas\LaravelAiTranslator\Transformers\PHPLangTransformer;
+use Kargnas\LaravelAiTranslator\Translation\ChangeDetector;
 
 /**
  * Artisan command that translates PHP language files using LLMs with support for multiple locales,
@@ -24,6 +26,7 @@ class TranslateStrings extends Command
         {--c|chunk= : Chunk size for translation (e.g. --chunk=100)}
         {--m|max-context= : Maximum number of context items to include (e.g. --max-context=1000)}
         {--force-big-files : Force translation of files with more than 500 strings}
+        {--force-retranslate : Bypass source change detection}
         {--show-prompt : Show the whole AI prompts during translation}
         {--non-interactive : Run in non-interactive mode, using default or provided values}';
 
@@ -248,6 +251,7 @@ class TranslateStrings extends Command
         $fileCount = 0;
         $totalStringCount = 0;
         $totalTranslatedCount = 0;
+        $changeDetector = new ChangeDetector;
 
         foreach ($locales as $locale) {
             // 소스 언어와 같거나 스킵 목록에 있는 언어는 건너뜀
@@ -297,16 +301,45 @@ class TranslateStrings extends Command
                 // Load target strings (or create)
                 $targetStringTransformer = new PHPLangTransformer($outputFile);
 
-                // Filter untranslated strings only
-                $sourceStringList = collect($sourceStringList)
-                    ->filter(function ($value, $key) use ($targetStringTransformer) {
-                        // Skip already translated ones
-                        return ! $targetStringTransformer->isTranslated($key);
-                    })
+                $filePrefix = pathinfo($file, PATHINFO_FILENAME);
+                $stateStringList = [];
+                foreach ($sourceStringList as $key => $value) {
+                    $stateStringList["{$filePrefix}.{$key}"] = $value;
+                }
+
+                $seedStateKeys = collect($sourceStringList)
+                    ->filter(fn ($value, $key) => $targetStringTransformer->isTranslated($key))
+                    ->keys()
+                    ->map(fn ($key) => "{$filePrefix}.{$key}")
+                    ->all();
+
+                $untranslatedStringList = collect($sourceStringList)
+                    ->filter(fn ($value, $key) => ! $targetStringTransformer->isTranslated($key))
                     ->toArray();
+
+                if ($this->option('force-retranslate')) {
+                    $candidateStringList = $sourceStringList;
+                } else {
+                    $changedStateStrings = $changeDetector->changedAgainstState(
+                        $stateStringList,
+                        $this->sourceLocale,
+                        $locale
+                    );
+                    $changedStringList = [];
+
+                    foreach ($changedStateStrings as $key => $value) {
+                        $localKey = substr($key, strlen($filePrefix) + 1);
+                        $changedStringList[$localKey] = $value;
+                    }
+
+                    $candidateStringList = $untranslatedStringList + $changedStringList;
+                }
+
+                $sourceStringList = $candidateStringList;
 
                 // Skip if no items to translate
                 if (count($sourceStringList) === 0) {
+                    $changeDetector->saveState($seedStateKeys, $stateStringList, $this->sourceLocale, $locale);
                     $this->info($this->colors['green'].'  ✓ '.$this->colors['reset'].'All strings are already translated. Skipping.');
 
                     continue;
@@ -339,7 +372,7 @@ class TranslateStrings extends Command
 
                 collect($sourceStringList)
                     ->chunk($this->chunkSize)
-                    ->each(function ($chunk) use ($locale, $file, $targetStringTransformer, $referenceStringList, $maxContextItems, &$localeTranslatedCount, &$totalTranslatedCount, &$chunkCount, $totalChunks) {
+                    ->each(function ($chunk) use ($locale, $file, $targetStringTransformer, $referenceStringList, $maxContextItems, $changeDetector, $stateStringList, $seedStateKeys, $filePrefix, &$localeTranslatedCount, &$totalTranslatedCount, &$chunkCount, $totalChunks) {
                         $chunkCount++;
                         $this->info($this->colors['yellow'].'  ⏺ Processing chunk '.
                             $this->colors['reset']."{$chunkCount}/{$totalChunks}".
@@ -365,9 +398,17 @@ class TranslateStrings extends Command
                             $totalTranslatedCount += count($translatedItems);
 
                             // Save translation results - display is handled by onTranslated
+                            $translatedKeys = [];
                             foreach ($translatedItems as $item) {
                                 $targetStringTransformer->updateString($item->key, $item->translated);
+                                $translatedKeys[] = "{$filePrefix}.{$item->key}";
                             }
+                            $changeDetector->saveState(
+                                array_merge($seedStateKeys, $translatedKeys),
+                                $stateStringList,
+                                $this->sourceLocale,
+                                $locale
+                            );
 
                             // Display number of saved items
                             $this->info($this->colors['green'].'  ✓ '.$this->colors['reset']."{$localeTranslatedCount} strings saved.");
@@ -586,7 +627,7 @@ class TranslateStrings extends Command
      */
     protected function setupTranslator(
         string $file,
-        \Illuminate\Support\Collection $chunk,
+        Collection $chunk,
         array $referenceStringList,
         string $locale,
         array $globalContext
@@ -695,7 +736,7 @@ class TranslateStrings extends Command
         $directories = array_diff(scandir($root), ['.', '..']);
         // 디렉토리만 필터링하고 _로 시작하는 디렉토리 제외
         $directories = array_filter($directories, function ($directory) use ($root) {
-            return is_dir($root.'/'.$directory) && !str_starts_with($directory, '_');
+            return is_dir($root.'/'.$directory) && ! str_starts_with($directory, '_');
         });
 
         return collect($directories)->values()->toArray();

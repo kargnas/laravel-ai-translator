@@ -7,6 +7,11 @@ return [
     // Source language for translations. Default is 'en' for English.
     'source_locale' => 'en',
 
+    // Disk for source checksum state.
+    'state' => [
+        'disk' => 'local',
+    ],
+
     'ai' => [
         'provider' => 'anthropic',
         'model' => 'claude-3-5-sonnet-latest', // Best result. Recommend for production.

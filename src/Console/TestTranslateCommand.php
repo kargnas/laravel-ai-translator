@@ -63,7 +63,11 @@ class TestTranslateCommand extends Command
         }
 
         if ($useExtendedThinking) {
-            config(['ai-translator.ai.reasoning' => ['effort' => 'high']]);
+            // One CLI flag configures both OpenRouter reasoning and the retained direct Anthropic path.
+            config([
+                'ai-translator.ai.reasoning' => ['effort' => 'high'],
+                'ai-translator.ai.use_extended_thinking' => true,
+            ]);
         }
 
         // 토큰 사용량 추적을 위한 변수

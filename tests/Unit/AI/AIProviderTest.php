@@ -62,7 +62,7 @@ test('can translate strings using OpenRouter', function () {
     }
 
     config()->set('ai-translator.ai.provider', 'openrouter');
-    config()->set('ai-translator.ai.model', 'openai/gpt-5.6-sol');
+    config()->set('ai-translator.ai.model', 'google/gemini-3.7-flash');
     config()->set('ai-translator.ai.api_key', env('OPENROUTER_API_KEY'));
     config()->set('ai-translator.ai.disable_stream', true);
 
@@ -125,7 +125,7 @@ test('can translate strings using Gemini', function () {
     }
 
     config()->set('ai-translator.ai.provider', 'gemini');
-    config()->set('ai-translator.ai.model', 'gemini-3.1-pro-preview');
+    config()->set('ai-translator.ai.model', 'gemini-3.7-flash');
     config()->set('ai-translator.ai.api_key', env('GEMINI_API_KEY'));
     config()->set('ai-translator.ai.max_tokens', 65536);
 

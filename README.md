@@ -30,7 +30,7 @@ AI-powered translation tool for Laravel language files
 - 🔁 **Parallel Translation**: Translate multiple locales concurrently with the `translate-parallel` command
 - **OpenRouter Provider**: Uses PrismPHP to access current frontier models through one API
   - Defaults to Claude Opus 5
-  - Supports GPT-5.6 Sol and Gemini 3.1 Pro Preview model IDs
+  - Supports GPT-5.6 Sol and Gemini 3.7 Flash model IDs
   - Supports streaming responses and reasoning callbacks
 - **Visual Logging Improvements**: Completely redesigned logging system
   - 🎨 Beautiful color-coded console output
@@ -59,7 +59,7 @@ Laravel AI Translator is a powerful tool designed to streamline the localization
 Key benefits:
 
 - Time-saving: Translate all your language files with one simple command
-- AI-powered: Uses current frontier models such as Claude Opus 5, GPT-5.6 Sol, and Gemini 3.1 Pro Preview
+- AI-powered: Uses current frontier models such as Claude Opus 5, GPT-5.6 Sol, and Gemini 3.7 Flash
 - Smart context understanding: Accurately captures nuances, technical terms, and Laravel-specific expressions
 - Seamless integration: Works within your existing Laravel project structure, preserving complex language file structures
 
@@ -442,7 +442,7 @@ This will create a `config/ai-translator.php` file where you can modify the foll
   | Provider     | Model                           |
   | ------------ | ------------------------------- |
   | `openrouter` | `openai/gpt-5.6-sol`            |
-  | `openrouter` | `google/gemini-3.1-pro-preview` |
+  | `openrouter` | `google/gemini-3.7-flash`       |
 
   Check current availability and limits in the [OpenRouter model catalog](https://openrouter.ai/models).
 

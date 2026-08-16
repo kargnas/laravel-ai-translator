@@ -544,7 +544,7 @@ class AIProvider implements Translator
     {
         $temperature = $this->temperature();
         $maxTokens = $this->maxTokens();
-        $providerOptions = $this->providerOptions();
+        $providerOptions = $this->providerOptions($systemPrompt);
 
         return new class($systemPrompt, $temperature, $maxTokens, $providerOptions) implements Agent, HasProviderOptions
         {
@@ -582,15 +582,27 @@ class AIProvider implements Translator
     /**
      * @return array<string, mixed>
      */
-    protected function providerOptions(): array
+    protected function providerOptions(string $systemPrompt): array
     {
-        if ($this->configProvider === 'anthropic' && $this->effectiveConfig('use_extended_thinking', false)) {
-            return [
-                'thinking' => [
-                    'type' => 'enabled',
-                    'budget_tokens' => 10000,
+        if ($this->configProvider === 'anthropic') {
+            // Explicit cache breakpoint on the system block (the shared prefix across
+            // chunks of the same file). A top-level cache_control would auto-place the
+            // breakpoint on the varying user chunk and never produce a cache hit.
+            // Below Anthropic's minimum cacheable length the server treats it as a no-op.
+            $options = [
+                'system' => [
+                    ['type' => 'text', 'text' => $systemPrompt, 'cache_control' => ['type' => 'ephemeral']],
                 ],
             ];
+
+            if ($this->effectiveConfig('use_extended_thinking', false)) {
+                $options['thinking'] = [
+                    'type' => 'enabled',
+                    'budget_tokens' => 10000,
+                ];
+            }
+
+            return $options;
         }
 
         // OpenRouter forwards reasoning effort (e.g. ['effort' => 'high']) to the underlying model.

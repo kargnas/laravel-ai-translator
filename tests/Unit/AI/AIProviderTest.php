@@ -182,9 +182,30 @@ test('maps extended thinking to the provider request shape', function () {
     $agent = $method->invoke($provider, 'system');
 
     expect($agent->providerOptions(Lab::Anthropic))->toBe([
+        'system' => [
+            ['type' => 'text', 'text' => 'system', 'cache_control' => ['type' => 'ephemeral']],
+        ],
         'thinking' => [
             'type' => 'enabled',
             'budget_tokens' => 10000,
+        ],
+    ]);
+});
+
+test('caches the anthropic system prompt with an explicit breakpoint', function () {
+    config()->set('ai-translator.ai.provider', 'anthropic');
+    config()->set('ai-translator.ai.model', 'claude-sonnet-4-5');
+
+    $provider = new AIProvider('test.php', ['greeting' => 'Hello'], 'en', 'ko');
+    $method = new ReflectionMethod($provider, 'makeAgent');
+    $method->setAccessible(true);
+    $agent = $method->invoke($provider, 'shared system prompt');
+
+    // The explicit breakpoint must sit on the system block (the shared prefix), not
+    // top-level: automatic caching would key the cache to the varying user chunk.
+    expect($agent->providerOptions(Lab::Anthropic))->toBe([
+        'system' => [
+            ['type' => 'text', 'text' => 'shared system prompt', 'cache_control' => ['type' => 'ephemeral']],
         ],
     ]);
 });

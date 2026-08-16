@@ -135,7 +135,7 @@ These custom styles offer creative ways to customize your translations, adding a
 
 ## Prerequisites
 
-- PHP 8.0 or higher
+- PHP ^8.2
 - Laravel 8.0 or higher
 
 ## Installation
@@ -473,7 +473,7 @@ This will create a `config/ai-translator.php` file where you can modify the foll
   ],
   ```
 
-  This package supports Anthropic's Claude, Google's Gemini, and OpenAI's GPT models for translations. Here are the tested and verified models:
+  This package supports Anthropic's Claude, Google's Gemini, OpenAI's GPT, and OpenRouter models for translations. Here are the tested and verified models:
 
   | Provider    | Model                            | Extended Thinking | Context Window | Max Tokens |
   | ----------- | -------------------------------- | ----------------- | -------------- | ---------- |
@@ -510,6 +510,7 @@ This will create a `config/ai-translator.php` file where you can modify the foll
      - Anthropic: [Console API Keys](https://console.anthropic.com/settings/keys)
      - OpenAI: [API Keys](https://platform.openai.com/api-keys)
      - Gemini: [Google AI Studio](https://aistudio.google.com/app/apikey)
+     - OpenRouter: [OpenRouter Keys](https://openrouter.ai/keys)
 
   2. Add to your `.env` file:
 
@@ -522,14 +523,17 @@ This will create a `config/ai-translator.php` file where you can modify the foll
 
      # For Gemini
      GEMINI_API_KEY=your-api-key
+
+     # For OpenRouter
+     OPENROUTER_API_KEY=your-api-key
      ```
 
   3. Configure in `config/ai-translator.php`:
      ```php
      'ai' => [
-        'provider' => 'anthropic', // or 'openai' or 'gemini'
+        'provider' => 'anthropic', // or 'openai', 'gemini', or 'openrouter'
         'model' => 'claude-sonnet-4-20250514', // see model list above
-        'api_key' => env('ANTHROPIC_API_KEY'), // or env('OPENAI_API_KEY') or env('GEMINI_API_KEY')
+        'api_key' => env('ANTHROPIC_API_KEY'), // use the selected provider's key
      ],
      ```
 
@@ -540,13 +544,13 @@ This will create a `config/ai-translator.php` file where you can modify the foll
   ```php
   'consensus' => [
       'translators' => [
-          ['provider' => 'anthropic', 'model' => 'claude-sonnet-4-5', 'api_key' => env('ANTHROPIC_API_KEY')],
-          ['provider' => 'openai', 'model' => 'gpt-5', 'api_key' => env('OPENAI_API_KEY')],
+          ['provider' => 'anthropic', 'model' => 'claude-sonnet-4-20250514', 'api_key' => env('ANTHROPIC_API_KEY')],
+          ['provider' => 'openrouter', 'model' => 'anthropic/claude-sonnet-4.5', 'api_key' => env('OPENROUTER_API_KEY')],
       ],
       'judge' => [
-          'provider' => 'openai',
-          'model' => 'gpt-5',
-          'api_key' => env('OPENAI_API_KEY'),
+          'provider' => 'openrouter',
+          'model' => 'anthropic/claude-sonnet-4.5',
+          'api_key' => env('OPENROUTER_API_KEY'),
       ],
   ],
   ```
@@ -628,6 +632,7 @@ All translation commands support these options:
 - `--max-tokens-per-chunk=TOKENS`: Maximum estimated source tokens per translation request (default: 1500)
 - `--max-context=COUNT`: Maximum context items (default: 1000)
 - `--force-big-files`: Force translation of files with 500+ strings
+- `--force-retranslate`: Bypass source change detection
 - `--show-prompt`: Display AI prompts during translation
 - `--non-interactive`: Run without interactive prompts
 

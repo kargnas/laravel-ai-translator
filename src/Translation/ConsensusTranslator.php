@@ -295,6 +295,7 @@ class ConsensusTranslator
             'anthropic' => Provider::Anthropic,
             'openai' => Provider::OpenAI,
             'gemini' => Provider::Gemini,
+            'openrouter' => Provider::OpenRouter,
             default => throw new \RuntimeException("Provider {$provider} is not supported."),
         };
     }

@@ -457,6 +457,7 @@ class AIProvider
             'anthropic' => Provider::Anthropic,
             'openai' => Provider::OpenAI,
             'gemini' => Provider::Gemini,
+            'openrouter' => Provider::OpenRouter,
             default => throw new \RuntimeException("Provider {$this->configProvider} is not supported."),
         };
 

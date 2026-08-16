@@ -37,6 +37,11 @@ return [
         // 'model' => 'gemini-2.5-pro-preview-05-06',
         // 'api_key' => env('GEMINI_API_KEY'),
 
+        // OpenRouter (any model via one API key)
+        // 'provider' => 'openrouter',
+        // 'model' => 'anthropic/claude-sonnet-4.5',
+        // 'api_key' => env('OPENROUTER_API_KEY'),
+
         // Additional options
         // 'retries' => 5,
         // 'max_tokens' => 4096,

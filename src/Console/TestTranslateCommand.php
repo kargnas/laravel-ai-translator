@@ -12,7 +12,7 @@ use Kargnas\LaravelAiTranslator\Translation\ConsensusTranslator;
 
 class TestTranslateCommand extends Command
 {
-    protected $signature = 'ai-translator:test-translate
+    protected $signature = 'ai-translator:test
                           {source_language? : Source language code (uses config default if not specified)}
                           {target_language=ko : Target language code (ex: ko)}
                           {--text= : Text to translate}

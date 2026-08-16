@@ -1,6 +1,8 @@
 <?php
 
 use Kargnas\LaravelAiTranslator\AI\AIProvider;
+use Prism\Prism\Facades\Prism;
+use Prism\Prism\Testing\TextResponseFake;
 
 function providerKeys(): array
 {
@@ -110,9 +112,34 @@ test('throws exception for unsupported provider', function () {
         'ko'
     );
 
-    $method = new \ReflectionMethod($provider, 'getTranslatedObjects');
+    $method = new ReflectionMethod($provider, 'getTranslatedObjects');
     $method->setAccessible(true);
 
     expect(fn () => $method->invoke($provider))
-        ->toThrow(\Exception::class, 'Provider unsupported is not supported.');
+        ->toThrow(Exception::class, 'Provider unsupported is not supported.');
+});
+
+test('can translate strings using OpenRouter through Prism', function () {
+    config()->set('ai-translator.ai.provider', 'openrouter');
+    config()->set('ai-translator.ai.model', 'anthropic/claude-sonnet-4.5');
+    config()->set('ai-translator.ai.api_key', 'test-key');
+    config()->set('ai-translator.ai.disable_stream', true);
+
+    Prism::fake([
+        TextResponseFake::make()->withText(
+            '<translations><item><key>test.greeting</key><trx><![CDATA[안녕하세요]]></trx></item></translations>'
+        ),
+    ]);
+
+    $provider = new AIProvider(
+        'test.php',
+        ['greeting' => 'Hello, world!'],
+        'en',
+        'ko'
+    );
+
+    $result = $provider->translate();
+
+    expect($result)->toHaveCount(1)
+        ->and($result[0]->translated)->toBe('안녕하세요');
 });

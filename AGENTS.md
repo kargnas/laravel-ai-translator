@@ -44,13 +44,12 @@
 ## Architecture Overview
 
 ### Package Type
-Laravel package for AI-powered translations supporting multiple AI providers (OpenAI, Anthropic Claude, Google Gemini).
+Laravel package for AI-powered translations supporting multiple AI providers (OpenAI, Anthropic Claude, Google Gemini, OpenRouter).
 
 ### Key Components
 
 1. **AI Layer** (`src/AI/`)
-   - `AIProvider.php`: Factory for creating AI clients
-   - `Clients/`: Provider-specific implementations (OpenAI, Anthropic, Gemini)
+   - `AIProvider.php`: PrismPHP-based provider adapter
    - `TranslationContextProvider.php`: Manages translation context and prompts
    - System and user prompts in `prompt-system.txt` and `prompt-user.txt`
 
@@ -76,13 +75,21 @@ Laravel package for AI-powered translations supporting multiple AI providers (Op
    - `XMLParser.php`: Parses AI responses in XML format
    - `AIResponseParser.php`: Validates and processes AI translations
 
+6. **Translation** (`src/Translation/`)
+   - `ChangeDetector.php`: Detects changed source files
+   - `TokenChunker.php`: Splits strings by token budget
+   - `Validator.php`: Validates translated strings
+   - `ConsensusTranslator.php`: Optionally selects among translator candidates
+
 ### Translation Flow
 1. Command reads source language files
 2. Transformer converts to translatable format
-3. AIProvider chunks strings for efficient API usage
-4. AI translates with context from TranslationContextProvider
-5. Parser validates and extracts translations
-6. Transformer writes back to target language files
+3. ChangeDetector skips unchanged files unless forced
+4. TokenChunker groups strings by token budget
+5. AI translates with context from TranslationContextProvider
+6. ConsensusTranslator optionally selects among translator candidates
+7. Parser validates and extracts translations
+8. Transformer writes back to target language files
 
 ### Key Features
 - Chunking for cost-effective API calls

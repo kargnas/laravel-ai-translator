@@ -609,7 +609,7 @@ All translation commands support these options:
 - `--source=LOCALE`: Source language (e.g., `--source=en`)
 - `--locale=LOCALE1,LOCALE2`: Target locales (e.g., `--locale=ko,ja`)
 - `--reference=LOCALE1,LOCALE2`: Reference languages for guidance (e.g., `--reference=fr,es`)
-- `--chunk=SIZE`: Chunk size for batch processing (default: 100)
+- `--max-tokens-per-chunk=TOKENS`: Maximum estimated source tokens per translation request (default: 1500)
 - `--max-context=COUNT`: Maximum context items (default: 1000)
 - `--force-big-files`: Force translation of files with 500+ strings
 - `--show-prompt`: Display AI prompts during translation

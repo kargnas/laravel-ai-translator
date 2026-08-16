@@ -10,7 +10,7 @@ class TranslateStringsParallel extends TranslateStrings
         {--s|source= : Source language to translate from (e.g. --source=en)}
         {--l|locale=* : Target locales to translate (e.g. --locale=ko,ja)}
         {--r|reference= : Reference languages for translation guidance (e.g. --reference=fr,es)}
-        {--c|chunk= : Chunk size for translation (e.g. --chunk=100)}
+        {--max-tokens-per-chunk= : Maximum estimated source tokens per translation request (default 1500)}
         {--m|max-context= : Maximum number of context items to include (e.g. --max-context=1000)}
         {--max-processes= : Maximum number of processes to run in parallel (e.g. --max-processes=10)}
         {--force-big-files : Force translation of files with more than 500 strings}
@@ -89,7 +89,7 @@ class TranslateStringsParallel extends TranslateStrings
             'ai-translator:translate',
             '--source='.$this->sourceLocale,
             '--locale='.$locale,
-            '--chunk='.$this->chunkSize,
+            '--max-tokens-per-chunk='.$this->maxTokensPerChunk,
             '--max-context='.$maxContextItems,
             '--non-interactive',
         ];

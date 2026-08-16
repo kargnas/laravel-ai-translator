@@ -12,6 +12,7 @@ use Kargnas\LaravelAiTranslator\Enums\PromptType;
 use Kargnas\LaravelAiTranslator\Enums\TranslationStatus;
 use Kargnas\LaravelAiTranslator\Transformers\PHPLangTransformer;
 use Kargnas\LaravelAiTranslator\Translation\ChangeDetector;
+use Kargnas\LaravelAiTranslator\Translation\TokenChunker;
 
 /**
  * Artisan command that translates PHP language files using LLMs with support for multiple locales,
@@ -23,7 +24,7 @@ class TranslateStrings extends Command
         {--s|source= : Source language to translate from (e.g. --source=en)}
         {--l|locale=* : Target locales to translate (e.g. --locale=ko,ja). If not provided, will ask interactively}
         {--r|reference= : Reference languages for translation guidance (e.g. --reference=fr,es). If not provided, will ask interactively}
-        {--c|chunk= : Chunk size for translation (e.g. --chunk=100)}
+        {--max-tokens-per-chunk= : Maximum estimated source tokens per translation request (default 1500)}
         {--m|max-context= : Maximum number of context items to include (e.g. --max-context=1000)}
         {--force-big-files : Force translation of files with more than 500 strings}
         {--force-retranslate : Bypass source change detection}
@@ -39,11 +40,11 @@ class TranslateStrings extends Command
 
     protected string $sourceDirectory;
 
-    protected int $chunkSize;
+    protected int $maxTokensPerChunk;
 
     protected array $referenceLocales = [];
 
-    protected int $defaultChunkSize = 100;
+    protected int $defaultMaxTokensPerChunk = 1500;
 
     protected int $defaultMaxContextItems = 1000;
 
@@ -149,16 +150,16 @@ class TranslateStrings extends Command
             );
         }
 
-        // Set chunk size
-        if ($nonInteractive || $this->option('chunk')) {
-            $this->chunkSize = (int) ($this->option('chunk') ?? $this->defaultChunkSize);
-            $this->info($this->colors['green'].'✓ Chunk size: '.
-                $this->colors['reset'].$this->colors['bold'].$this->chunkSize.
+        // Use a token budget so batches stay within model request limits.
+        if ($nonInteractive || $this->option('max-tokens-per-chunk')) {
+            $this->maxTokensPerChunk = (int) ($this->option('max-tokens-per-chunk') ?? $this->defaultMaxTokensPerChunk);
+            $this->info($this->colors['green'].'✓ Maximum estimated source tokens per request: '.
+                $this->colors['reset'].$this->colors['bold'].$this->maxTokensPerChunk.
                 $this->colors['reset']);
         } else {
-            $this->chunkSize = (int) $this->ask(
-                $this->colors['yellow'].'Enter the chunk size for translation. Translate strings in a batch. The higher, the cheaper.'.$this->colors['reset'],
-                $this->defaultChunkSize
+            $this->maxTokensPerChunk = (int) $this->ask(
+                $this->colors['yellow'].'Enter the maximum estimated source tokens per translation request. The higher, the cheaper.'.$this->colors['reset'],
+                $this->defaultMaxTokensPerChunk
             );
         }
 
@@ -368,11 +369,12 @@ class TranslateStrings extends Command
 
                 // Process in chunks
                 $chunkCount = 0;
-                $totalChunks = ceil(count($sourceStringList) / $this->chunkSize);
+                $chunks = (new TokenChunker)->chunk($sourceStringList, $this->maxTokensPerChunk);
+                $totalChunks = count($chunks);
 
-                collect($sourceStringList)
-                    ->chunk($this->chunkSize)
-                    ->each(function ($chunk) use ($locale, $file, $targetStringTransformer, $referenceStringList, $maxContextItems, $changeDetector, $stateStringList, $seedStateKeys, $filePrefix, &$localeTranslatedCount, &$totalTranslatedCount, &$chunkCount, $totalChunks) {
+                collect($chunks)
+                    ->each(function (array $chunkStrings) use ($locale, $file, $targetStringTransformer, $referenceStringList, $maxContextItems, $changeDetector, $stateStringList, $seedStateKeys, $filePrefix, &$localeTranslatedCount, &$totalTranslatedCount, &$chunkCount, $totalChunks) {
+                        $chunk = collect($chunkStrings);
                         $chunkCount++;
                         $this->info($this->colors['yellow'].'  ⏺ Processing chunk '.
                             $this->colors['reset']."{$chunkCount}/{$totalChunks}".

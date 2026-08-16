@@ -12,16 +12,17 @@ use Kargnas\LaravelAiTranslator\Enums\TranslationStatus;
 use Kargnas\LaravelAiTranslator\Exceptions\VerifyFailedException;
 use Kargnas\LaravelAiTranslator\Models\LocalizedString;
 use Kargnas\LaravelAiTranslator\Translation\Validator;
-use Prism\Prism\Enums\Provider;
-use Prism\Prism\Facades\Prism;
-use Prism\Prism\Streaming\Events\StreamEndEvent;
-use Prism\Prism\Streaming\Events\TextDeltaEvent;
-use Prism\Prism\Streaming\Events\ThinkingCompleteEvent;
-use Prism\Prism\Streaming\Events\ThinkingEvent;
-use Prism\Prism\Streaming\Events\ThinkingStartEvent;
-use Prism\Prism\ValueObjects\Messages\SystemMessage;
-use Prism\Prism\ValueObjects\Messages\UserMessage;
-use Prism\Prism\ValueObjects\Usage;
+use Laravel\Ai\Ai;
+use Laravel\Ai\Contracts\Agent;
+use Laravel\Ai\Contracts\HasProviderOptions;
+use Laravel\Ai\Enums\Lab;
+use Laravel\Ai\Promptable;
+use Laravel\Ai\Responses\Data\Usage;
+use Laravel\Ai\Streaming\Events\ReasoningDelta;
+use Laravel\Ai\Streaming\Events\ReasoningEnd;
+use Laravel\Ai\Streaming\Events\ReasoningStart;
+use Laravel\Ai\Streaming\Events\StreamEnd;
+use Laravel\Ai\Streaming\Events\TextDelta;
 
 class AIProvider implements Translator
 {
@@ -451,39 +452,34 @@ class AIProvider implements Translator
 
     protected function getTranslatedObjects(): array
     {
-        return $this->getTranslatedObjectsWithPrism();
+        return $this->getTranslatedObjectsWithSdk();
     }
 
-    public static function resolveProvider(string $provider): Provider
+    public static function resolveProvider(string $provider): Lab
     {
         return match ($provider) {
-            'anthropic' => Provider::Anthropic,
-            'openai' => Provider::OpenAI,
-            'gemini' => Provider::Gemini,
-            'openrouter' => Provider::OpenRouter,
+            'anthropic' => Lab::Anthropic,
+            'openai' => Lab::OpenAI,
+            'gemini' => Lab::Gemini,
+            'openrouter' => Lab::OpenRouter,
             default => throw new \RuntimeException("Provider {$provider} is not supported."),
         };
     }
 
-    protected function getTranslatedObjectsWithPrism(): array
+    protected function getTranslatedObjectsWithSdk(): array
     {
         $provider = self::resolveProvider($this->configProvider);
+        config(["ai.providers.{$this->configProvider}.key" => (string) $this->effectiveConfig('api_key', '')]);
+        Ai::forgetInstance($provider->value);
 
         $systemPrompt = $this->getSystemPrompt();
         $userPrompt = $this->getUserPrompt();
         $responseParser = new AIResponseParser($this->onTranslated, config('app.debug', false));
-        $request = Prism::text()
-            ->using($provider, $this->configModel, [
-                'api_key' => (string) $this->effectiveConfig('api_key', ''),
-            ])
-            ->withSystemPrompt($this->makeSystemMessage($systemPrompt))
-            ->withMessages([$this->makeUserMessage($userPrompt)])
-            ->withProviderOptions($this->providerOptions())
-            ->withMaxTokens($this->maxTokens())
-            ->usingTemperature($this->temperature());
 
-        if (config('ai-translator.ai.disable_stream', false)) {
-            $response = $request->asText();
+        $agent = $this->makeAgent($systemPrompt);
+
+        if ($this->effectiveConfig('disable_stream', false)) {
+            $response = $agent->prompt($userPrompt, provider: $provider, model: $this->configModel);
             $this->updateTokenUsage($response->usage);
             $this->parseCompleteResponse($response->text, $responseParser);
             $this->logTokenUsage();
@@ -496,8 +492,8 @@ class AIProvider implements Translator
         $processedKeys = [];
         $lastUsage = null;
 
-        foreach ($request->asStream() as $event) {
-            if ($event instanceof TextDeltaEvent) {
+        foreach ($agent->stream($userPrompt, provider: $provider, model: $this->configModel) as $event) {
+            if ($event instanceof TextDelta) {
                 $responseText .= $event->delta;
                 $previousItemCount = count($responseParser->getTranslatedItems());
                 $responseParser->parseChunk($event->delta);
@@ -512,21 +508,21 @@ class AIProvider implements Translator
                 if ($this->onProgress) {
                     ($this->onProgress)($event->delta, $currentItems);
                 }
-            } elseif ($event instanceof ThinkingStartEvent) {
+            } elseif ($event instanceof ReasoningStart) {
                 if ($this->onThinkingStart) {
                     ($this->onThinkingStart)();
                 }
-            } elseif ($event instanceof ThinkingEvent) {
+            } elseif ($event instanceof ReasoningDelta) {
                 $thinkingContent .= $event->delta;
                 if ($this->onThinking) {
                     ($this->onThinking)($event->delta);
                 }
-            } elseif ($event instanceof ThinkingCompleteEvent) {
+            } elseif ($event instanceof ReasoningEnd) {
                 if ($this->onThinkingEnd) {
                     ($this->onThinkingEnd)($thinkingContent);
                 }
                 $thinkingContent = '';
-            } elseif ($event instanceof StreamEndEvent) {
+            } elseif ($event instanceof StreamEnd) {
                 $lastUsage = $event->usage;
             }
         }
@@ -544,26 +540,43 @@ class AIProvider implements Translator
         return $responseParser->getTranslatedItems();
     }
 
-    protected function makeSystemMessage(string $prompt): SystemMessage
+    protected function makeAgent(string $systemPrompt): Agent
     {
-        $message = new SystemMessage($prompt);
+        $temperature = $this->temperature();
+        $maxTokens = $this->maxTokens();
+        $providerOptions = $this->providerOptions();
 
-        if ($this->configProvider === 'anthropic' && strlen($prompt) >= 4096) {
-            $message->withProviderOptions(['cacheType' => 'ephemeral']);
-        }
+        return new class($systemPrompt, $temperature, $maxTokens, $providerOptions) implements Agent, HasProviderOptions
+        {
+            use Promptable;
 
-        return $message;
-    }
+            public function __construct(
+                protected string $systemPrompt,
+                protected int|float|null $configuredTemperature,
+                protected ?int $configuredMaxTokens,
+                protected array $configuredProviderOptions,
+            ) {}
 
-    protected function makeUserMessage(string $prompt): UserMessage
-    {
-        $message = new UserMessage($prompt);
+            public function instructions(): string
+            {
+                return $this->systemPrompt;
+            }
 
-        if ($this->configProvider === 'anthropic' && strlen($prompt) >= 8192) {
-            $message->withProviderOptions(['cacheType' => 'ephemeral']);
-        }
+            public function temperature(): ?float
+            {
+                return $this->configuredTemperature === null ? null : (float) $this->configuredTemperature;
+            }
 
-        return $message;
+            public function maxTokens(): ?int
+            {
+                return $this->configuredMaxTokens;
+            }
+
+            public function providerOptions(Lab|string $provider): array
+            {
+                return $this->configuredProviderOptions;
+            }
+        };
     }
 
     /**
@@ -574,8 +587,8 @@ class AIProvider implements Translator
         if ($this->configProvider === 'anthropic' && $this->effectiveConfig('use_extended_thinking', false)) {
             return [
                 'thinking' => [
-                    'enabled' => true,
-                    'budgetTokens' => 10000,
+                    'type' => 'enabled',
+                    'budget_tokens' => 10000,
                 ],
             ];
         }
@@ -618,11 +631,11 @@ class AIProvider implements Translator
         }
 
         // Anthropic rejects requests combining extended thinking with any temperature other than 1.
-        if ($this->configProvider === 'anthropic' && config('ai-translator.ai.use_extended_thinking', false)) {
+        if ($this->configProvider === 'anthropic' && $this->effectiveConfig('use_extended_thinking', false)) {
             return 1.0;
         }
 
-        return $this->effectiveConfig('temperature', 0);
+        return $this->effectiveConfig('temperature');
     }
 
     protected function effectiveConfig(string $key, mixed $default = null): mixed
@@ -672,8 +685,8 @@ class AIProvider implements Translator
 
     protected function updateTokenUsage(Usage $usage): void
     {
-        $this->cacheCreationInputTokens = $usage->cacheWriteInputTokens ?? 0;
-        $this->cacheReadInputTokens = $usage->cacheReadInputTokens ?? 0;
+        $this->cacheCreationInputTokens = $usage->cacheWriteInputTokens;
+        $this->cacheReadInputTokens = $usage->cacheReadInputTokens;
         // OpenRouter includes cache reads in promptTokens but exposes cache writes separately,
         // so subtract reads to keep input_tokens as freshly billed input only.
         $this->inputTokens = max(0, $usage->promptTokens - $this->cacheReadInputTokens);

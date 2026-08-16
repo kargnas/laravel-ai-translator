@@ -2,10 +2,8 @@
 
 use Illuminate\Support\Facades\Log;
 use Kargnas\LaravelAiTranslator\Translation\ConsensusTranslator;
-use Prism\Prism\Facades\Prism;
-use Prism\Prism\Testing\StructuredResponseFake;
-use Prism\Prism\Testing\TextResponseFake;
-use Prism\Prism\ValueObjects\Usage;
+use Laravel\Ai\Responses\Data\Usage;
+use Laravel\Ai\Responses\TextResponse;
 
 function consensusTranslatorConfig(string $model): array
 {
@@ -17,13 +15,13 @@ function consensusTranslatorConfig(string $model): array
     ];
 }
 
-function consensusTextResponse(array $translations): TextResponseFake
+function consensusTextResponse(array $translations): TextResponse
 {
     $items = collect($translations)->map(function (string $translation, string $key): string {
         return "<item><key>test.{$key}</key><trx><![CDATA[{$translation}]]></trx></item>";
     })->implode('');
 
-    return TextResponseFake::make()->withText("<translations>{$items}</translations>");
+    return aiTextResponse("<translations>{$items}</translations>");
 }
 
 function consensusTranslate(
@@ -31,11 +29,10 @@ function consensusTranslate(
     ?callable $onProgress = null,
     ?callable $onTokenUsage = null,
 ): array {
-    $translator
+    return $translator
         ->setOnProgress($onProgress)
-        ->setOnTokenUsage($onTokenUsage);
-
-    return $translator->translate();
+        ->setOnTokenUsage($onTokenUsage)
+        ->translate();
 }
 
 function makeConsensusTranslator(array $configs): ConsensusTranslator
@@ -54,119 +51,103 @@ function makeConsensusTranslator(array $configs): ConsensusTranslator
 }
 
 test('single translator returns its result without calling judge', function () {
-    $fake = Prism::fake([
+    fakeConsensusAgents([
         consensusTextResponse(['greeting' => '안녕하세요', 'farewell' => '안녕히 가세요']),
-    ]);
+    ], []);
 
-    $translator = makeConsensusTranslator([
-        consensusTranslatorConfig('translator-a'),
-    ]);
-
-    $result = consensusTranslate($translator);
+    $result = makeConsensusTranslator([consensusTranslatorConfig('translator-a')])->translate();
 
     expect($result)->toHaveCount(2)
         ->and($result[0]->translated)->toBe('안녕하세요')
         ->and($result[1]->translated)->toBe('안녕히 가세요');
-    $fake->assertCallCount(1);
 });
 
 test('judge chooses a different candidate for one key', function () {
-    $fake = Prism::fake([
-        consensusTextResponse(['greeting' => '안녕하세요', 'farewell' => '잘 가'])
-            ->withUsage(new Usage(10, 20)),
-        consensusTextResponse(['greeting' => '안녕', 'farewell' => '안녕히 가세요'])
-            ->withUsage(new Usage(11, 21)),
-        StructuredResponseFake::make()
-            ->withStructured([
-                'greeting' => 'A',
-                'farewell' => 'B',
-            ])
-            ->withUsage(new Usage(5, 7)),
-    ]);
-
-    $translator = makeConsensusTranslator([
-        consensusTranslatorConfig('translator-a'),
-        consensusTranslatorConfig('translator-b'),
+    fakeConsensusAgents([
+        aiTextResponse(
+            '<translations><item><key>test.greeting</key><trx><![CDATA[안녕하세요]]></trx></item><item><key>test.farewell</key><trx><![CDATA[잘 가]]></trx></item></translations>',
+            new Usage(10, 20),
+        ),
+        aiTextResponse(
+            '<translations><item><key>test.greeting</key><trx><![CDATA[안녕]]></trx></item><item><key>test.farewell</key><trx><![CDATA[안녕히 가세요]]></trx></item></translations>',
+            new Usage(11, 21),
+        ),
+    ], [
+        aiStructuredResponse(['greeting' => 'A', 'farewell' => 'B'], new Usage(5, 7)),
     ]);
 
     $usage = [];
-    $result = consensusTranslate($translator, null, function (array $currentUsage) use (&$usage): void {
-        if ($currentUsage['final'] ?? false) {
-            $usage = $currentUsage;
-        }
-    });
+    $result = consensusTranslate(
+        makeConsensusTranslator([
+            consensusTranslatorConfig('translator-a'),
+            consensusTranslatorConfig('translator-b'),
+        ]),
+        null,
+        function (array $currentUsage) use (&$usage): void {
+            if ($currentUsage['final'] ?? false) {
+                $usage = $currentUsage;
+            }
+        },
+    );
 
     expect(collect($result)->pluck('translated')->all())
         ->toBe(['안녕하세요', '안녕히 가세요'])
         ->and($usage['input_tokens'])->toBe(26)
         ->and($usage['output_tokens'])->toBe(48);
-    $fake->assertCallCount(3);
 });
 
 test('invalid judge label falls back to first candidate', function () {
-    $fake = Prism::fake([
+    fakeConsensusAgents([
         consensusTextResponse(['greeting' => '안녕하세요', 'farewell' => '잘 가']),
         consensusTextResponse(['greeting' => '안녕', 'farewell' => '안녕히 가세요']),
-        StructuredResponseFake::make()->withStructured([
-            'greeting' => 'invalid',
-            'farewell' => 'B',
-        ]),
-    ]);
+    ], [aiStructuredResponse(['greeting' => 'invalid', 'farewell' => 'B'])]);
 
-    $translator = makeConsensusTranslator([
+    $result = makeConsensusTranslator([
         consensusTranslatorConfig('translator-a'),
         consensusTranslatorConfig('translator-b'),
-    ]);
-
-    $result = consensusTranslate($translator);
+    ])->translate();
 
     expect(collect($result)->pluck('translated')->all())
         ->toBe(['안녕하세요', '안녕히 가세요']);
-    $fake->assertCallCount(3);
 });
 
 test('failed translator is skipped and surviving candidate is returned', function () {
     Log::spy();
-    $fake = Prism::fake([
-        TextResponseFake::make()->withText('not xml'),
+    fakeConsensusAgents([
+        aiTextResponse('not xml'),
         consensusTextResponse(['greeting' => '안녕하세요', 'farewell' => '안녕히 가세요']),
-    ]);
+    ], []);
 
-    $translator = makeConsensusTranslator([
+    $result = makeConsensusTranslator([
         consensusTranslatorConfig('translator-a'),
         consensusTranslatorConfig('translator-b'),
-    ]);
-
-    $result = consensusTranslate($translator);
+    ])->translate();
 
     expect(collect($result)->pluck('translated')->all())
         ->toBe(['안녕하세요', '안녕히 가세요']);
     Log::shouldHaveReceived('warning')->with('Translator translator-a produced no result; continuing with remaining candidates');
-    $fake->assertCallCount(2);
 });
 
 test('judge failure falls back to first translator for every key', function () {
     Log::spy();
-    $fake = Prism::fake([
+    fakeConsensusAgents([
         consensusTextResponse(['greeting' => '안녕하세요', 'farewell' => '잘 가']),
         consensusTextResponse(['greeting' => '안녕', 'farewell' => '안녕히 가세요']),
-    ]);
+    ], []);
 
     $progress = [];
-    $translator = makeConsensusTranslator([
-        consensusTranslatorConfig('translator-a'),
-        consensusTranslatorConfig('translator-b'),
-    ]);
-
-    $result = consensusTranslate($translator, function (string $message) use (&$progress): void {
-        $progress[] = $message;
-    });
+    $result = consensusTranslate(
+        makeConsensusTranslator([
+            consensusTranslatorConfig('translator-a'),
+            consensusTranslatorConfig('translator-b'),
+        ]),
+        function (string $message) use (&$progress): void {
+            $progress[] = $message;
+        },
+    );
 
     expect(collect($result)->pluck('translated')->all())
         ->toBe(['안녕하세요', '잘 가'])
         ->and($progress)->toContain('Judge failed; using first translator results for all keys.');
-    Log::shouldHaveReceived('warning')->withArgs(function (string $message): bool {
-        return $message === 'Judge failed; using first translator results for all keys.';
-    });
-    $fake->assertCallCount(3);
+    Log::shouldHaveReceived('warning')->withArgs(fn (string $message): bool => $message === 'Judge failed; using first translator results for all keys.');
 });

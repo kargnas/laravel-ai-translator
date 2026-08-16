@@ -23,7 +23,7 @@
 ## Code Style Guidelines
 
 ### PHP Standards
-- **Version**: Minimum PHP 8.2
+- **Version**: Minimum PHP 8.3
 - **Standards**: Follow PSR-12 coding standard
 - **Testing**: Use Pest for tests, follow existing test patterns
 
@@ -49,7 +49,7 @@ Laravel package for AI-powered translations supporting multiple AI providers (Op
 ### Key Components
 
 1. **AI Layer** (`src/AI/`)
-   - `AIProvider.php`: PrismPHP-based provider adapter
+   - `AIProvider.php`: Laravel AI SDK-based provider adapter
    - `TranslationContextProvider.php`: Manages translation context and prompts
    - System and user prompts in `prompt-system.txt` and `prompt-user.txt`
 

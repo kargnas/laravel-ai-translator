@@ -2,14 +2,18 @@
 
 namespace Kargnas\LaravelAiTranslator\Translation;
 
+use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\Support\Facades\Log;
 use Kargnas\LaravelAiTranslator\AI\AIProvider;
 use Kargnas\LaravelAiTranslator\Contracts\Translator;
 use Kargnas\LaravelAiTranslator\Models\LocalizedString;
-use Prism\Prism\Facades\Prism;
-use Prism\Prism\Schema\EnumSchema;
-use Prism\Prism\Schema\ObjectSchema;
-use Prism\Prism\ValueObjects\Usage;
+use Laravel\Ai\Ai;
+use Laravel\Ai\Contracts\Agent;
+use Laravel\Ai\Contracts\HasProviderOptions;
+use Laravel\Ai\Contracts\HasStructuredOutput;
+use Laravel\Ai\Enums\Lab;
+use Laravel\Ai\Promptable;
+use Laravel\Ai\Responses\Data\Usage;
 
 class ConsensusTranslator implements Translator
 {
@@ -168,7 +172,7 @@ class ConsensusTranslator implements Translator
             }
             $this->emitTokenUsage(true);
 
-            return $this->mergeCandidates($candidates, $response->structured ?? []);
+            return $this->mergeCandidates($candidates, $response->structured);
         } catch (\Throwable $exception) {
             $message = 'Judge failed; using first translator results for all keys.';
             Log::warning($message, ['exception' => $exception->getMessage()]);
@@ -194,7 +198,7 @@ class ConsensusTranslator implements Translator
     protected function judge(array $candidates): object
     {
         $candidateMap = $this->candidateMap($candidates);
-        $properties = [];
+        $labelsByKey = [];
         $promptParts = [
             "Target locale: {$this->targetLocale}",
             'Choose the best candidate label for each translation key.',
@@ -211,19 +215,8 @@ class ConsensusTranslator implements Translator
                 $promptParts[] = "Candidate {$label}: \"\"\"{$item->translated}\"\"\"";
             }
 
-            $properties[] = new EnumSchema(
-                $key,
-                "Best candidate label for {$key}",
-                array_keys($items),
-            );
+            $labelsByKey[$key] = array_keys($items);
         }
-
-        $schema = new ObjectSchema(
-            'translation_consensus',
-            'Candidate label for each translation key.',
-            $properties,
-            array_keys($candidateMap),
-        );
 
         $model = (string) ($this->judgeConfig['model'] ?? '');
         $temperature = str_starts_with($model, 'gpt-5')
@@ -231,20 +224,65 @@ class ConsensusTranslator implements Translator
             ? 1.0
             : 0.3;
 
-        $request = Prism::structured()
-            ->using(AIProvider::resolveProvider($this->judgeConfig['provider'] ?? ''), $model, [
-                'api_key' => (string) ($this->judgeConfig['api_key'] ?? ''),
-            ])
-            ->withSystemPrompt('Pick the most accurate and natural translation for the target locale. Respond only with candidate labels.')
-            ->withPrompt(implode("\n\n", $promptParts))
-            ->withSchema($schema)
-            ->usingTemperature($temperature);
+        $providerName = (string) ($this->judgeConfig['provider'] ?? '');
+        $provider = AIProvider::resolveProvider($providerName);
+        config(["ai.providers.{$providerName}.key" => (string) ($this->judgeConfig['api_key'] ?? '')]);
+        Ai::forgetInstance($provider->value);
 
-        if (array_key_exists('max_tokens', $this->judgeConfig)) {
-            $request->withMaxTokens($this->judgeConfig['max_tokens'] === null ? null : (int) $this->judgeConfig['max_tokens']);
-        }
+        $agent = $this->makeJudgeAgent($labelsByKey, $temperature, array_key_exists('max_tokens', $this->judgeConfig)
+            ? ($this->judgeConfig['max_tokens'] === null ? null : (int) $this->judgeConfig['max_tokens'])
+            : null);
 
-        return $request->asStructured();
+        return $agent->prompt(
+            implode("\n\n", $promptParts),
+            provider: $provider,
+            model: $model,
+        );
+    }
+
+    /**
+     * @param  array<string, array<int, string>>  $labelsByKey
+     */
+    protected function makeJudgeAgent(array $labelsByKey, float $temperature, ?int $maxTokens): Agent
+    {
+        return new class($labelsByKey, $temperature, $maxTokens) implements Agent, HasProviderOptions, HasStructuredOutput
+        {
+            use Promptable;
+
+            /** @param  array<string, array<int, string>>  $labelsByKey */
+            public function __construct(
+                protected array $labelsByKey,
+                protected float $configuredTemperature,
+                protected ?int $configuredMaxTokens,
+            ) {}
+
+            public function instructions(): string
+            {
+                return 'Pick the most accurate and natural translation for the target locale. Respond only with candidate labels.';
+            }
+
+            public function temperature(): float
+            {
+                return $this->configuredTemperature;
+            }
+
+            public function maxTokens(): ?int
+            {
+                return $this->configuredMaxTokens;
+            }
+
+            public function providerOptions(Lab|string $provider): array
+            {
+                return [];
+            }
+
+            public function schema(JsonSchema $schema): array
+            {
+                return collect($this->labelsByKey)->mapWithKeys(
+                    fn (array $labels, string $key): array => [$key => $schema->string()->enum($labels)->required()]
+                )->all();
+            }
+        };
     }
 
     /** @param array<int, array<int, LocalizedString>> $candidates */
@@ -306,8 +344,8 @@ class ConsensusTranslator implements Translator
     {
         $this->tokenUsage['input_tokens'] += $usage->promptTokens;
         $this->tokenUsage['output_tokens'] += $usage->completionTokens;
-        $this->tokenUsage['cache_creation_input_tokens'] += $usage->cacheWriteInputTokens ?? 0;
-        $this->tokenUsage['cache_read_input_tokens'] += $usage->cacheReadInputTokens ?? 0;
+        $this->tokenUsage['cache_creation_input_tokens'] += $usage->cacheWriteInputTokens;
+        $this->tokenUsage['cache_read_input_tokens'] += $usage->cacheReadInputTokens;
         $this->tokenUsage['total_tokens'] =
             $this->tokenUsage['input_tokens'] + $this->tokenUsage['output_tokens'];
     }

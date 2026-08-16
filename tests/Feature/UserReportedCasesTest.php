@@ -4,8 +4,6 @@ use Kargnas\LaravelAiTranslator\AI\AIProvider;
 use Kargnas\LaravelAiTranslator\Transformers\JSONLangTransformer;
 use Kargnas\LaravelAiTranslator\Transformers\PHPLangTransformer;
 use Kargnas\LaravelAiTranslator\Translation\Validator;
-use Prism\Prism\Facades\Prism;
-use Prism\Prism\Testing\TextResponseFake;
 
 // Issue #53: OpenAI gpt-5 rejects any temperature other than 1 with HTTP 400.
 test('gpt-5 models are pinned to temperature 1.0', function (string $model) {
@@ -15,17 +13,16 @@ test('gpt-5 models are pinned to temperature 1.0', function (string $model) {
     config()->set('ai-translator.ai.disable_stream', true);
     config()->set('ai-translator.ai.temperature', 0.2);
 
-    $fake = Prism::fake([
-        TextResponseFake::make()->withText(
-            '<translations><item><key>test.greeting</key><trx><![CDATA[안녕하세요]]></trx></item></translations>'
-        ),
-    ]);
+    fakeAiProvider([aiTextResponse(
+        '<translations><item><key>test.greeting</key><trx><![CDATA[안녕하세요]]></trx></item></translations>'
+    )]);
 
-    (new AIProvider('test.php', ['greeting' => 'Hello'], 'en', 'ko'))->translate();
+    $provider = new AIProvider('test.php', ['greeting' => 'Hello'], 'en', 'ko');
+    $provider->translate();
 
-    $fake->assertRequest(function (array $requests): void {
-        expect($requests[0]->temperature())->toBe(1.0);
-    });
+    $method = new ReflectionMethod($provider, 'makeAgent');
+    $method->setAccessible(true);
+    expect($method->invoke($provider, 'system')->temperature())->toBe(1.0);
 })->with(['gpt-5', 'gpt-5-mini', 'gpt-5.6-luna']);
 
 // Issue #19: sentence keys ending with '.' must not explode into a nested ['' => ...] level.

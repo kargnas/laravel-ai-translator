@@ -35,7 +35,7 @@ Maintainers can also run the `Release` workflow manually and choose a patch, min
   - Strict path matching to prevent unintended deletions
 - 🔁 **Parallel Translation**: Translate multiple locales concurrently with the `translate-parallel` command
 - **AI Providers**: Uses OpenRouter by default while retaining direct OpenAI, Anthropic, and Gemini support
-  - Uses PrismPHP for OpenRouter with Claude Opus 5 as the default model
+  - Uses the official Laravel AI SDK for OpenRouter with Claude Opus 5 as the default model
   - Supports GPT-5.6 Sol and Gemini 3.7 Flash model IDs
   - Supports streaming responses and reasoning callbacks
   - Loads pricing from OpenRouter for every provider and caches the catalog for six hours
@@ -141,8 +141,8 @@ These custom styles offer creative ways to customize your translations, adding a
 
 ## Prerequisites
 
-- PHP 8.2 or higher
-- Laravel 11.0 or higher
+- PHP 8.3 or higher
+- Laravel 12.0 or higher
 
 ## Installation
 

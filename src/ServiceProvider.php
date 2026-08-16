@@ -11,6 +11,7 @@ use Kargnas\LaravelAiTranslator\Console\TranslateFileCommand;
 use Kargnas\LaravelAiTranslator\Console\TranslateJson;
 use Kargnas\LaravelAiTranslator\Console\TranslateStrings;
 use Kargnas\LaravelAiTranslator\Console\TranslateStringsParallel;
+use Prism\Prism\PrismServiceProvider;
 
 class ServiceProvider extends \Illuminate\Support\ServiceProvider
 {
@@ -23,6 +24,8 @@ class ServiceProvider extends \Illuminate\Support\ServiceProvider
 
     public function register(): void
     {
+        $this->app->register(PrismServiceProvider::class);
+
         $this->mergeConfigFrom(
             __DIR__.'/../config/ai-translator.php',
             'ai-translator',

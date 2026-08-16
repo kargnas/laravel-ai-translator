@@ -53,7 +53,10 @@ Laravel package for AI-powered translations supporting multiple AI providers (Op
    - `TranslationContextProvider.php`: Manages translation context and prompts
    - System and user prompts in `prompt-system.txt` and `prompt-user.txt`
 
-2. **Console Commands** (`src/Console/`)
+2. **Contracts** (`src/Contracts/`)
+   - `Translator.php`: Shared translator contract for providers and consensus translation
+
+3. **Console Commands** (`src/Console/`)
    - `TranslateStrings.php`: Translate PHP language files
    - `TranslateStringsParallel.php`: Parallel translation for multiple locales
    - `TranslateJson.php`: Translate JSON language files
@@ -61,32 +64,33 @@ Laravel package for AI-powered translations supporting multiple AI providers (Op
    - `TestTranslateCommand.php`: Test translations with sample strings
    - `CrowdIn/`: Integration with CrowdIn translation platform
 
-3. **Transformers** (`src/Transformers/`)
+4. **Transformers** (`src/Transformers/`)
    - `PHPLangTransformer.php`: Handles PHP array language files
    - `JSONLangTransformer.php`: Handles JSON language files
 
-4. **Language Support** (`src/Language/`)
+5. **Language Support** (`src/Language/`)
    - `Language.php`: Language detection and metadata
    - `LanguageConfig.php`: Language-specific configurations
    - `LanguageRules.php`: Translation rules per language
    - `PluralRules.php`: Pluralization handling
 
-5. **Parsing** (`src/AI/Parsers/`)
+6. **Parsing** (`src/AI/Parsers/`)
    - `XMLParser.php`: Parses AI responses in XML format
    - `AIResponseParser.php`: Validates and processes AI translations
 
-6. **Translation** (`src/Translation/`)
+7. **Translation** (`src/Translation/`)
    - `ChangeDetector.php`: Detects changed source files
    - `TokenChunker.php`: Splits strings by token budget
    - `Validator.php`: Validates translated strings
    - `ConsensusTranslator.php`: Optionally selects among translator candidates
+   - `TranslatorFactory.php`: Selects the single or consensus translator implementation
 
 ### Translation Flow
 1. Command reads source language files
 2. Transformer converts to translatable format
 3. ChangeDetector skips unchanged files unless forced
 4. TokenChunker groups strings by token budget
-5. AI translates with context from TranslationContextProvider
+5. TranslatorFactory selects the translator, which translates with context from TranslationContextProvider
 6. ConsensusTranslator optionally selects among translator candidates
 7. Parser validates and extracts translations
 8. Transformer writes back to target language files

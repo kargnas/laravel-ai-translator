@@ -4,19 +4,20 @@ namespace Kargnas\LaravelAiTranslator\Console;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Collection;
-use Kargnas\LaravelAiTranslator\AI\AIProvider;
 use Kargnas\LaravelAiTranslator\AI\Language\LanguageConfig;
 use Kargnas\LaravelAiTranslator\AI\Printer\TokenUsagePrinter;
 use Kargnas\LaravelAiTranslator\AI\TranslationContextProvider;
-use Kargnas\LaravelAiTranslator\Enums\PromptType;
-use Kargnas\LaravelAiTranslator\Enums\TranslationStatus;
+use Kargnas\LaravelAiTranslator\Console\Concerns\WiresTranslatorOutput;
+use Kargnas\LaravelAiTranslator\Contracts\Translator;
 use Kargnas\LaravelAiTranslator\Transformers\JSONLangTransformer;
 use Kargnas\LaravelAiTranslator\Translation\ChangeDetector;
-use Kargnas\LaravelAiTranslator\Translation\ConsensusTranslator;
 use Kargnas\LaravelAiTranslator\Translation\TokenChunker;
+use Kargnas\LaravelAiTranslator\Translation\TranslatorFactory;
 
 class TranslateJson extends Command
 {
+    use WiresTranslatorOutput;
+
     protected $signature = 'ai-translator:translate-json
         {--s|source= : Source language to translate from (e.g. --source=en)}
         {--l|locale=* : Target locales to translate (e.g. --locale=ko,ja). If not provided, will ask interactively}
@@ -385,22 +386,7 @@ class TranslateJson extends Command
 
                 try {
                     // Execute translation
-                    $translatedItems = $translator instanceof ConsensusTranslator
-                        ? $translator->translate(
-                            $sourceFile,
-                            $chunk->toArray(),
-                            $this->sourceLocale,
-                            $locale,
-                            $this->formatReferences($referenceStringList),
-                            [],
-                            $globalContext,
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                        )
-                        : $translator->translate();
+                    $translatedItems = $translator->translate();
                     $translatedCount += count($translatedItems);
 
                     // Save translation results
@@ -547,7 +533,7 @@ class TranslateJson extends Command
         array $referenceStringList,
         string $locale,
         array $globalContext
-    ): AIProvider|ConsensusTranslator {
+    ): Translator {
         // Convert reference info to proper format
         $references = [];
         foreach ($referenceStringList as $reference) {
@@ -556,107 +542,28 @@ class TranslateJson extends Command
             $references[$referenceLocale] = $referenceStrings;
         }
 
-        $consensusConfigs = config('ai-translator.consensus.translators', []);
-        $translator = count($consensusConfigs) >= 2
-            ? new ConsensusTranslator($consensusConfigs, config('ai-translator.consensus.judge', []))
-            : new AIProvider(
-                $file,
-                $chunk->toArray(),
-                $this->sourceLocale,
-                $locale,
-                $references,
-                [],  // additionalRules
-                $globalContext  // globalTranslationContext
-            );
+        $translator = TranslatorFactory::make(
+            $file,
+            $chunk->toArray(),
+            $this->sourceLocale,
+            $locale,
+            $references,
+            [],
+            $globalContext,
+        );
 
-        $translator->setOnThinking(function ($thinking) {
-            echo $this->colors['gray'].$thinking.$this->colors['reset'];
-        });
-
-        $translator->setOnThinkingStart(function () {
-            $this->line($this->colors['gray'].'    '.'🧠 AI Thinking...'.$this->colors['reset']);
-        });
-
-        $translator->setOnThinkingEnd(function () {
-            $this->line($this->colors['gray'].'    '.'Thinking completed.'.$this->colors['reset']);
-        });
-
-        // Set translation progress callback
-        $translator->setOnTranslated(function ($item, $status, $translatedItems) use ($chunk) {
-            if ($status === TranslationStatus::COMPLETED) {
-                $totalCount = $chunk->count();
-                $completedCount = count($translatedItems);
-
-                $this->line($this->colors['cyan'].'  ⟳ '.
-                    $this->colors['reset'].$item->key.
-                    $this->colors['gray'].' → '.
-                    $this->colors['reset'].$item->translated.
-                    $this->colors['gray']." ({$completedCount}/{$totalCount})".
-                    $this->colors['reset']);
-            }
-        });
-
-        // Set token usage callback
-        $translator->setOnTokenUsage(function ($usage) {
-            $isFinal = $usage['final'] ?? false;
-            $inputTokens = $usage['input_tokens'] ?? 0;
-            $outputTokens = $usage['output_tokens'] ?? 0;
-            $totalTokens = $usage['total_tokens'] ?? 0;
-
-            // Display real-time token usage
-            $this->line($this->colors['gray'].'    Tokens: '.
-                'Input='.$this->colors['green'].$inputTokens.$this->colors['gray'].', '.
-                'Output='.$this->colors['green'].$outputTokens.$this->colors['gray'].', '.
-                'Total='.$this->colors['purple'].$totalTokens.$this->colors['gray'].
-                $this->colors['reset']);
-        });
-
-        // Set prompt logging callback
-        if ($this->option('show-prompt')) {
-            $translator->setOnPromptGenerated(function ($prompt, PromptType $type) {
-                $typeText = match ($type) {
-                    PromptType::SYSTEM => '🤖 System Prompt',
-                    PromptType::USER => '👤 User Prompt',
-                };
-
-                echo "\n    {$typeText}:\n";
-                echo $this->colors['gray'].'    '.str_replace("\n", $this->colors['reset']."\n    ".$this->colors['gray'], $prompt).$this->colors['reset']."\n";
-            });
-        }
-
-        return $translator;
+        return $this->wireTranslatorOutput($translator, $chunk->count());
     }
 
     /**
      * Display cost estimation
      */
-    protected function displayCostEstimation(AIProvider|ConsensusTranslator $translator): void
+    protected function displayCostEstimation(Translator $translator): void
     {
         $usage = $translator->getTokenUsage();
         $printer = new TokenUsagePrinter($translator->getModel());
         $printer->printTokenUsageSummary($this, $usage);
         $printer->printCostEstimation($this, $usage);
-    }
-
-    protected function formatReferences(array $referenceStringList): array
-    {
-        $references = [];
-        foreach ($referenceStringList as $reference) {
-            $references[$reference['locale']] = $reference['strings'];
-        }
-
-        return $references;
-    }
-
-    protected function announceConsensusMode(): void
-    {
-        $translators = config('ai-translator.consensus.translators', []);
-        if (count($translators) < 2) {
-            return;
-        }
-
-        $judgeModel = config('ai-translator.consensus.judge.model', 'unknown');
-        $this->line('Consensus mode: '.count($translators)." translators + judge {$judgeModel}");
     }
 
     /**

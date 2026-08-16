@@ -4,14 +4,14 @@ namespace Kargnas\LaravelAiTranslator\Translation;
 
 use Illuminate\Support\Facades\Log;
 use Kargnas\LaravelAiTranslator\AI\AIProvider;
+use Kargnas\LaravelAiTranslator\Contracts\Translator;
 use Kargnas\LaravelAiTranslator\Models\LocalizedString;
-use Prism\Prism\Enums\Provider;
 use Prism\Prism\Facades\Prism;
 use Prism\Prism\Schema\EnumSchema;
 use Prism\Prism\Schema\ObjectSchema;
 use Prism\Prism\ValueObjects\Usage;
 
-class ConsensusTranslator
+class ConsensusTranslator implements Translator
 {
     protected $onTranslated = null;
 
@@ -36,8 +36,22 @@ class ConsensusTranslator
         'total_tokens' => 0,
     ];
 
-    /** @param array<int, array<string, mixed>> $translatorConfigs */
+    /**
+     * @param  array<string, mixed>  $strings
+     * @param  array<string, array<string, mixed>>  $references
+     * @param  array<int, string>  $additionalRules
+     * @param  array<string, array<string, mixed>>|null  $globalContext
+     * @param  array<int, array<string, mixed>>  $translatorConfigs
+     * @param  array<string, mixed>  $judgeConfig
+     */
     public function __construct(
+        protected string $filename,
+        protected array $strings,
+        protected string $sourceLocale,
+        protected string $targetLocale,
+        protected array $references,
+        protected array $additionalRules,
+        protected ?array $globalContext,
         protected array $translatorConfigs,
         protected array $judgeConfig,
     ) {}
@@ -91,66 +105,43 @@ class ConsensusTranslator
         return $this;
     }
 
-    /**
-     * @param  array<string, mixed>  $strings
-     * @param  array<string, array<string, mixed>>  $references
-     * @param  array<int, string>  $additionalRules
-     * @param  array<string, array<string, mixed>>|null  $globalContext
-     * @return array<int, LocalizedString>
-     */
-    public function translate(
-        string $filename,
-        array $strings,
-        string $sourceLocale,
-        string $targetLocale,
-        array $references,
-        array $additionalRules,
-        ?array $globalContext,
-        ?callable $onTranslated,
-        ?callable $onThinking,
-        ?callable $onProgress,
-        ?callable $onTokenUsage,
-        ?callable $onPromptGenerated,
-    ): array {
+    /** @return array<int, LocalizedString> */
+    public function translate(): array
+    {
         $this->resetTokenUsage();
-        $onTranslated ??= $this->onTranslated;
-        $onThinking ??= $this->onThinking;
-        $onProgress ??= $this->onProgress;
-        $onPromptGenerated ??= $this->onPromptGenerated;
-        $onTokenUsage ??= $this->onTokenUsage;
         $candidates = [];
 
         foreach ($this->translatorConfigs as $index => $config) {
             $provider = new AIProvider(
-                $filename,
-                $strings,
-                $sourceLocale,
-                $targetLocale,
-                $references,
-                $additionalRules,
-                $globalContext,
+                $this->filename,
+                $this->strings,
+                $this->sourceLocale,
+                $this->targetLocale,
+                $this->references,
+                $this->additionalRules,
+                $this->globalContext,
             );
             $provider->withProviderConfig($config);
 
             if ($index === 0) {
                 $provider
-                    ->setOnTranslated($onTranslated)
-                    ->setOnThinking($onThinking)
+                    ->setOnTranslated($this->onTranslated)
+                    ->setOnThinking($this->onThinking)
                     ->setOnThinkingStart($this->onThinkingStart)
                     ->setOnThinkingEnd($this->onThinkingEnd)
-                    ->setOnProgress($onProgress)
-                    ->setOnPromptGenerated($onPromptGenerated);
+                    ->setOnProgress($this->onProgress)
+                    ->setOnPromptGenerated($this->onPromptGenerated);
             }
 
             $items = $provider->translate();
             $this->addTokenUsage($provider->getTokenUsage());
-            $this->emitTokenUsage($onTokenUsage, false);
+            $this->emitTokenUsage(false);
 
             if ($items === []) {
                 $model = (string) ($config['model'] ?? 'unknown');
                 $message = "Translator {$model} produced no result; continuing with remaining candidates";
                 Log::warning($message);
-                $this->emitProgress($onProgress, $message);
+                $this->emitProgress($message);
 
                 continue;
             }
@@ -159,30 +150,30 @@ class ConsensusTranslator
         }
 
         if ($candidates === []) {
-            $this->emitTokenUsage($onTokenUsage, true);
+            $this->emitTokenUsage(true);
 
             return [];
         }
 
         if (count($candidates) === 1) {
-            $this->emitTokenUsage($onTokenUsage, true);
+            $this->emitTokenUsage(true);
 
             return array_values($candidates)[0];
         }
 
         try {
-            $response = $this->judge($candidates, $strings, $targetLocale);
+            $response = $this->judge($candidates);
             if ($response->usage instanceof Usage) {
                 $this->addTokenUsageFromUsage($response->usage);
             }
-            $this->emitTokenUsage($onTokenUsage, true);
+            $this->emitTokenUsage(true);
 
             return $this->mergeCandidates($candidates, $response->structured ?? []);
         } catch (\Throwable $exception) {
             $message = 'Judge failed; using first translator results for all keys.';
             Log::warning($message, ['exception' => $exception->getMessage()]);
-            $this->emitProgress($onProgress, $message);
-            $this->emitTokenUsage($onTokenUsage, true);
+            $this->emitProgress($message);
+            $this->emitTokenUsage(true);
 
             return array_values($candidates)[0];
         }
@@ -200,17 +191,17 @@ class ConsensusTranslator
     }
 
     /** @param array<int, array<int, LocalizedString>> $candidates */
-    protected function judge(array $candidates, array $strings, string $targetLocale): object
+    protected function judge(array $candidates): object
     {
         $candidateMap = $this->candidateMap($candidates);
         $properties = [];
         $promptParts = [
-            "Target locale: {$targetLocale}",
+            "Target locale: {$this->targetLocale}",
             'Choose the best candidate label for each translation key.',
         ];
 
         foreach ($candidateMap as $key => $items) {
-            $source = $strings[$key] ?? '';
+            $source = $this->strings[$key] ?? '';
             if (is_array($source)) {
                 $source = $source['text'] ?? '';
             }
@@ -241,7 +232,7 @@ class ConsensusTranslator
             : 0.3;
 
         $request = Prism::structured()
-            ->using($this->provider($this->judgeConfig['provider'] ?? ''), $model, [
+            ->using(AIProvider::resolveProvider($this->judgeConfig['provider'] ?? ''), $model, [
                 'api_key' => (string) ($this->judgeConfig['api_key'] ?? ''),
             ])
             ->withSystemPrompt('Pick the most accurate and natural translation for the target locale. Respond only with candidate labels.')
@@ -289,17 +280,6 @@ class ConsensusTranslator
         return $merged;
     }
 
-    protected function provider(string $provider): Provider
-    {
-        return match ($provider) {
-            'anthropic' => Provider::Anthropic,
-            'openai' => Provider::OpenAI,
-            'gemini' => Provider::Gemini,
-            'openrouter' => Provider::OpenRouter,
-            default => throw new \RuntimeException("Provider {$provider} is not supported."),
-        };
-    }
-
     protected function resetTokenUsage(): void
     {
         $this->tokenUsage = [
@@ -332,19 +312,17 @@ class ConsensusTranslator
             $this->tokenUsage['input_tokens'] + $this->tokenUsage['output_tokens'];
     }
 
-    protected function emitTokenUsage(?callable $callback, bool $final): void
+    protected function emitTokenUsage(bool $final): void
     {
-        if ($callback === null) {
-            return;
+        if ($this->onTokenUsage !== null) {
+            ($this->onTokenUsage)(array_merge($this->tokenUsage, ['final' => $final]));
         }
-
-        ($callback)(array_merge($this->tokenUsage, ['final' => $final]));
     }
 
-    protected function emitProgress(?callable $callback, string $message): void
+    protected function emitProgress(string $message): void
     {
-        if ($callback !== null) {
-            ($callback)($message, []);
+        if ($this->onProgress !== null) {
+            ($this->onProgress)($message, []);
         }
     }
 }

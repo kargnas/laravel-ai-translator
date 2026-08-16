@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Log;
 use Kargnas\LaravelAiTranslator\AI\Language\Language;
 use Kargnas\LaravelAiTranslator\AI\Language\LanguageRules;
 use Kargnas\LaravelAiTranslator\AI\Parsers\AIResponseParser;
+use Kargnas\LaravelAiTranslator\Contracts\Translator;
 use Kargnas\LaravelAiTranslator\Enums\PromptType;
 use Kargnas\LaravelAiTranslator\Enums\TranslationStatus;
 use Kargnas\LaravelAiTranslator\Exceptions\VerifyFailedException;
@@ -22,7 +23,7 @@ use Prism\Prism\ValueObjects\Messages\SystemMessage;
 use Prism\Prism\ValueObjects\Messages\UserMessage;
 use Prism\Prism\ValueObjects\Usage;
 
-class AIProvider
+class AIProvider implements Translator
 {
     protected string $configProvider;
 
@@ -451,15 +452,20 @@ class AIProvider
         return $this->getTranslatedObjectsWithPrism();
     }
 
-    protected function getTranslatedObjectsWithPrism(): array
+    public static function resolveProvider(string $provider): Provider
     {
-        $provider = match ($this->configProvider) {
+        return match ($provider) {
             'anthropic' => Provider::Anthropic,
             'openai' => Provider::OpenAI,
             'gemini' => Provider::Gemini,
             'openrouter' => Provider::OpenRouter,
-            default => throw new \RuntimeException("Provider {$this->configProvider} is not supported."),
+            default => throw new \RuntimeException("Provider {$provider} is not supported."),
         };
+    }
+
+    protected function getTranslatedObjectsWithPrism(): array
+    {
+        $provider = self::resolveProvider($this->configProvider);
 
         $systemPrompt = $this->getSystemPrompt();
         $userPrompt = $this->getUserPrompt();

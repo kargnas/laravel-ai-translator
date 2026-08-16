@@ -31,7 +31,16 @@ function consensusTranslate(
     ?callable $onProgress = null,
     ?callable $onTokenUsage = null,
 ): array {
-    return $translator->translate(
+    $translator
+        ->setOnProgress($onProgress)
+        ->setOnTokenUsage($onTokenUsage);
+
+    return $translator->translate();
+}
+
+function makeConsensusTranslator(array $configs): ConsensusTranslator
+{
+    return new ConsensusTranslator(
         'test.php',
         ['greeting' => 'Hello', 'farewell' => 'Goodbye'],
         'en',
@@ -39,11 +48,8 @@ function consensusTranslate(
         [],
         [],
         null,
-        null,
-        null,
-        $onProgress,
-        $onTokenUsage,
-        null,
+        $configs,
+        consensusTranslatorConfig('judge'),
     );
 }
 
@@ -52,9 +58,9 @@ test('single translator returns its result without calling judge', function () {
         consensusTextResponse(['greeting' => '안녕하세요', 'farewell' => '안녕히 가세요']),
     ]);
 
-    $translator = new ConsensusTranslator([
+    $translator = makeConsensusTranslator([
         consensusTranslatorConfig('translator-a'),
-    ], consensusTranslatorConfig('judge'));
+    ]);
 
     $result = consensusTranslate($translator);
 
@@ -78,10 +84,10 @@ test('judge chooses a different candidate for one key', function () {
             ->withUsage(new Usage(5, 7)),
     ]);
 
-    $translator = new ConsensusTranslator([
+    $translator = makeConsensusTranslator([
         consensusTranslatorConfig('translator-a'),
         consensusTranslatorConfig('translator-b'),
-    ], consensusTranslatorConfig('judge'));
+    ]);
 
     $usage = [];
     $result = consensusTranslate($translator, null, function (array $currentUsage) use (&$usage): void {
@@ -107,10 +113,10 @@ test('invalid judge label falls back to first candidate', function () {
         ]),
     ]);
 
-    $translator = new ConsensusTranslator([
+    $translator = makeConsensusTranslator([
         consensusTranslatorConfig('translator-a'),
         consensusTranslatorConfig('translator-b'),
-    ], consensusTranslatorConfig('judge'));
+    ]);
 
     $result = consensusTranslate($translator);
 
@@ -126,10 +132,10 @@ test('failed translator is skipped and surviving candidate is returned', functio
         consensusTextResponse(['greeting' => '안녕하세요', 'farewell' => '안녕히 가세요']),
     ]);
 
-    $translator = new ConsensusTranslator([
+    $translator = makeConsensusTranslator([
         consensusTranslatorConfig('translator-a'),
         consensusTranslatorConfig('translator-b'),
-    ], consensusTranslatorConfig('judge'));
+    ]);
 
     $result = consensusTranslate($translator);
 
@@ -147,10 +153,10 @@ test('judge failure falls back to first translator for every key', function () {
     ]);
 
     $progress = [];
-    $translator = new ConsensusTranslator([
+    $translator = makeConsensusTranslator([
         consensusTranslatorConfig('translator-a'),
         consensusTranslatorConfig('translator-b'),
-    ], consensusTranslatorConfig('judge'));
+    ]);
 
     $result = consensusTranslate($translator, function (string $message) use (&$progress): void {
         $progress[] = $message;

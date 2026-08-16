@@ -28,11 +28,10 @@ AI-powered translation tool for Laravel language files
   - Better handling of backup directories
   - Strict path matching to prevent unintended deletions
 - 🔁 **Parallel Translation**: Translate multiple locales concurrently with the `translate-parallel` command
-- **New Provider**: Added Google Gemini support (including the 2.5 models)
-- **AI Enhancement**: Added support for Claude 3.7's Extended Thinking capabilities
-  - Extended context window up to 200K tokens, output tokens up to 64K tokens
-  - Enhanced reasoning for complex translations
-  - Improved context understanding with extended thinking mode
+- **OpenRouter Provider**: Uses PrismPHP to access current frontier models through one API
+  - Defaults to Claude Opus 5
+  - Supports GPT-5.6 Sol and Gemini 3.1 Pro Preview model IDs
+  - Supports streaming responses and reasoning callbacks
 - **Visual Logging Improvements**: Completely redesigned logging system
   - 🎨 Beautiful color-coded console output
   - 📊 Real-time progress indicators
@@ -60,7 +59,7 @@ Laravel AI Translator is a powerful tool designed to streamline the localization
 Key benefits:
 
 - Time-saving: Translate all your language files with one simple command
-- AI-powered: Utilizes state-of-the-art language models (GPT-4, GPT-4o, GPT-3.5, Claude, Gemini) for superior translation quality
+- AI-powered: Uses current frontier models such as Claude Opus 5, GPT-5.6 Sol, and Gemini 3.1 Pro Preview
 - Smart context understanding: Accurately captures nuances, technical terms, and Laravel-specific expressions
 - Seamless integration: Works within your existing Laravel project structure, preserving complex language file structures
 
@@ -135,8 +134,8 @@ These custom styles offer creative ways to customize your translations, adding a
 
 ## Prerequisites
 
-- PHP 8.0 or higher
-- Laravel 8.0 or higher
+- PHP 8.2 or higher
+- Laravel 11.0 or higher
 
 ## Installation
 
@@ -146,15 +145,13 @@ These custom styles offer creative ways to customize your translations, adding a
    composer require kargnas/laravel-ai-translator
    ```
 
-2. Add the Claude API key to your `.env` file:
+2. Add your OpenRouter API key to `.env`:
 
+   ```env
+   OPENROUTER_API_KEY=your-openrouter-api-key-here
    ```
-   ANTHROPIC_API_KEY=your-anthropic-api-key-here
-   ```
 
-   You can obtain an API key from the [Anthropic Console](https://console.anthropic.com/settings/keys).
-
-(If you want to use OpenAI's GPT or Google's Gemini instead, see step 4 below for configuration instructions.)
+   Create a key in [OpenRouter](https://openrouter.ai/settings/keys).
 
 3. (Optional) Publish the configuration file:
 
@@ -164,40 +161,7 @@ These custom styles offer creative ways to customize your translations, adding a
 
    This step is optional but recommended if you want to customize the package's behavior. It will create a `config/ai-translator.php` file where you can modify various settings.
 
-4. (Optional) The package is configured to use Claude by default. If you want to use OpenAI's GPT or Google's Gemini instead, update the `config/ai-translator.php` file:
-
-   For OpenAI GPT:
-
-   ```php
-   'ai' => [
-       'provider' => 'openai',
-       'model' => 'gpt-4o',
-       'api_key' => env('OPENAI_API_KEY'),
-   ],
-   ```
-
-   Or for Gemini:
-
-   ```php
-   'ai' => [
-       'provider' => 'gemini',
-       'model' => 'gemini-2.5-pro-preview-05-06',
-       'api_key' => env('GEMINI_API_KEY'),
-   ],
-   ```
-
-   Then, add the OpenAI or Gemini API key to your `.env` file:
-
-   ```
-   OPENAI_API_KEY=your-openai-api-key-here
-   GEMINI_API_KEY=your-gemini-api-key-here
-   ```
-
-   You can obtain API keys from:
-   - OpenAI: [OpenAI Platform](https://platform.openai.com/account/api-keys)
-   - Gemini: [Google AI Studio](https://aistudio.google.com/app/apikey)
-
-   **We strongly recommend using Claude for the best translation quality and accuracy.**
+4. (Optional) Change `ai.model` in `config/ai-translator.php`. See the configuration section below and [OpenRouter Models](https://openrouter.ai/models) for current model IDs and limits.
 
 5. You're now ready to use the Laravel AI Translator!
 
@@ -467,69 +431,37 @@ This will create a `config/ai-translator.php` file where you can modify the foll
 
   ```php
   'ai' => [
-      'provider' => 'anthropic',
-      'model' => 'claude-sonnet-4-20250514',
-      'api_key' => env('ANTHROPIC_API_KEY'),
+      'provider' => 'openrouter',
+      'model' => 'vendor/model-id',
+      'api_key' => env('OPENROUTER_API_KEY'),
   ],
   ```
 
-  This package supports Anthropic's Claude, Google's Gemini, and OpenAI's GPT models for translations. Here are the tested and verified models:
+  The package default is defined in [`config/ai-translator.php`](config/ai-translator.php). Other current frontier model examples:
 
-  | Provider    | Model                            | Extended Thinking | Context Window | Max Tokens |
-  | ----------- | -------------------------------- | ----------------- | -------------- | ---------- |
-  | `anthropic` | `claude-sonnet-4-20250514`       | ✅                | 200K           | 8K/64K\*   |
-  | `anthropic` | `claude-3-7-sonnet-latest`       | ✅                | 200K           | 8K/64K\*   |
-  | `anthropic` | `claude-3-7-sonnet-latest`       | ❌                | 200K           | 8K         |
-  | `anthropic` | `claude-3-haiku-20240307`        | ❌                | 200K           | 8K         |
-  | `openai`    | `gpt-4o`                         | ❌                | 128K           | 4K         |
-  | `openai`    | `gpt-4o-mini`                    | ❌                | 128K           | 4K         |
-  | `gemini`    | `gemini-2.5-pro-preview-05-06`   | ❌                | 1000K          | 64K        |
-  | `gemini`    | `gemini-2.5-flash-preview-04-17` | ❌                | 1000K          | 64K        |
+  | Provider     | Model                           |
+  | ------------ | ------------------------------- |
+  | `openrouter` | `openai/gpt-5.6-sol`            |
+  | `openrouter` | `google/gemini-3.1-pro-preview` |
 
-  \* 8K tokens for normal mode, 64K tokens when extended thinking is enabled
-
-  For available models:
-
-  - Anthropic: See [Anthropic Models Documentation](https://docs.anthropic.com/en/docs/about-claude/models)
-  - OpenAI: See [OpenAI Models Documentation](https://platform.openai.com/docs/models)
-
-  > **⭐️ Strong Recommendation**: We highly recommend using Anthropic's Claude models, particularly `claude-sonnet-4-20250514` or `claude-3-7-sonnet-latest`. Here's why:
-  >
-  > - More accurate and natural translations
-  > - Better understanding of context and nuances
-  > - More consistent output quality
-  > - More cost-effective for the quality provided
-  > - Claude 4.0 offers even better reasoning and translation quality
-  >
-  > While OpenAI integration is available, we strongly advise against using it for translations. Our extensive testing has shown that Claude models consistently produce superior results for localization tasks.
+  Check current availability and limits in the [OpenRouter model catalog](https://openrouter.ai/models).
 
   ### Provider Setup
 
-  1. Get your API key:
-
-     - Anthropic: [Console API Keys](https://console.anthropic.com/settings/keys)
-     - OpenAI: [API Keys](https://platform.openai.com/api-keys)
-     - Gemini: [Google AI Studio](https://aistudio.google.com/app/apikey)
+  1. Create an API key in [OpenRouter](https://openrouter.ai/settings/keys).
 
   2. Add to your `.env` file:
 
      ```env
-     # For Anthropic
-     ANTHROPIC_API_KEY=your-api-key
-
-     # For OpenAI
-     OPENAI_API_KEY=your-api-key
-
-     # For Gemini
-     GEMINI_API_KEY=your-api-key
+     OPENROUTER_API_KEY=your-api-key
      ```
 
   3. Configure in `config/ai-translator.php`:
      ```php
      'ai' => [
-        'provider' => 'anthropic', // or 'openai' or 'gemini'
-        'model' => 'claude-sonnet-4-20250514', // see model list above
-        'api_key' => env('ANTHROPIC_API_KEY'), // or env('OPENAI_API_KEY') or env('GEMINI_API_KEY')
+        'provider' => 'openrouter',
+        'model' => 'vendor/model-id',
+        'api_key' => env('OPENROUTER_API_KEY'),
      ],
      ```
 
@@ -548,9 +480,9 @@ return [
     'source_directory' => 'lang',
 
     'ai' => [
-        'provider' => 'anthropic',
-        'model' => 'claude-sonnet-4-20250514',
-        'api_key' => env('ANTHROPIC_API_KEY'),
+        'provider' => 'openrouter',
+        'model' => 'vendor/model-id',
+        'api_key' => env('OPENROUTER_API_KEY'),
     ],
 
     'locale_names' => [
@@ -662,7 +594,6 @@ We're constantly working to improve Laravel AI Translator. Here are some feature
 - [ ] Implement strict validation for translations:
   - Verify that variables are correctly preserved in translated strings
   - Check for consistency in pluralization rules across translations
-- [ ] Expand support for other LLMs (such as Gemini)
 - [ ] Replace regex-based XML parser with proper XML parsing:
   - Better handle edge cases and malformed XML
 

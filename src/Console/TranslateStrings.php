@@ -12,6 +12,7 @@ use Kargnas\LaravelAiTranslator\Enums\PromptType;
 use Kargnas\LaravelAiTranslator\Enums\TranslationStatus;
 use Kargnas\LaravelAiTranslator\Transformers\PHPLangTransformer;
 use Kargnas\LaravelAiTranslator\Translation\ChangeDetector;
+use Kargnas\LaravelAiTranslator\Translation\ConsensusTranslator;
 use Kargnas\LaravelAiTranslator\Translation\TokenChunker;
 
 /**
@@ -249,6 +250,8 @@ class TranslateStrings extends Command
             return;
         }
 
+        $this->announceConsensusMode();
+
         $fileCount = 0;
         $totalStringCount = 0;
         $totalTranslatedCount = 0;
@@ -395,7 +398,22 @@ class TranslateStrings extends Command
 
                         try {
                             // Execute translation
-                            $translatedItems = $translator->translate();
+                            $translatedItems = $translator instanceof ConsensusTranslator
+                                ? $translator->translate(
+                                    $file,
+                                    $chunk->toArray(),
+                                    $this->sourceLocale,
+                                    $locale,
+                                    $this->formatReferences($referenceStringList),
+                                    [],
+                                    $globalContext,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                )
+                                : $translator->translate();
                             $localeTranslatedCount += count($translatedItems);
                             $totalTranslatedCount += count($translatedItems);
 
@@ -442,7 +460,7 @@ class TranslateStrings extends Command
     /**
      * 비용 계산 및 표시
      */
-    protected function displayCostEstimation(AIProvider $translator): void
+    protected function displayCostEstimation(AIProvider|ConsensusTranslator $translator): void
     {
         $usage = $translator->getTokenUsage();
         $printer = new TokenUsagePrinter($translator->getModel());
@@ -633,7 +651,7 @@ class TranslateStrings extends Command
         array $referenceStringList,
         string $locale,
         array $globalContext
-    ): AIProvider {
+    ): AIProvider|ConsensusTranslator {
         // 파일 정보 표시
         $outputFile = $this->getOutputDirectoryLocale($locale).'/'.basename($file);
         $this->displayFileInfo($file, $locale, $outputFile);
@@ -646,16 +664,18 @@ class TranslateStrings extends Command
             $references[$referenceLocale] = $referenceStrings;
         }
 
-        // AIProvider 인스턴스 생성
-        $translator = new AIProvider(
-            $file,
-            $chunk->toArray(),
-            $this->sourceLocale,
-            $locale,
-            $references,
-            [],  // additionalRules
-            $globalContext  // globalTranslationContext
-        );
+        $consensusConfigs = config('ai-translator.consensus.translators', []);
+        $translator = count($consensusConfigs) >= 2
+            ? new ConsensusTranslator($consensusConfigs, config('ai-translator.consensus.judge', []))
+            : new AIProvider(
+                $file,
+                $chunk->toArray(),
+                $this->sourceLocale,
+                $locale,
+                $references,
+                [],  // additionalRules
+                $globalContext  // globalTranslationContext
+            );
 
         $translator->setOnThinking(function ($thinking) {
             echo $this->colors['gray'].$thinking.$this->colors['reset'];
@@ -713,6 +733,27 @@ class TranslateStrings extends Command
         }
 
         return $translator;
+    }
+
+    protected function formatReferences(array $referenceStringList): array
+    {
+        $references = [];
+        foreach ($referenceStringList as $reference) {
+            $references[$reference['locale']] = $reference['strings'];
+        }
+
+        return $references;
+    }
+
+    protected function announceConsensusMode(): void
+    {
+        $translators = config('ai-translator.consensus.translators', []);
+        if (count($translators) < 2) {
+            return;
+        }
+
+        $judgeModel = config('ai-translator.consensus.judge.model', 'unknown');
+        $this->line('Consensus mode: '.count($translators)." translators + judge {$judgeModel}");
     }
 
     /**

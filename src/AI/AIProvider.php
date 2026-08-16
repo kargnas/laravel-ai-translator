@@ -30,6 +30,9 @@ class AIProvider
 
     protected int $configRetries;
 
+    /** @var array<string, mixed>|null */
+    protected ?array $providerConfigOverride = null;
+
     public Language $sourceLanguageObj;
 
     public Language $targetLanguageObj;
@@ -389,6 +392,20 @@ class AIProvider
     }
 
     /**
+     * Override provider settings for this translation instance.
+     *
+     * @param  array<string, mixed>  $config
+     */
+    public function withProviderConfig(array $config): self
+    {
+        $this->providerConfigOverride = $config;
+        $this->configProvider = (string) ($config['provider'] ?? $this->configProvider);
+        $this->configModel = (string) ($config['model'] ?? $this->configModel);
+
+        return $this;
+    }
+
+    /**
      * Translate strings
      */
     public function translate(): array
@@ -448,7 +465,7 @@ class AIProvider
         $responseParser = new AIResponseParser($this->onTranslated, config('app.debug', false));
         $request = Prism::text()
             ->using($provider, $this->configModel, [
-                'api_key' => (string) config('ai-translator.ai.api_key', ''),
+                'api_key' => (string) $this->effectiveConfig('api_key', ''),
             ])
             ->withSystemPrompt($this->makeSystemMessage($systemPrompt))
             ->withMessages([$this->makeUserMessage($userPrompt)])
@@ -545,7 +562,7 @@ class AIProvider
      */
     protected function providerOptions(): array
     {
-        if ($this->configProvider !== 'anthropic' || ! config('ai-translator.ai.use_extended_thinking', false)) {
+        if ($this->configProvider !== 'anthropic' || ! $this->effectiveConfig('use_extended_thinking', false)) {
             return [];
         }
 
@@ -560,9 +577,9 @@ class AIProvider
     protected function maxTokens(): ?int
     {
         if ($this->configProvider !== 'anthropic') {
-            return config('ai-translator.ai.max_tokens') === null
+            return $this->effectiveConfig('max_tokens') === null
                 ? null
-                : (int) config('ai-translator.ai.max_tokens');
+                : (int) $this->effectiveConfig('max_tokens');
         }
 
         $defaultMaxTokens = match (true) {
@@ -570,9 +587,9 @@ class AIProvider
             preg_match('/^claude\-3\-7\-/', $this->configModel) === 1 => 64000,
             default => 4096,
         };
-        $maxTokens = (int) config('ai-translator.ai.max_tokens', $defaultMaxTokens);
+        $maxTokens = (int) $this->effectiveConfig('max_tokens', $defaultMaxTokens);
 
-        if (config('ai-translator.ai.use_extended_thinking', false) && $maxTokens < 10000) {
+        if ($this->effectiveConfig('use_extended_thinking', false) && $maxTokens < 10000) {
             throw new \RuntimeException("Max tokens is less than thinking budget tokens. Please increase max tokens. Current max tokens: {$maxTokens}, Thinking budget tokens: 10000");
         }
 
@@ -590,7 +607,16 @@ class AIProvider
             return 1.0;
         }
 
-        return config('ai-translator.ai.temperature', 0);
+        return $this->effectiveConfig('temperature', 0);
+    }
+
+    protected function effectiveConfig(string $key, mixed $default = null): mixed
+    {
+        if ($this->providerConfigOverride !== null && array_key_exists($key, $this->providerConfigOverride)) {
+            return $this->providerConfigOverride[$key];
+        }
+
+        return config("ai-translator.ai.{$key}", $default);
     }
 
     /**

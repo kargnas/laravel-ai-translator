@@ -12,6 +12,7 @@ use Kargnas\LaravelAiTranslator\Enums\PromptType;
 use Kargnas\LaravelAiTranslator\Enums\TranslationStatus;
 use Kargnas\LaravelAiTranslator\Transformers\JSONLangTransformer;
 use Kargnas\LaravelAiTranslator\Translation\ChangeDetector;
+use Kargnas\LaravelAiTranslator\Translation\ConsensusTranslator;
 use Kargnas\LaravelAiTranslator\Translation\TokenChunker;
 
 class TranslateJson extends Command
@@ -239,6 +240,8 @@ class TranslateJson extends Command
             return;
         }
 
+        $this->announceConsensusMode();
+
         $totalStringCount = 0;
         $totalTranslatedCount = 0;
 
@@ -382,7 +385,22 @@ class TranslateJson extends Command
 
                 try {
                     // Execute translation
-                    $translatedItems = $translator->translate();
+                    $translatedItems = $translator instanceof ConsensusTranslator
+                        ? $translator->translate(
+                            $sourceFile,
+                            $chunk->toArray(),
+                            $this->sourceLocale,
+                            $locale,
+                            $this->formatReferences($referenceStringList),
+                            [],
+                            $globalContext,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                        )
+                        : $translator->translate();
                     $translatedCount += count($translatedItems);
 
                     // Save translation results
@@ -529,7 +547,7 @@ class TranslateJson extends Command
         array $referenceStringList,
         string $locale,
         array $globalContext
-    ): AIProvider {
+    ): AIProvider|ConsensusTranslator {
         // Convert reference info to proper format
         $references = [];
         foreach ($referenceStringList as $reference) {
@@ -538,16 +556,18 @@ class TranslateJson extends Command
             $references[$referenceLocale] = $referenceStrings;
         }
 
-        // Create AIProvider instance
-        $translator = new AIProvider(
-            $file,
-            $chunk->toArray(),
-            $this->sourceLocale,
-            $locale,
-            $references,
-            [],  // additionalRules
-            $globalContext  // globalTranslationContext
-        );
+        $consensusConfigs = config('ai-translator.consensus.translators', []);
+        $translator = count($consensusConfigs) >= 2
+            ? new ConsensusTranslator($consensusConfigs, config('ai-translator.consensus.judge', []))
+            : new AIProvider(
+                $file,
+                $chunk->toArray(),
+                $this->sourceLocale,
+                $locale,
+                $references,
+                [],  // additionalRules
+                $globalContext  // globalTranslationContext
+            );
 
         $translator->setOnThinking(function ($thinking) {
             echo $this->colors['gray'].$thinking.$this->colors['reset'];
@@ -610,12 +630,33 @@ class TranslateJson extends Command
     /**
      * Display cost estimation
      */
-    protected function displayCostEstimation(AIProvider $translator): void
+    protected function displayCostEstimation(AIProvider|ConsensusTranslator $translator): void
     {
         $usage = $translator->getTokenUsage();
         $printer = new TokenUsagePrinter($translator->getModel());
         $printer->printTokenUsageSummary($this, $usage);
         $printer->printCostEstimation($this, $usage);
+    }
+
+    protected function formatReferences(array $referenceStringList): array
+    {
+        $references = [];
+        foreach ($referenceStringList as $reference) {
+            $references[$reference['locale']] = $reference['strings'];
+        }
+
+        return $references;
+    }
+
+    protected function announceConsensusMode(): void
+    {
+        $translators = config('ai-translator.consensus.translators', []);
+        if (count($translators) < 2) {
+            return;
+        }
+
+        $judgeModel = config('ai-translator.consensus.judge.model', 'unknown');
+        $this->line('Consensus mode: '.count($translators)." translators + judge {$judgeModel}");
     }
 
     /**

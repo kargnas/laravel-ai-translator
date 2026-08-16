@@ -535,6 +535,22 @@ This will create a `config/ai-translator.php` file where you can modify the foll
 
 - `locale_names`: This mapping of locale codes to language names enhances translation quality by providing context to the AI.
 
+- `consensus`: Optional multi-translator mode. Configure two or more entries in `translators` plus a `judge`; each translator handles the full chunk and the judge selects the best candidate per key. Leave `translators` empty to use the single `ai` configuration:
+
+  ```php
+  'consensus' => [
+      'translators' => [
+          ['provider' => 'anthropic', 'model' => 'claude-sonnet-4-5', 'api_key' => env('ANTHROPIC_API_KEY')],
+          ['provider' => 'openai', 'model' => 'gpt-5', 'api_key' => env('OPENAI_API_KEY')],
+      ],
+      'judge' => [
+          'provider' => 'openai',
+          'model' => 'gpt-5',
+          'api_key' => env('OPENAI_API_KEY'),
+      ],
+  ],
+  ```
+
 - `additional_rules`: Add custom rules to the translation prompt. This is useful for customizing the style of the messages or creating entirely new language styles.
 
 - `disable_plural`: Disable pluralization. Use ":count apples" instead of ":count apple|:count apples"

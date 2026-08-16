@@ -8,6 +8,7 @@ use Kargnas\LaravelAiTranslator\AI\AIProvider;
 use Kargnas\LaravelAiTranslator\AI\Printer\TokenUsagePrinter;
 use Kargnas\LaravelAiTranslator\Enums\TranslationStatus;
 use Kargnas\LaravelAiTranslator\Models\LocalizedString;
+use Kargnas\LaravelAiTranslator\Translation\ConsensusTranslator;
 
 class TestTranslateCommand extends Command
 {
@@ -86,7 +87,8 @@ class TestTranslateCommand extends Command
         );
 
         // 토큰 사용량 추적 콜백
-        $onTokenUsage = function (array $usage) use ($provider) {
+        $reportModel = $provider->getModel();
+        $onTokenUsage = function (array $usage) use (&$reportModel) {
             // 토큰 사용량을 한 줄로 표시 (실시간 업데이트)
             $this->output->write("\033[2K\r");
             $this->output->write(
@@ -101,7 +103,7 @@ class TestTranslateCommand extends Command
             // 마지막 토큰 사용량 정보는 자세히 출력
             if (isset($usage['final']) && $usage['final']) {
                 $this->output->writeln(''); // 줄바꿈 추가
-                $printer = new TokenUsagePrinter($provider->getModel());
+                $printer = new TokenUsagePrinter($reportModel);
                 $printer->printFullReport($this, $usage);
             }
         };
@@ -159,14 +161,36 @@ class TestTranslateCommand extends Command
         };
 
         try {
-            $translatedItems = $provider
-                ->setOnTranslated($onTranslated)
-                ->setOnThinking($onThinking)
-                ->setOnProgress($onProgress)
-                ->setOnThinkingStart($onThinkingStart)
-                ->setOnThinkingEnd($onThinkingEnd)
-                ->setOnTokenUsage($onTokenUsage)
-                ->translate();
+            $consensusConfigs = config('ai-translator.consensus.translators', []);
+            if (count($consensusConfigs) >= 2) {
+                $judgeConfig = config('ai-translator.consensus.judge', []);
+                $this->line('Consensus mode: '.count($consensusConfigs).' translators + judge '.($judgeConfig['model'] ?? 'unknown'));
+                $consensus = new ConsensusTranslator($consensusConfigs, $judgeConfig);
+                $reportModel = $consensus->getModel();
+                $translatedItems = $consensus->translate(
+                    'Test.php',
+                    ['test' => $text],
+                    $sourceLanguage,
+                    $targetLanguage,
+                    [],
+                    $rulesList,
+                    null,
+                    $onTranslated,
+                    $onThinking,
+                    $onProgress,
+                    $onTokenUsage,
+                    null,
+                );
+            } else {
+                $translatedItems = $provider
+                    ->setOnTranslated($onTranslated)
+                    ->setOnThinking($onThinking)
+                    ->setOnProgress($onProgress)
+                    ->setOnThinkingStart($onThinkingStart)
+                    ->setOnThinkingEnd($onThinkingEnd)
+                    ->setOnTokenUsage($onTokenUsage)
+                    ->translate();
+            }
 
             // Show raw XML response if requested
             if ($showXml) {

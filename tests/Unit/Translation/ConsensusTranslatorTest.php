@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Log;
+use Kargnas\LaravelAiTranslator\Exceptions\TranslationFailedException;
 use Kargnas\LaravelAiTranslator\Translation\ConsensusTranslator;
 use Laravel\Ai\Responses\Data\Usage;
 use Laravel\Ai\Responses\TextResponse;
@@ -125,7 +126,28 @@ test('failed translator is skipped and surviving candidate is returned', functio
 
     expect(collect($result)->pluck('translated')->all())
         ->toBe(['안녕하세요', '안녕히 가세요']);
-    Log::shouldHaveReceived('warning')->with('Translator translator-a produced no result; continuing with remaining candidates');
+    Log::shouldHaveReceived('warning')->with(
+        'Translator translator-a produced no result; continuing with remaining candidates',
+        Mockery::type('array'),
+    );
+});
+
+// Issue #20 follow-up: when every translator fails the run must fail loudly
+// instead of returning [] and letting the command report success.
+test('throws when every consensus translator fails', function () {
+    Log::spy();
+    fakeConsensusAgents([
+        aiTextResponse('not xml'),
+        aiTextResponse('also not xml'),
+    ], []);
+
+    expect(fn () => makeConsensusTranslator([
+        consensusTranslatorConfig('translator-a'),
+        consensusTranslatorConfig('translator-b'),
+    ])->translate())->toThrow(
+        TranslationFailedException::class,
+        'All 2 consensus translators failed',
+    );
 });
 
 test('judge failure falls back to first translator for every key', function () {

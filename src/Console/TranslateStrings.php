@@ -52,6 +52,10 @@ class TranslateStrings extends Command
 
     protected int $warningStringCount = 500;
 
+    // Chunks whose translation threw; a non-zero count must fail the command
+    // instead of ending in a green "completed" banner (issue #20).
+    protected int $failedChunkCount = 0;
+
     /**
      * Token usage tracking
      */
@@ -181,7 +185,7 @@ class TranslateStrings extends Command
         // Execute translation
         $this->translate($maxContextItems);
 
-        return 0;
+        return $this->failedChunkCount > 0 ? 1 : 0;
     }
 
     /**
@@ -427,6 +431,7 @@ class TranslateStrings extends Command
                             $this->updateTokenUsageTotals($usage);
 
                         } catch (\Exception $e) {
+                            $this->failedChunkCount++;
                             $this->error('Translation failed: '.$e->getMessage());
                         }
                     });
@@ -436,8 +441,14 @@ class TranslateStrings extends Command
             $this->displayTranslationSummary($locale, $localeFileCount, $localeStringCount, $localeTranslatedCount);
         }
 
-        // All translations completed message
-        $this->line("\n".$this->colors['green_bg'].$this->colors['white'].$this->colors['bold'].' All translations completed '.$this->colors['reset']);
+        // Completion banner: red when any chunk failed so a failed run can never
+        // end looking green (issue #20).
+        if ($this->failedChunkCount > 0) {
+            $this->line("\n".$this->colors['red_bg'].$this->colors['white'].$this->colors['bold'].' Translation finished with failures '.$this->colors['reset']);
+            $this->line($this->colors['red'].'Failed chunks: '.$this->colors['reset'].$this->failedChunkCount);
+        } else {
+            $this->line("\n".$this->colors['green_bg'].$this->colors['white'].$this->colors['bold'].' All translations completed '.$this->colors['reset']);
+        }
         $this->line($this->colors['yellow'].'Total files processed: '.$this->colors['reset'].$fileCount);
         $this->line($this->colors['yellow'].'Total strings found: '.$this->colors['reset'].$totalStringCount);
         $this->line($this->colors['yellow'].'Total strings translated: '.$this->colors['reset'].$totalTranslatedCount);

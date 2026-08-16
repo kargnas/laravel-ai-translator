@@ -71,11 +71,24 @@ class TranslateStringsParallel extends TranslateStrings
                     if ($error) {
                         $this->error($error);
                     }
+                    // Child commands exit non-zero on failed chunks; propagate so the
+                    // parallel run cannot end green while a locale failed (issue #20).
+                    if ($process->getExitCode() !== 0) {
+                        $this->failedChunkCount++;
+                        $this->error('Translation for '.$locale.' exited with code '.$process->getExitCode().'.');
+                    }
                     unset($running[$locale]);
                 }
             }
 
             usleep(100000);
+        }
+
+        if ($this->failedChunkCount > 0) {
+            $this->line(PHP_EOL.$this->colors['red_bg'].$this->colors['white'].$this->colors['bold'].' Translation finished with failures '.$this->colors['reset']);
+            $this->line($this->colors['red'].'Failed locales: '.$this->colors['reset'].$this->failedChunkCount);
+
+            return;
         }
 
         $this->line(PHP_EOL.$this->colors['green_bg'].$this->colors['white'].$this->colors['bold'].' All translations completed '.$this->colors['reset']);

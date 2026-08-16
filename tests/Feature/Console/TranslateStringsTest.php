@@ -287,3 +287,26 @@ test('compares Chinese variants translations', function () {
     fwrite(STDERR, "ZH_TW (nested): {$zhTWTranslations['welcome']}\n");
     fwrite(STDERR, "\n================================\n");
 });
+
+// Issue #20: a transport failure (401/404/timeout) must fail the command loudly.
+// Before the fix the run printed a green summary with exit code 0 and nothing saved.
+test('exits non-zero and shows a failure banner when translation fails', function () {
+    config()->set('ai-translator.ai.api_key', 'test-key');
+    config()->set('ai-translator.ai.retries', 1);
+
+    fakeAiProvider([
+        function (): never {
+            throw new \RuntimeException('HTTP request returned status code 404');
+        },
+    ]);
+
+    artisan('ai-translator:translate', [
+        '--source' => 'en',
+        '--locale' => ['ko'],
+        '--non-interactive' => true,
+    ])
+        ->expectsOutputToContain('Translation finished with failures')
+        ->assertExitCode(1);
+
+    expect(file_exists($this->testLangPath.'/ko/test.php'))->toBeFalse();
+});

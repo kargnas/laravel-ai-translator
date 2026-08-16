@@ -9,6 +9,7 @@ use Kargnas\LaravelAiTranslator\AI\Parsers\AIResponseParser;
 use Kargnas\LaravelAiTranslator\Contracts\Translator;
 use Kargnas\LaravelAiTranslator\Enums\PromptType;
 use Kargnas\LaravelAiTranslator\Enums\TranslationStatus;
+use Kargnas\LaravelAiTranslator\Exceptions\TranslationFailedException;
 use Kargnas\LaravelAiTranslator\Exceptions\VerifyFailedException;
 use Kargnas\LaravelAiTranslator\Models\LocalizedString;
 use Kargnas\LaravelAiTranslator\Translation\Validator;
@@ -415,6 +416,7 @@ class AIProvider implements Translator
     public function translate(): array
     {
         $tried = 1;
+        $lastFailure = 'unknown error';
         do {
             try {
                 if ($tried > 1) {
@@ -434,8 +436,10 @@ class AIProvider implements Translator
 
                 return $translatedObjects;
             } catch (VerifyFailedException $e) {
+                $lastFailure = $e->getMessage();
                 Log::error($e->getMessage());
             } catch (\Exception $e) {
+                $lastFailure = $e->getMessage();
                 Log::critical('AIProvider: Error during translation', [
                     'message' => $e->getMessage(),
                     'file' => $e->getFile(),
@@ -445,9 +449,12 @@ class AIProvider implements Translator
             }
         } while (++$tried <= $this->configRetries);
 
-        Log::warning("Failed to translate {$this->filename} into {$this->targetLanguageObj->name} after {$this->configRetries} retries.");
-
-        return [];
+        // Throw instead of returning an empty list: a silent empty result made commands
+        // print a green summary with nothing saved while the real error (e.g. HTTP 404)
+        // only reached the log file (issue #20).
+        throw new TranslationFailedException(
+            "Failed to translate {$this->filename} into {$this->targetLanguageObj->name} after {$this->configRetries} attempt(s): {$lastFailure}"
+        );
     }
 
     protected function getTranslatedObjects(): array

@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Log;
 use Kargnas\LaravelAiTranslator\AI\AIProvider;
+use Kargnas\LaravelAiTranslator\Exceptions\TranslationFailedException;
 
 test('translates a streamed response and fires the translated callback', function () {
     config()->set('ai-translator.ai.provider', 'openai');
@@ -49,6 +50,29 @@ test('retries when most translations fail post-translation validation', function
         'ko',
     );
 
-    expect($provider->translate())->toBe([]);
+    expect(fn () => $provider->translate())
+        ->toThrow(TranslationFailedException::class, 'Post-translation validation failed');
     Log::shouldHaveReceived('error')->twice();
+});
+
+// Issue #20: transport errors (401/404/timeouts) used to surface as an empty result,
+// letting commands print a green summary with nothing saved.
+test('throws after exhausting retries on transport errors', function () {
+    config()->set('ai-translator.ai.provider', 'openai');
+    config()->set('ai-translator.ai.model', 'gpt-4o-mini');
+    config()->set('ai-translator.ai.api_key', 'test-key');
+    config()->set('ai-translator.ai.disable_stream', true);
+    config()->set('ai-translator.ai.retries', 2);
+    Log::spy();
+
+    // The fake gateway returns non-closure values as-is, so throwing requires closures.
+    $transportError = function (): never {
+        throw new RuntimeException('HTTP request returned status code 404');
+    };
+    fakeAiProvider([$transportError, $transportError]);
+
+    $provider = new AIProvider('test.php', ['greeting' => 'Hello'], 'en', 'ko');
+
+    expect(fn () => $provider->translate())
+        ->toThrow(TranslationFailedException::class, 'HTTP request returned status code 404');
 });

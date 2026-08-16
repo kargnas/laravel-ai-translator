@@ -6,6 +6,7 @@ use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\Support\Facades\Log;
 use Kargnas\LaravelAiTranslator\AI\AIProvider;
 use Kargnas\LaravelAiTranslator\Contracts\Translator;
+use Kargnas\LaravelAiTranslator\Exceptions\TranslationFailedException;
 use Kargnas\LaravelAiTranslator\Models\LocalizedString;
 use Laravel\Ai\Ai;
 use Laravel\Ai\Contracts\Agent;
@@ -137,26 +138,35 @@ class ConsensusTranslator implements Translator
                     ->setOnPromptGenerated($this->onPromptGenerated);
             }
 
-            $items = $provider->translate();
-            $this->addTokenUsage($provider->getTokenUsage());
-            $this->emitTokenUsage(false);
+            // One translator failing is tolerable while other candidates survive,
+            // so absorb the failure here instead of aborting the whole consensus run.
+            try {
+                $items = $provider->translate();
+            } catch (TranslationFailedException $exception) {
+                $this->addTokenUsage($provider->getTokenUsage());
+                $this->emitTokenUsage(false);
 
-            if ($items === []) {
                 $model = (string) ($config['model'] ?? 'unknown');
                 $message = "Translator {$model} produced no result; continuing with remaining candidates";
-                Log::warning($message);
+                Log::warning($message, ['exception' => $exception->getMessage()]);
                 $this->emitProgress($message);
 
                 continue;
             }
+
+            $this->addTokenUsage($provider->getTokenUsage());
+            $this->emitTokenUsage(false);
 
             $candidates[$index] = $items;
         }
 
         if ($candidates === []) {
             $this->emitTokenUsage(true);
+            $translatorCount = count($this->translatorConfigs);
 
-            return [];
+            throw new TranslationFailedException(
+                "All {$translatorCount} consensus translators failed for {$this->filename} into {$this->targetLocale}."
+            );
         }
 
         if (count($candidates) === 1) {

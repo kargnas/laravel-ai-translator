@@ -4,6 +4,7 @@ namespace Tests\Feature\Console;
 
 use Illuminate\Support\Facades\Config;
 use Kargnas\LaravelAiTranslator\Console\TranslateJson;
+use Kargnas\LaravelAiTranslator\Transformers\JSONLangTransformer;
 
 use function Pest\Laravel\artisan;
 
@@ -61,8 +62,8 @@ test('manual json transformer test', function () {
     $sourceFile = $this->testJsonPath.'/en.json';
     $targetFile = $this->testJsonPath.'/ko.json';
 
-    $sourceTransformer = new \Kargnas\LaravelAiTranslator\Transformers\JSONLangTransformer($sourceFile);
-    $targetTransformer = new \Kargnas\LaravelAiTranslator\Transformers\JSONLangTransformer($targetFile);
+    $sourceTransformer = new JSONLangTransformer($sourceFile);
+    $targetTransformer = new JSONLangTransformer($targetFile);
 
     $sourceStrings = $sourceTransformer->flatten();
     $stringsToTranslate = collect($sourceStrings)
@@ -79,7 +80,7 @@ test('manual json transformer test', function () {
 });
 
 test('debug translate json command', function () {
-    $command = new \Kargnas\LaravelAiTranslator\Console\TranslateJson;
+    $command = new TranslateJson;
     $command->setLaravel(app());
 
     // Set sourceDirectory
@@ -106,7 +107,7 @@ test('manual json file creation test', function () {
         unlink($targetFile);
     }
 
-    $transformer = new \Kargnas\LaravelAiTranslator\Transformers\JSONLangTransformer($targetFile);
+    $transformer = new JSONLangTransformer($targetFile);
     $transformer->updateString('welcome', '환영합니다');
 
     fwrite(STDERR, "\n=== Manual File Test ===\n");
@@ -154,26 +155,26 @@ test('skips already translated strings in json', function () {
         // Other keys will be missing and should be translated
     ];
     file_put_contents($targetFile, json_encode($content, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
-    
+
     $command = new TranslateJson;
     $command->setLaravel(app());
-    
+
     // Use reflection to test the translation behavior
     $reflection = new \ReflectionClass($command);
     $property = $reflection->getProperty('sourceDirectory');
     $property->setAccessible(true);
     $property->setValue($command, $this->testJsonPath);
-    
+
     // Create transformers
     $sourceFile = $this->testJsonPath.'/en.json';
-    $sourceTransformer = new \Kargnas\LaravelAiTranslator\Transformers\JSONLangTransformer($sourceFile);
-    $targetTransformer = new \Kargnas\LaravelAiTranslator\Transformers\JSONLangTransformer($targetFile);
-    
+    $sourceTransformer = new JSONLangTransformer($sourceFile);
+    $targetTransformer = new JSONLangTransformer($targetFile);
+
     $sourceStrings = $sourceTransformer->flatten();
     $stringsToTranslate = collect($sourceStrings)
         ->filter(fn ($v, $k) => ! $targetTransformer->isTranslated($k))
         ->toArray();
-    
+
     // Should not translate 'welcome' since it already exists
     expect($stringsToTranslate)->not->toHaveKey('welcome');
     expect(count($stringsToTranslate))->toBeGreaterThan(0);
@@ -186,47 +187,67 @@ test('handles nested json structure correctly', function () {
         'user' => [
             'profile' => [
                 'name' => 'Name',
-                'email' => 'Email'
+                'email' => 'Email',
             ],
             'settings' => [
-                'theme' => 'Theme'
-            ]
+                'theme' => 'Theme',
+            ],
         ],
-        'simple' => 'Simple value'
+        'simple' => 'Simple value',
     ];
     file_put_contents($testFile, json_encode($nestedContent));
-    
-    $sourceTransformer = new \Kargnas\LaravelAiTranslator\Transformers\JSONLangTransformer($testFile);
+
+    $sourceTransformer = new JSONLangTransformer($testFile);
     $flattened = $sourceTransformer->flatten();
-    
+
     // Should flatten nested keys with dot notation
     expect($flattened)->toHaveKey('user.profile.name');
     expect($flattened)->toHaveKey('user.profile.email');
     expect($flattened)->toHaveKey('user.settings.theme');
     expect($flattened)->toHaveKey('simple');
     expect($flattened['user.profile.name'])->toBe('Name');
-    
+
     // Clean up
     unlink($testFile);
 });
 
 test('creates json file with proper comment header', function () {
     $targetFile = $this->testJsonPath.'/test_header.json';
-    
+
     // Clean up if exists
     if (file_exists($targetFile)) {
         unlink($targetFile);
     }
-    
-    $transformer = new \Kargnas\LaravelAiTranslator\Transformers\JSONLangTransformer($targetFile, 'en');
+
+    $transformer = new JSONLangTransformer($targetFile, 'en');
     $transformer->updateString('test', 'Test Value');
-    
+
     $content = json_decode(file_get_contents($targetFile), true);
-    
+
     expect($content)->toHaveKey('_comment');
     expect($content['_comment'])->toContain('WARNING: This is an auto-generated file');
     expect($content['_comment'])->toContain('automatically translated from en');
-    
+
     // Clean up
     unlink($targetFile);
+});
+
+// Issue #20: a transport failure must fail the JSON command loudly as well.
+test('exits non-zero and shows a failure banner when translation fails', function () {
+    config()->set('ai-translator.ai.api_key', 'test-key');
+    config()->set('ai-translator.ai.retries', 1);
+
+    fakeAiProvider([
+        function (): never {
+            throw new \RuntimeException('HTTP request returned status code 404');
+        },
+    ]);
+
+    artisan('ai-translator:translate-json', [
+        '--source' => 'en',
+        '--locale' => ['ko'],
+        '--non-interactive' => true,
+    ])
+        ->expectsOutputToContain('Translation finished with failures')
+        ->assertExitCode(1);
 });

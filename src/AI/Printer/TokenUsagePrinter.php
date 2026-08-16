@@ -9,6 +9,12 @@ use Illuminate\Console\Command;
  */
 class TokenUsagePrinter
 {
+    public const MODEL_CLAUDE_OPUS_5 = 'anthropic/claude-opus-5';
+
+    public const MODEL_GPT_5_6_SOL = 'openai/gpt-5.6-sol';
+
+    public const MODEL_GEMINI_3_1_PRO = 'google/gemini-3.1-pro-preview';
+
     /**
      * 지원되는 모델 목록
      */
@@ -19,7 +25,7 @@ class TokenUsagePrinter
 
     public const MODEL_CLAUDE_3_HAIKU = 'claude-3-haiku-20240307';
 
-    // Current models
+    // Older direct-provider models
     public const MODEL_CLAUDE_3_5_SONNET = 'claude-3-5-sonnet-20241022';
 
     public const MODEL_CLAUDE_3_5_HAIKU = 'claude-3-5-haiku-20241022';
@@ -31,10 +37,33 @@ class TokenUsagePrinter
     public const MODEL_CLAUDE_OPUS_4 = 'claude-opus-4-20250514';
 
     public const MODEL_CLAUDE_OPUS_4_1 = 'claude-opus-4-1-20250805';
+
     /**
      * 모델별 가격 정보 ($ per million tokens)
      */
     protected const MODEL_RATES = [
+        self::MODEL_CLAUDE_OPUS_5 => [
+            'input' => 5.0,
+            'output' => 25.0,
+            'cache_write' => 6.25,
+            'cache_read' => 0.5,
+            'name' => 'Claude Opus 5',
+        ],
+        self::MODEL_GPT_5_6_SOL => [
+            'input' => 5.0,
+            'output' => 30.0,
+            'cache_write' => 6.25,
+            'cache_read' => 0.5,
+            'name' => 'GPT-5.6 Sol',
+        ],
+        self::MODEL_GEMINI_3_1_PRO => [
+            'input' => 2.0,
+            'output' => 12.0,
+            'cache_write' => 0.375,
+            'cache_read' => 0.2,
+            'name' => 'Gemini 3.1 Pro Preview',
+        ],
+
         // Opus models
         self::MODEL_CLAUDE_OPUS_4_1 => [
             'input' => 15.0,

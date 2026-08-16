@@ -1,6 +1,7 @@
 <?php
 
 use Kargnas\LaravelAiTranslator\AI\AIProvider;
+use Kargnas\LaravelAiTranslator\Enums\TranslationStatus;
 use Prism\Prism\Facades\Prism;
 use Prism\Prism\Testing\TextResponseFake;
 use Prism\Prism\Text\Request;
@@ -143,21 +144,26 @@ test('can translate strings using Gemini', function () {
 test('uses OpenRouter with the default frontier model', function () {
     config()->set('ai-translator.ai.api_key', 'test-openrouter-key');
     config()->set('ai-translator.ai.disable_stream', true);
+    config()->set('ai-translator.ai.temperature', 0.2);
+    config()->set('ai-translator.ai.max_tokens', 4096);
     config()->set('ai-translator.ai.reasoning', ['effort' => 'high']);
 
     $fake = Prism::fake([
         TextResponseFake::make()
             ->withText('<translations><item><key>test.greeting</key><trx><![CDATA[안녕하세요]]></trx></item></translations>')
-            ->withUsage(new Usage(12, 8)),
+            ->withUsage(new Usage(12, 8, cacheReadInputTokens: 4)),
     ]);
 
     $usageEvents = [];
+    $translationEvents = [];
     $provider = (new AIProvider(
         'test.php',
         ['greeting' => 'Hello'],
         'en',
         'ko'
-    ))->setOnTokenUsage(function (array $usage) use (&$usageEvents): void {
+    ))->setOnTranslated(function ($item, string $status) use (&$translationEvents): void {
+        $translationEvents[] = $status;
+    })->setOnTokenUsage(function (array $usage) use (&$usageEvents): void {
         $usageEvents[] = $usage;
     });
 
@@ -167,11 +173,17 @@ test('uses OpenRouter with the default frontier model', function () {
         ->and($result[0]->key)->toBe('greeting')
         ->and($result[0]->translated)->toBe('안녕하세요')
         ->and($provider->getTokenUsage())->toMatchArray([
-            'input_tokens' => 12,
+            'input_tokens' => 8,
             'output_tokens' => 8,
+            'cache_creation_input_tokens' => 0,
+            'cache_read_input_tokens' => 4,
             'total_tokens' => 20,
         ])
-        ->and(array_column($usageEvents, 'final'))->toBe([false, true]);
+        ->and(array_column($usageEvents, 'final'))->toBe([false, true])
+        ->and($translationEvents)->toBe([
+            TranslationStatus::STARTED,
+            TranslationStatus::COMPLETED,
+        ]);
 
     $fake->assertProviderConfig(['api_key' => 'test-openrouter-key']);
     $fake->assertRequest(function (array $requests): void {
@@ -179,8 +191,38 @@ test('uses OpenRouter with the default frontier model', function () {
             ->and($requests[0])->toBeInstanceOf(Request::class)
             ->and($requests[0]->provider())->toBe('openrouter')
             ->and($requests[0]->model())->toBe('anthropic/claude-opus-5')
-            ->and($requests[0]->maxTokens())->toBe(128000)
+            ->and($requests[0]->temperature())->toBe(0.2)
+            ->and($requests[0]->maxTokens())->toBe(4096)
             ->and($requests[0]->providerOptions('reasoning'))->toBe(['effort' => 'high']);
+    });
+});
+
+test('omits unconfigured optional OpenRouter parameters', function () {
+    config()->set('ai-translator.ai.api_key', 'test-openrouter-key');
+    config()->set('ai-translator.ai.disable_stream', true);
+    config()->offsetUnset('ai-translator.ai.temperature');
+    config()->offsetUnset('ai-translator.ai.max_tokens');
+    config()->offsetUnset('ai-translator.ai.reasoning');
+
+    $fake = Prism::fake([
+        TextResponseFake::make()
+            ->withText('<translations><item><key>test.greeting</key><trx><![CDATA[안녕하세요]]></trx></item></translations>')
+            ->withUsage(new Usage(12, 8)),
+    ]);
+
+    $result = (new AIProvider(
+        'test.php',
+        ['greeting' => 'Hello'],
+        'en',
+        'ko'
+    ))->translate();
+
+    expect($result)->toHaveCount(1);
+    $fake->assertRequest(function (array $requests): void {
+        expect($requests)->toHaveCount(1)
+            ->and($requests[0]->temperature())->toBeNull()
+            ->and($requests[0]->maxTokens())->toBeNull()
+            ->and($requests[0]->providerOptions())->toBe([]);
     });
 });
 
@@ -196,12 +238,15 @@ test('streams OpenRouter translations through existing callbacks', function () {
     ])->withFakeChunkSize(9);
 
     $progress = [];
+    $translationEvents = [];
     $provider = (new AIProvider(
         'test.php',
         ['greeting' => 'Hello'],
         'en',
         'ko'
-    ))->setOnProgress(function (string $chunk) use (&$progress): void {
+    ))->setOnTranslated(function ($item, string $status) use (&$translationEvents): void {
+        $translationEvents[] = $status;
+    })->setOnProgress(function (string $chunk) use (&$progress): void {
         $progress[] = $chunk;
     });
 
@@ -209,7 +254,11 @@ test('streams OpenRouter translations through existing callbacks', function () {
 
     expect($result)->toHaveCount(1)
         ->and($result[0]->translated)->toBe('안녕하세요')
-        ->and(implode('', $progress))->toContain('<translations>');
+        ->and(implode('', $progress))->toContain('<translations>')
+        ->and($translationEvents)->toBe([
+            TranslationStatus::STARTED,
+            TranslationStatus::COMPLETED,
+        ]);
 });
 
 test('throws exception for unsupported provider', function () {

@@ -39,7 +39,6 @@ jobs:
       - name: Decide release version
         id: release
         env:
-          EVENT_NAME: ${{ github.event_name }}
           GH_TOKEN: ${{ github.token }}
           REQUESTED_BUMP: ${{ inputs.bump || 'patch' }}
         run: |
@@ -62,47 +61,29 @@ jobs:
             exit 1
           fi
 
-          tag_sha="$(git rev-list -n 1 "${current_version}" 2>/dev/null || true)"
-          release_exists=false
-          if gh release view "${current_version}" >/dev/null 2>&1; then
-            release_exists=true
+          if ! git rev-parse --verify --quiet "refs/tags/${current_version}" >/dev/null; then
+            echo "Missing tag for composer.json version: ${current_version}" >&2
+            exit 1
+          fi
+          if ! gh release view "${current_version}" >/dev/null 2>&1; then
+            echo "Missing GitHub Release for composer.json version: ${current_version}" >&2
+            exit 1
           fi
 
-          if [[ "${EVENT_NAME}" == "push" && "${tag_sha}" == "${head_sha}" && "${release_exists}" == "true" ]]; then
-            echo "${current_version} already releases this commit."
-            echo "eligible=false" >> "${GITHUB_OUTPUT}"
-            exit 0
-          fi
-
-          repair_current=false
-          if [[ -n "${tag_sha}" && "${release_exists}" == "false" ]]; then
-            repair_current=true
-          fi
-
-          if [[ -z "${tag_sha}" || ( "${tag_sha}" == "${head_sha}" && "${release_exists}" == "false" ) ]]; then
-            next_version="${current_version}"
-            bump_required=false
-          else
-            IFS='.' read -r major minor patch <<< "${current_version}"
-            case "${REQUESTED_BUMP}" in
-              major) next_version="$((major + 1)).0.0" ;;
-              minor) next_version="${major}.$((minor + 1)).0" ;;
-              patch) next_version="${major}.${minor}.$((patch + 1))" ;;
-              *)
-                echo "Unsupported bump: ${REQUESTED_BUMP}" >&2
-                exit 1
-                ;;
-            esac
-            bump_required=true
-          fi
+          IFS='.' read -r major minor patch <<< "${current_version}"
+          case "${REQUESTED_BUMP}" in
+            major) next_version="$((major + 1)).0.0" ;;
+            minor) next_version="${major}.$((minor + 1)).0" ;;
+            patch) next_version="${major}.${minor}.$((patch + 1))" ;;
+            *)
+              echo "Unsupported bump: ${REQUESTED_BUMP}" >&2
+              exit 1
+              ;;
+          esac
 
           {
             echo "eligible=true"
-            echo "current_version=${current_version}"
             echo "next_version=${next_version}"
-            echo "bump_required=${bump_required}"
-            echo "repair_current=${repair_current}"
-            echo "tag_missing=$([[ -z "${tag_sha}" ]] && echo true || echo false)"
           } >> "${GITHUB_OUTPUT}"
 
       - name: Setup PHP
@@ -113,7 +94,7 @@ jobs:
           coverage: none
 
       - name: Bump composer version
-        if: steps.release.outputs.bump_required == 'true'
+        if: steps.release.outputs.eligible == 'true'
         env:
           NEXT_VERSION: ${{ steps.release.outputs.next_version }}
         run: composer config version "${NEXT_VERSION}"
@@ -132,7 +113,7 @@ jobs:
           vendor/bin/phpstan analyse --memory-limit=2G
 
       - name: Commit version and push tag
-        if: steps.release.outputs.bump_required == 'true'
+        if: steps.release.outputs.eligible == 'true'
         env:
           NEXT_VERSION: ${{ steps.release.outputs.next_version }}
         run: |
@@ -151,27 +132,9 @@ jobs:
           git tag "${NEXT_VERSION}"
           git push --atomic origin HEAD:master "refs/tags/${NEXT_VERSION}"
 
-      - name: Push existing version tag
-        if: steps.release.outputs.tag_missing == 'true'
-        env:
-          NEXT_VERSION: ${{ steps.release.outputs.next_version }}
-        run: |
-          git tag "${NEXT_VERSION}"
-          git push origin "refs/tags/${NEXT_VERSION}"
-
-      - name: Repair missing current release
-        if: steps.release.outputs.repair_current == 'true' && steps.release.outputs.current_version != steps.release.outputs.next_version
-        env:
-          CURRENT_VERSION: ${{ steps.release.outputs.current_version }}
-          GH_TOKEN: ${{ github.token }}
-        run: gh release create "${CURRENT_VERSION}" --verify-tag --generate-notes
-
       - name: Create GitHub release
         if: steps.release.outputs.eligible == 'true'
         env:
           NEXT_VERSION: ${{ steps.release.outputs.next_version }}
           GH_TOKEN: ${{ github.token }}
-        run: |
-          if ! gh release view "${NEXT_VERSION}" >/dev/null 2>&1; then
-            gh release create "${NEXT_VERSION}" --verify-tag --generate-notes --latest
-          fi
+        run: gh release create "${NEXT_VERSION}" --verify-tag --generate-notes --latest

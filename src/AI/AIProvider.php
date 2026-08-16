@@ -48,11 +48,11 @@ class AIProvider implements Translator
 
     protected int $outputTokens = 0;
 
-    protected int $totalTokens = 0;
-
     protected int $cacheCreationInputTokens = 0;
 
     protected int $cacheReadInputTokens = 0;
+
+    protected int $totalTokens = 0;
 
     // Callback properties
     protected $onTranslated = null;
@@ -110,6 +110,8 @@ class AIProvider implements Translator
         // Initialize tokens
         $this->inputTokens = 0;
         $this->outputTokens = 0;
+        $this->cacheCreationInputTokens = 0;
+        $this->cacheReadInputTokens = 0;
         $this->totalTokens = 0;
         $this->cacheCreationInputTokens = 0;
         $this->cacheReadInputTokens = 0;
@@ -569,16 +571,22 @@ class AIProvider implements Translator
      */
     protected function providerOptions(): array
     {
-        if ($this->configProvider !== 'anthropic' || ! $this->effectiveConfig('use_extended_thinking', false)) {
-            return [];
+        if ($this->configProvider === 'anthropic' && $this->effectiveConfig('use_extended_thinking', false)) {
+            return [
+                'thinking' => [
+                    'enabled' => true,
+                    'budgetTokens' => 10000,
+                ],
+            ];
         }
 
-        return [
-            'thinking' => [
-                'enabled' => true,
-                'budgetTokens' => 10000,
-            ],
-        ];
+        // OpenRouter forwards reasoning effort (e.g. ['effort' => 'high']) to the underlying model.
+        $reasoning = $this->effectiveConfig('reasoning');
+        if ($this->configProvider === 'openrouter' && $reasoning !== null) {
+            return ['reasoning' => $reasoning];
+        }
+
+        return [];
     }
 
     protected function maxTokens(): ?int
@@ -664,11 +672,16 @@ class AIProvider implements Translator
 
     protected function updateTokenUsage(Usage $usage): void
     {
-        $this->inputTokens = $usage->promptTokens;
-        $this->outputTokens = $usage->completionTokens;
         $this->cacheCreationInputTokens = $usage->cacheWriteInputTokens ?? 0;
         $this->cacheReadInputTokens = $usage->cacheReadInputTokens ?? 0;
-        $this->totalTokens = $usage->promptTokens + $usage->completionTokens;
+        // OpenRouter includes cache reads in promptTokens but exposes cache writes separately,
+        // so subtract reads to keep input_tokens as freshly billed input only.
+        $this->inputTokens = max(0, $usage->promptTokens - $this->cacheReadInputTokens);
+        $this->outputTokens = $usage->completionTokens;
+        $this->totalTokens = $this->inputTokens
+            + $this->outputTokens
+            + $this->cacheCreationInputTokens
+            + $this->cacheReadInputTokens;
 
         if ($this->onTokenUsage) {
             $tokenUsage = $this->getTokenUsage();

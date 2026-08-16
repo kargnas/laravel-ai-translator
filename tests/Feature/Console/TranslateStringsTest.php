@@ -11,7 +11,9 @@ use function Pest\Laravel\artisan;
 
 function checkApiKeysExistForFeature(): bool
 {
-    return ! empty(env('OPENAI_API_KEY')) && ! empty(env('ANTHROPIC_API_KEY'));
+    $key = env('OPENROUTER_API_KEY');
+
+    return is_string($key) && $key !== '' && ! str_starts_with($key, 'your-');
 }
 
 beforeEach(function () {
@@ -21,8 +23,6 @@ beforeEach(function () {
     // Set up test language file directory
     $this->testLangPath = __DIR__.'/../../Fixtures/lang';
 
-    // For testing purpose, we use claude-3-haiku-20240307 model. (It's faster and cheaper than other models.)
-    Config::set('ai-translator.model', 'claude-3-haiku-20240307');
     Config::set('ai-translator.source_directory', $this->testLangPath);
     Config::set('ai-translator.source_locale', 'en');
 

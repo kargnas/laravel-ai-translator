@@ -336,6 +336,11 @@ class TokenUsagePrinter
             return;
         }
 
+        // printCostEstimation already reported this catalog-level failure for a full report.
+        if ($this->pricingError !== null) {
+            return;
+        }
+
         $command->line("\n".str_repeat('─', 80));
         $command->line($this->colors['blue_bg'].$this->colors['white'].$this->colors['bold'].' Model Cost Comparison '.$this->colors['reset']);
 

@@ -164,3 +164,17 @@ test('reports OpenRouter catalog failures without a model fallback', function ()
         ->toContain('OpenRouter pricing request failed with HTTP 503.')
         ->not->toContain('Total Cost:');
 });
+
+test('reports an OpenRouter catalog failure once across a full report', function () {
+    config()->set('ai-translator.ai.provider', 'anthropic');
+    Http::fake([
+        'https://openrouter.ai/api/v1/models' => Http::response([], 503),
+    ]);
+    [$command, $output] = pricingCommand();
+
+    (new TokenUsagePrinter('claude-opus-5'))->printFullReport($command, pricingUsage());
+
+    $report = $output->fetch();
+    expect(substr_count($report, 'OpenRouter pricing request failed with HTTP 503.'))->toBe(1)
+        ->and($report)->not->toContain('Model Cost Comparison');
+});

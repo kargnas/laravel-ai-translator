@@ -28,10 +28,11 @@ AI-powered translation tool for Laravel language files
   - Better handling of backup directories
   - Strict path matching to prevent unintended deletions
 - 🔁 **Parallel Translation**: Translate multiple locales concurrently with the `translate-parallel` command
-- **OpenRouter Provider**: Uses PrismPHP to access current frontier models through one API
-  - Defaults to Claude Opus 5
+- **AI Providers**: Uses OpenRouter by default while retaining direct OpenAI, Anthropic, and Gemini support
+  - Uses PrismPHP for OpenRouter with Claude Opus 5 as the default model
   - Supports GPT-5.6 Sol and Gemini 3.7 Flash model IDs
   - Supports streaming responses and reasoning callbacks
+  - Loads pricing from OpenRouter for every provider and caches the catalog for six hours
 - **Visual Logging Improvements**: Completely redesigned logging system
   - 🎨 Beautiful color-coded console output
   - 📊 Real-time progress indicators
@@ -437,18 +438,24 @@ This will create a `config/ai-translator.php` file where you can modify the foll
   ],
   ```
 
-  The package default is defined in [`config/ai-translator.php`](config/ai-translator.php). Other current frontier model examples:
+  OpenRouter is the default, not the only supported provider. The package default is defined in [`config/ai-translator.php`](config/ai-translator.php). Current provider examples:
 
-  | Provider     | Model                           |
-  | ------------ | ------------------------------- |
-  | `openrouter` | `openai/gpt-5.6-sol`            |
-  | `openrouter` | `google/gemini-3.7-flash`       |
+  | Provider               | Model                           | API key variable        |
+  | ---------------------- | ------------------------------- | ----------------------- |
+  | `openrouter` (default) | `anthropic/claude-opus-5`       | `OPENROUTER_API_KEY`    |
+  | `openrouter`           | `openai/gpt-5.6-sol`            | `OPENROUTER_API_KEY`    |
+  | `openrouter`           | `google/gemini-3.7-flash`       | `OPENROUTER_API_KEY`    |
+  | `openai`               | `gpt-5.6-sol`                   | `OPENAI_API_KEY`        |
+  | `anthropic`            | `claude-opus-5`                 | `ANTHROPIC_API_KEY`     |
+  | `gemini`               | `gemini-3.7-flash`              | `GEMINI_API_KEY`        |
 
   Check current availability and limits in the [OpenRouter model catalog](https://openrouter.ai/models).
 
+  Cost reports use the public OpenRouter model catalog for both OpenRouter and direct-provider requests. The catalog is cached for six hours, and direct-provider credentials are never sent to OpenRouter.
+
   ### Provider Setup
 
-  1. Create an API key in [OpenRouter](https://openrouter.ai/settings/keys).
+  1. Create an API key for the provider you want to use. For the default provider, create one in [OpenRouter](https://openrouter.ai/settings/keys).
 
   2. Add to your `.env` file:
 
@@ -456,7 +463,7 @@ This will create a `config/ai-translator.php` file where you can modify the foll
      OPENROUTER_API_KEY=your-api-key
      ```
 
-  3. Configure in `config/ai-translator.php`:
+  3. Configure the matching provider, model, and API key in `config/ai-translator.php`:
      ```php
      'ai' => [
         'provider' => 'openrouter',

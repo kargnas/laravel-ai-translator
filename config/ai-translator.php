@@ -8,6 +8,7 @@ return [
     'source_locale' => 'en',
 
     'ai' => [
+        // Supported providers: OpenRouter (default), OpenAI, Anthropic, and Gemini.
         'provider' => 'openrouter',
         'model' => 'anthropic/claude-opus-5',
         'api_key' => env('OPENROUTER_API_KEY'),

@@ -25,5 +25,5 @@ test('reports current frontier model pricing', function (string $model, string $
 })->with([
     ['anthropic/claude-opus-5', 'Claude Opus 5', '3.000000'],
     ['openai/gpt-5.6-sol', 'GPT-5.6 Sol', '3.500000'],
-    ['google/gemini-3.1-pro-preview', 'Gemini 3.1 Pro Preview', '1.400000'],
+    ['google/gemini-3.7-flash', 'Gemini 3.7 Flash', '0.225000'],
 ]);

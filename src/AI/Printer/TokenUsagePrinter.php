@@ -13,7 +13,7 @@ class TokenUsagePrinter
 
     public const MODEL_GPT_5_6_SOL = 'openai/gpt-5.6-sol';
 
-    public const MODEL_GEMINI_3_1_PRO = 'google/gemini-3.1-pro-preview';
+    public const MODEL_GEMINI_3_7_FLASH = 'google/gemini-3.7-flash';
 
     /**
      * 지원되는 모델 목록
@@ -56,12 +56,12 @@ class TokenUsagePrinter
             'cache_read' => 0.5,
             'name' => 'GPT-5.6 Sol',
         ],
-        self::MODEL_GEMINI_3_1_PRO => [
-            'input' => 2.0,
-            'output' => 12.0,
-            'cache_write' => 0.375,
-            'cache_read' => 0.2,
-            'name' => 'Gemini 3.1 Pro Preview',
+        self::MODEL_GEMINI_3_7_FLASH => [
+            'input' => 0.375,
+            'output' => 1.875,
+            'cache_write' => 0.020833,
+            'cache_read' => 0.0375,
+            'name' => 'Gemini 3.7 Flash',
         ],
 
         // Opus models

@@ -17,7 +17,7 @@ return [
         // 'retries' => 5,
         // 'max_tokens' => 128000,
         // 'reasoning' => ['effort' => 'high'],
-        // 'use_extended_thinking' => false, // Anthropic direct provider only.
+        // 'use_extended_thinking' => false, // Claude 3.7 with the Anthropic direct provider only.
         // 'disable_stream' => true, // Disable streaming mode for better error messages
 
         // 'prompt_custom_system_file_path' => null, // Full path to your own custom prompt-system.txt - i.e. resource_path('prompt-system.txt')

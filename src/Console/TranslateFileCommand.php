@@ -82,11 +82,6 @@ class TranslateFileCommand extends Command
             $this->info("Target language: {$targetLanguage}");
             $this->info('Total strings: '.count($strings));
 
-            config(['ai-translator.ai.model' => 'claude-3-7-sonnet-latest']);
-            config(['ai-translator.ai.max_tokens' => 64000]);
-            // config(['ai-translator.ai.model' => 'claude-3-5-sonnet-latest']);
-            // config(['ai-translator.ai.max_tokens' => 8192]);
-            config(['ai-translator.ai.use_extended_thinking' => false]);
             config(['ai-translator.ai.disable_stream' => false]);
 
             // Get global translation context

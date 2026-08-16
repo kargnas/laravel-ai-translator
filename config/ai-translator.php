@@ -8,34 +8,16 @@ return [
     'source_locale' => 'en',
 
     'ai' => [
-        'provider' => 'anthropic',
-        'model' => 'claude-3-5-sonnet-latest', // Best result. Recommend for production.
-        'api_key' => env('ANTHROPIC_API_KEY'),
-
-        // claude-3-haiku
-        // 'provider' => 'anthropic',
-        // 'model' => 'claude-3-haiku-20240307', // Recommend to use for testing purpose. It's better than gpt-3.5
-        // 'api_key' => env('ANTHROPIC_API_KEY'),
-
-        // gpt-4o
-        // 'provider' => 'openai',
-        // 'model' => 'gpt-4o', // Balanced. Normal price, normal accuracy. Recommend for production.
-        // 'api_key' => env('OPENAI_API_KEY'),
-
-        // gpt-4o-mini
-        // 'provider' => 'openai',
-        // 'model' => 'gpt-4o-mini', // Recommend to use for testing purpose. It sometimes doesn't translate.
-        // 'api_key' => env('OPENAI_API_KEY'),
-
-        // gemini-2.5-pro-preview-05-06
-        // 'provider' => 'gemini',
-        // 'model' => 'gemini-2.5-pro-preview-05-06',
-        // 'api_key' => env('GEMINI_API_KEY'),
+        // Supported providers: OpenRouter (default), OpenAI, Anthropic, and Gemini.
+        'provider' => 'openrouter',
+        'model' => 'anthropic/claude-opus-5',
+        'api_key' => env('OPENROUTER_API_KEY'),
 
         // Additional options
         // 'retries' => 5,
-        // 'max_tokens' => 4096,
-        // 'use_extended_thinking' => false, // Extended Thinking 기능 사용 여부 (claude-3-7-sonnet-latest 모델만 지원)
+        // 'max_tokens' => 128000,
+        // 'reasoning' => ['effort' => 'high'],
+        // 'use_extended_thinking' => false, // Claude 3.7 with the Anthropic direct provider only.
         // 'disable_stream' => true, // Disable streaming mode for better error messages
 
         // 'prompt_custom_system_file_path' => null, // Full path to your own custom prompt-system.txt - i.e. resource_path('prompt-system.txt')

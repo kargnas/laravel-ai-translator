@@ -16,7 +16,7 @@ class TestTranslateCommand extends Command
                           {target_language=ko : Target language code (ex: ko)}
                           {--text= : Text to translate}
                           {--rules=* : Additional rules}
-                          {--extended-thinking : Use Extended Thinking feature (only supported for claude-3-7 models)}
+                          {--extended-thinking : Request high reasoning effort from supported models}
                           {--debug : Enable debug mode with detailed logging}
                           {--show-xml : Show raw XML response in the output}';
 
@@ -63,7 +63,11 @@ class TestTranslateCommand extends Command
         }
 
         if ($useExtendedThinking) {
-            config(['ai-translator.ai.use_extended_thinking' => true]);
+            // One CLI flag configures both OpenRouter reasoning and the retained direct Anthropic path.
+            config([
+                'ai-translator.ai.reasoning' => ['effort' => 'high'],
+                'ai-translator.ai.use_extended_thinking' => true,
+            ]);
         }
 
         // 토큰 사용량 추적을 위한 변수

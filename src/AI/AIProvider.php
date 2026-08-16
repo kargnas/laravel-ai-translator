@@ -13,6 +13,14 @@ use Kargnas\LaravelAiTranslator\Enums\PromptType;
 use Kargnas\LaravelAiTranslator\Enums\TranslationStatus;
 use Kargnas\LaravelAiTranslator\Exceptions\VerifyFailedException;
 use Kargnas\LaravelAiTranslator\Models\LocalizedString;
+use Prism\Prism\Enums\Provider;
+use Prism\Prism\Facades\Prism;
+use Prism\Prism\Streaming\Events\StreamEndEvent;
+use Prism\Prism\Streaming\Events\TextDeltaEvent;
+use Prism\Prism\Streaming\Events\ThinkingCompleteEvent;
+use Prism\Prism\Streaming\Events\ThinkingEvent;
+use Prism\Prism\Streaming\Events\ThinkingStartEvent;
+use Prism\Prism\ValueObjects\Usage;
 
 class AIProvider
 {
@@ -35,6 +43,10 @@ class AIProvider
     protected int $inputTokens = 0;
 
     protected int $outputTokens = 0;
+
+    protected int $cacheCreationInputTokens = 0;
+
+    protected int $cacheReadInputTokens = 0;
 
     protected int $totalTokens = 0;
 
@@ -94,6 +106,8 @@ class AIProvider
         // Initialize tokens
         $this->inputTokens = 0;
         $this->outputTokens = 0;
+        $this->cacheCreationInputTokens = 0;
+        $this->cacheReadInputTokens = 0;
         $this->totalTokens = 0;
 
         Log::info("AIProvider initiated: Source language = {$this->sourceLanguageObj->name} ({$this->sourceLanguageObj->code}), Target language = {$this->targetLanguageObj->name} ({$this->targetLanguageObj->code})");
@@ -382,11 +396,142 @@ class AIProvider
     protected function getTranslatedObjects(): array
     {
         return match ($this->configProvider) {
+            'openrouter' => $this->getTranslatedObjectsFromOpenRouter(),
             'anthropic' => $this->getTranslatedObjectsFromAnthropic(),
             'openai' => $this->getTranslatedObjectsFromOpenAI(),
             'gemini' => $this->getTranslatedObjectsFromGemini(),
             default => throw new \Exception("Provider {$this->configProvider} is not supported."),
         };
+    }
+
+    protected function getTranslatedObjectsFromOpenRouter(): array
+    {
+        $responseParser = new AIResponseParser($this->onTranslated, config('app.debug', false));
+        $request = Prism::text()
+            ->using(Provider::OpenRouter, $this->configModel, [
+                'api_key' => config('ai-translator.ai.api_key'),
+            ])
+            ->withSystemPrompt($this->getSystemPrompt())
+            ->withPrompt($this->getUserPrompt());
+
+        $temperature = config('ai-translator.ai.temperature');
+        if ($temperature !== null) {
+            $request->usingTemperature($temperature);
+        }
+
+        $maxTokens = config('ai-translator.ai.max_tokens');
+        if ($maxTokens !== null) {
+            $request->withMaxTokens((int) $maxTokens);
+        }
+
+        $reasoning = config('ai-translator.ai.reasoning');
+        if ($reasoning !== null) {
+            $request->withProviderOptions(['reasoning' => $reasoning]);
+        }
+
+        if (config('ai-translator.ai.disable_stream', false)) {
+            $response = $request->asText();
+            $this->trackPrismUsage($response->usage);
+            $responseParser->parse($response->text);
+
+            if ($this->onProgress) {
+                ($this->onProgress)($response->text, $responseParser->getTranslatedItems());
+            }
+
+            if ($this->onTranslated) {
+                foreach ($responseParser->getTranslatedItems() as $item) {
+                    ($this->onTranslated)($item, TranslationStatus::STARTED, $responseParser->getTranslatedItems());
+                    ($this->onTranslated)($item, TranslationStatus::COMPLETED, $responseParser->getTranslatedItems());
+                }
+            }
+
+            return $responseParser->getTranslatedItems();
+        }
+
+        $responseText = '';
+        $thinkingContent = '';
+
+        foreach ($request->asStream() as $event) {
+            if ($event instanceof StreamEndEvent && $event->usage !== null) {
+                $this->trackPrismUsage($event->usage);
+            }
+
+            if ($event instanceof ThinkingStartEvent) {
+                $thinkingContent = '';
+
+                if ($this->onThinkingStart) {
+                    ($this->onThinkingStart)();
+                }
+
+                continue;
+            }
+
+            if ($event instanceof ThinkingEvent) {
+                $thinkingContent .= $event->delta;
+
+                if ($this->onThinking) {
+                    ($this->onThinking)($event->delta);
+                }
+
+                continue;
+            }
+
+            if ($event instanceof ThinkingCompleteEvent) {
+                if ($this->onThinkingEnd) {
+                    ($this->onThinkingEnd)($thinkingContent);
+                }
+
+                continue;
+            }
+
+            if (! $event instanceof TextDeltaEvent) {
+                continue;
+            }
+
+            $responseText .= $event->delta;
+            $previousItemCount = count($responseParser->getTranslatedItems());
+            $responseParser->parseChunk($event->delta);
+            $translatedItems = $responseParser->getTranslatedItems();
+
+            if ($this->onTranslated) {
+                foreach (array_slice($translatedItems, $previousItemCount) as $item) {
+                    ($this->onTranslated)($item, TranslationStatus::COMPLETED, $translatedItems);
+                }
+            }
+
+            if ($this->onProgress) {
+                ($this->onProgress)($event->delta, $translatedItems);
+            }
+        }
+
+        if ($responseParser->getTranslatedItems() === [] && $responseText !== '') {
+            $responseParser->parse($responseText);
+        }
+
+        return $responseParser->getTranslatedItems();
+    }
+
+    protected function trackPrismUsage(Usage $usage): void
+    {
+        $this->cacheCreationInputTokens = $usage->cacheWriteInputTokens ?? 0;
+        $this->cacheReadInputTokens = $usage->cacheReadInputTokens ?? 0;
+        // OpenRouter includes cache reads in promptTokens but exposes cache writes separately.
+        $this->inputTokens = max(
+            0,
+            $usage->promptTokens - $this->cacheReadInputTokens
+        );
+        $this->outputTokens = $usage->completionTokens;
+        $this->totalTokens = $this->inputTokens
+            + $this->outputTokens
+            + $this->cacheCreationInputTokens
+            + $this->cacheReadInputTokens;
+
+        // Existing console callbacks expect an intermediate update before translate() emits the final one.
+        if ($this->onTokenUsage) {
+            $tokenUsage = $this->getTokenUsage();
+            $tokenUsage['final'] = false;
+            ($this->onTokenUsage)($tokenUsage);
+        }
     }
 
     protected function getTranslatedObjectsFromOpenAI(): array
@@ -504,6 +649,8 @@ class AIProvider
         // 토큰 사용량 초기화
         $this->inputTokens = 0;
         $this->outputTokens = 0;
+        $this->cacheCreationInputTokens = 0;
+        $this->cacheReadInputTokens = 0;
         $this->totalTokens = 0;
 
         // Initialize response parser with debug mode enabled in development
@@ -710,15 +857,7 @@ class AIProvider
 
             // 토큰 사용량 최종 확인
             if (isset($response['usage'])) {
-                if (isset($response['usage']['input_tokens'])) {
-                    $this->inputTokens = (int) $response['usage']['input_tokens'];
-                }
-
-                if (isset($response['usage']['output_tokens'])) {
-                    $this->outputTokens = (int) $response['usage']['output_tokens'];
-                }
-
-                $this->totalTokens = $this->inputTokens + $this->outputTokens;
+                $this->extractTokensFromUsage($response['usage']);
             }
 
             // 디버깅: 최종 응답 구조 로깅
@@ -736,13 +875,7 @@ class AIProvider
 
             // 토큰 사용량 추적 (스트리밍이 아닌 경우)
             if (isset($response['usage'])) {
-                if (isset($response['usage']['input_tokens'])) {
-                    $this->inputTokens = $response['usage']['input_tokens'];
-                }
-                if (isset($response['usage']['output_tokens'])) {
-                    $this->outputTokens = $response['usage']['output_tokens'];
-                }
-                $this->totalTokens = $this->inputTokens + $this->outputTokens;
+                $this->extractTokensFromUsage($response['usage']);
             }
 
             $responseText = $response['content'][0]['text'];
@@ -813,8 +946,8 @@ class AIProvider
         return [
             'input_tokens' => $this->inputTokens,
             'output_tokens' => $this->outputTokens,
-            'cache_creation_input_tokens' => null,
-            'cache_read_input_tokens' => null,
+            'cache_creation_input_tokens' => $this->cacheCreationInputTokens,
+            'cache_read_input_tokens' => $this->cacheReadInputTokens,
             'total_tokens' => $this->totalTokens,
         ];
     }
@@ -912,7 +1045,18 @@ class AIProvider
             $this->outputTokens = (int) $usage['output_tokens'];
         }
 
-        $this->totalTokens = $this->inputTokens + $this->outputTokens;
+        if (isset($usage['cache_creation_input_tokens'])) {
+            $this->cacheCreationInputTokens = (int) $usage['cache_creation_input_tokens'];
+        }
+
+        if (isset($usage['cache_read_input_tokens'])) {
+            $this->cacheReadInputTokens = (int) $usage['cache_read_input_tokens'];
+        }
+
+        $this->totalTokens = $this->inputTokens
+            + $this->outputTokens
+            + $this->cacheCreationInputTokens
+            + $this->cacheReadInputTokens;
     }
 
     /**

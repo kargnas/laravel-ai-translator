@@ -23,7 +23,7 @@
 ## Code Style Guidelines
 
 ### PHP Standards
-- **Version**: Minimum PHP 8.0, use PHP 8.1+ features where available
+- **Version**: Minimum PHP 8.2
 - **Standards**: Follow PSR-12 coding standard
 - **Testing**: Use Pest for tests, follow existing test patterns
 

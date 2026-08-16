@@ -9,15 +9,17 @@ use function Pest\Laravel\artisan;
 
 function checkApiKeysExistForJsonFeature(): bool
 {
-    return ! empty(env('OPENAI_API_KEY')) || ! empty(env('ANTHROPIC_API_KEY'));
+    $key = env('OPENROUTER_API_KEY');
+
+    return is_string($key) && $key !== '' && ! str_starts_with($key, 'your-');
 }
 
 beforeEach(function () {
     $this->hasApiKeys = checkApiKeysExistForJsonFeature();
     $this->testJsonPath = __DIR__.'/../../Fixtures/lang_json';
-    Config::set('ai-translator.ai.provider', 'anthropic');
-    Config::set('ai-translator.ai.model', 'claude-3-haiku-20240307');
-    Config::set('ai-translator.ai.api_key', env('ANTHROPIC_API_KEY'));
+    Config::set('ai-translator.ai.provider', 'openrouter');
+    Config::set('ai-translator.ai.model', 'anthropic/claude-opus-5');
+    Config::set('ai-translator.ai.api_key', env('OPENROUTER_API_KEY'));
     Config::set('ai-translator.source_directory', $this->testJsonPath);
     Config::set('ai-translator.source_locale', 'en');
 
